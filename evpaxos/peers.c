@@ -50,7 +50,7 @@ struct peer
 
 struct subscription
 {
-	paxos_message_type type;
+	standard_paxos_message_type type;
 	peer_cb callback;
 	void* arg;
 };
@@ -216,7 +216,7 @@ peers_listen(struct peers* p, int port)
 }
 
 void
-peers_subscribe(struct peers* p, paxos_message_type type, peer_cb cb, void* arg)
+peers_subscribe(struct peers* p, standard_paxos_message_type type, peer_cb cb, void* arg)
 {
 	struct subscription* sub = &p->subs[p->subs_count];
 	sub->type = type;
@@ -232,7 +232,7 @@ peers_get_event_base(struct peers* p)
 }
 
 static void
-dispatch_message(struct peer* p, paxos_message* msg)
+dispatch_message(struct peer* p, standard_paxos_message* msg)
 {
 	int i;
 	for (i = 0; i < p->peers->subs_count; ++i) {
@@ -245,7 +245,7 @@ dispatch_message(struct peer* p, paxos_message* msg)
 static void
 on_read(struct bufferevent* bev, void* arg)
 {
-	paxos_message msg;
+	standard_paxos_message msg;
 	struct peer* p = (struct peer*)arg;
 	struct evbuffer* in = bufferevent_get_input(bev);
 	while (recv_paxos_message(in, &msg)) {

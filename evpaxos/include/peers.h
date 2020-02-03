@@ -41,7 +41,7 @@ extern "C" {
 struct peer;
 struct peers;
 
-typedef void (*peer_cb)(struct peer* p, paxos_message* m, void* arg);
+typedef void (*peer_cb)(struct peer* p, standard_paxos_message* m, void* arg);
 typedef void (*peer_iter_cb)(struct peer* p, void* arg);
 
 struct peers* peers_new(struct event_base* base, struct evpaxos_config* config);
@@ -49,7 +49,7 @@ void peers_free(struct peers* p);
 int peers_count(struct peers* p);
 void peers_connect_to_acceptors(struct peers* p);
 int peers_listen(struct peers* p, int port);
-void peers_subscribe(struct peers* p, paxos_message_type t, peer_cb cb, void*);
+void peers_subscribe(struct peers* p, standard_paxos_message_type t, peer_cb cb, void*);
 void peers_foreach_acceptor(struct peers* p, peer_iter_cb cb, void* arg);
 void peers_for_n_acceptor(struct peers* p, peer_iter_cb cb, void* arg, int n);
 void peers_foreach_client(struct peers* p, peer_iter_cb cb, void* arg);

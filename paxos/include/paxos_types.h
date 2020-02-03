@@ -109,7 +109,7 @@ struct paxos_client_value
 };
 typedef struct paxos_client_value paxos_client_value;
 
-enum paxos_message_type
+enum standard_paxos_message_type
 {
 	PAXOS_PREPARE,
 	PAXOS_PROMISE,
@@ -128,11 +128,11 @@ enum paxos_message_type
     PAXOS_EPOCH_BALLOT_PREEMPTED,
     PAXOS_EPOCH_NOTIFICATION
 };
-typedef enum paxos_message_type paxos_message_type;
+typedef enum standard_paxos_message_type standard_paxos_message_type;
 
-struct paxos_message
+struct standard_paxos_message
 {
-	paxos_message_type type;
+	standard_paxos_message_type type;
 	union
 	{
 		paxos_prepare prepare;
@@ -148,6 +148,8 @@ struct paxos_message
 };
 
 
+
+
 struct paxos_epoch_ballot {
      uint32_t epoch;
      uint32_t ballot;
@@ -155,6 +157,6 @@ struct paxos_epoch_ballot {
 
 
 
-typedef struct paxos_message paxos_message;
+typedef struct standard_paxos_message standard_paxos_message;
 
 #endif

@@ -34,10 +34,10 @@ struct write_ahead_window_acceptor* write_ahead_window_acceptor_new(int id, int 
 void write_ahead_window_acceptor_free(struct write_ahead_window_acceptor *a);
 
 int write_ahead_window_acceptor_receive_prepare(struct write_ahead_window_acceptor *a,
-                                      paxos_prepare *req, paxos_message *out);
+                                                paxos_prepare *req, standard_paxos_message *out);
 
 int write_ahead_window_acceptor_receive_accept(struct write_ahead_window_acceptor *a,
-                                     paxos_accept *req, paxos_message *out);
+                                               paxos_accept *req, standard_paxos_message *out);
 
 int write_ahead_window_acceptor_receive_repeat(struct write_ahead_window_acceptor *a,
                                      iid_t iid, paxos_accepted *out);

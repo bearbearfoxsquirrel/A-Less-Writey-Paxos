@@ -493,7 +493,7 @@ int
 write_ahead_window_acceptor_receive_prepare(
         struct write_ahead_window_acceptor* a,
         paxos_prepare* req,
-        paxos_message* out
+        standard_paxos_message* out
             )
 {
     bool is_there_response_message = false; // Initially we don't have a message to response with
@@ -586,7 +586,7 @@ void write_ahead_window_acceptor_check_and_flag_instance_for_new_ballot_epoch(st
 
 int
 write_ahead_window_acceptor_receive_accept(struct write_ahead_window_acceptor* acceptor,
-                                    paxos_accept* request, paxos_message* out)
+                                           paxos_accept* request, struct standard_paxos_message* out)
 {
     if (request->iid <= acceptor->standard_acceptor->trim_iid) {
         return 0;

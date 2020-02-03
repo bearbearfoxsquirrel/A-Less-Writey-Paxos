@@ -54,9 +54,9 @@ peer_send_paxos_message(struct peer* p, void* arg)
 	Received a prepare request (phase 1a).
 */
 static void 
-evacceptor_handle_prepare(struct peer* p, paxos_message* msg, void* arg)
+evacceptor_handle_prepare(struct peer* p, standard_paxos_message* msg, void* arg)
 {
-	paxos_message out;
+	standard_paxos_message out;
 	paxos_prepare* prepare = &msg->u.prepare;
 	struct ev_standard_acceptor* a = (struct ev_standard_acceptor*)arg;
 	paxos_log_debug("Handle prepare for iid %d ballot %d",
@@ -71,9 +71,9 @@ evacceptor_handle_prepare(struct peer* p, paxos_message* msg, void* arg)
 	Received a accept request (phase 2a).
 */
 static void 
-evacceptor_handle_accept(struct peer* p, paxos_message* msg, void* arg)
+evacceptor_handle_accept(struct peer* p, standard_paxos_message* msg, void* arg)
 {	
-	paxos_message out;
+	standard_paxos_message out;
 	paxos_accept* accept = &msg->u.accept;
 	struct ev_standard_acceptor* a = (struct ev_standard_acceptor*)arg;
 	paxos_log_debug("Handle accept for iid %d bal %d", 
@@ -89,7 +89,7 @@ evacceptor_handle_accept(struct peer* p, paxos_message* msg, void* arg)
 }
 
 static void
-evacceptor_handle_repeat(struct peer* p, paxos_message* msg, void* arg)
+evacceptor_handle_repeat(struct peer* p, standard_paxos_message* msg, void* arg)
 {
 	iid_t iid;
 	paxos_accepted accepted;
@@ -105,7 +105,7 @@ evacceptor_handle_repeat(struct peer* p, paxos_message* msg, void* arg)
 }
 
 static void
-evacceptor_handle_trim(struct peer* p, paxos_message* msg, void* arg)
+evacceptor_handle_trim(struct peer* p, standard_paxos_message* msg, void* arg)
 {
 	paxos_trim* trim = &msg->u.trim;
 	struct ev_standard_acceptor* a = (struct ev_standard_acceptor*)arg;
@@ -116,7 +116,7 @@ static void
 send_acceptor_state(int fd, short ev, void* arg)
 {
 	struct ev_standard_acceptor* a = (struct ev_standard_acceptor*)arg;
-	paxos_message msg = {.type = PAXOS_ACCEPTOR_STATE};
+	standard_paxos_message msg = {.type = PAXOS_ACCEPTOR_STATE};
     standard_acceptor_set_current_state(a->state, &msg.u.state);
 	peers_foreach_client(a->peers, peer_send_paxos_message, &msg);
 	event_add(a->timer_ev, &a->timer_tv);

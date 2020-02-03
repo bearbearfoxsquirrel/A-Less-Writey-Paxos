@@ -32,7 +32,7 @@ void copy_value(const struct paxos_value *value_to_copy, struct paxos_value *cop
 
 
 void
-paxos_accepted_to_promise(const struct paxos_accepted *acc, paxos_message *out) {
+paxos_accepted_to_promise(const struct paxos_accepted *acc, standard_paxos_message *out) {
     out->type = PAXOS_PROMISE;
     out->u.promise = (paxos_promise) {
             acc->aid,
@@ -44,7 +44,7 @@ paxos_accepted_to_promise(const struct paxos_accepted *acc, paxos_message *out) 
 }
 
 void
-paxos_accept_to_accepted(int id, const struct paxos_accept *acc, paxos_message *out) {
+paxos_accept_to_accepted(int id, const struct paxos_accept *acc, standard_paxos_message *out) {
     char *value = NULL;
     int value_size = acc->value.paxos_value_len;
     if (value_size > 0) {
@@ -62,7 +62,7 @@ paxos_accept_to_accepted(int id, const struct paxos_accept *acc, paxos_message *
 }
 
 void // should this return the same ballot or a higher one?
-paxos_prepare_to_preempted(int id, const struct paxos_prepare* prepare, struct paxos_message *out) {
+paxos_prepare_to_preempted(int id, const struct paxos_prepare* prepare, struct standard_paxos_message *out) {
     out->type = PAXOS_PREEMPTED;
     out->u.preempted = (struct paxos_preempted) {
         .aid = id,
@@ -72,13 +72,13 @@ paxos_prepare_to_preempted(int id, const struct paxos_prepare* prepare, struct p
 }
 
 void
-paxos_accept_to_preempted(int id, const struct paxos_accept* accept, paxos_message *out){
+paxos_accept_to_preempted(int id, const struct paxos_accept* accept, standard_paxos_message *out){
     out->type = PAXOS_PREEMPTED;
     out->u.preempted = (paxos_preempted) {id, accept->iid, accept->ballot};
 }
 
 void
-paxos_accepted_to_preempted(int id, const struct paxos_accepted *acc, paxos_message *out) {
+paxos_accepted_to_preempted(int id, const struct paxos_accepted *acc, standard_paxos_message *out) {
     out->type = PAXOS_PREEMPTED;
     out->u.preempted = (paxos_preempted) {id, acc->iid, acc->ballot};
 }
@@ -98,7 +98,7 @@ paxos_accepted_to_prepare(const struct paxos_accepted *accepted, paxos_prepare *
 }
 
 void
-paxos_promise_from_accept_and_prepare(const struct paxos_prepare* prepare, const struct paxos_accept* accept, const int aid, struct paxos_message* out){
+paxos_promise_from_accept_and_prepare(const struct paxos_prepare* prepare, const struct paxos_accept* accept, const int aid, struct standard_paxos_message* out){
     out->type = PAXOS_PROMISE;
     struct paxos_value copied_value;
     copy_value(&accept->value, &copied_value);

@@ -75,7 +75,7 @@ standard_acceptor_free(struct standard_acceptor *a) {
 
 int
 standard_acceptor_receive_prepare(struct standard_acceptor *a,
-                                  paxos_prepare *req, paxos_message *out)
+                                  paxos_prepare *req, standard_paxos_message *out)
 {
 	paxos_accepted acc;
 	if (req->iid <= a->trim_iid)
@@ -104,7 +104,7 @@ standard_acceptor_receive_prepare(struct standard_acceptor *a,
 
 int
 standard_acceptor_receive_accept(struct standard_acceptor *a,
-                                 paxos_accept *req, paxos_message *out)
+                                 paxos_accept *req, standard_paxos_message *out)
 {
 	paxos_accepted acc;
 	if (req->iid <= a->trim_iid)

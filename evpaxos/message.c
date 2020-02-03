@@ -41,7 +41,7 @@ bufferevent_pack_data(void* data, const char* buf, size_t len)
 }
 
 void
-send_paxos_message(struct bufferevent* bev, paxos_message* msg)
+send_paxos_message(struct bufferevent* bev, standard_paxos_message* msg)
 {
 	msgpack_packer* packer;
 	packer = msgpack_packer_new(bev, bufferevent_pack_data);
@@ -52,7 +52,7 @@ send_paxos_message(struct bufferevent* bev, paxos_message* msg)
 void
 send_paxos_prepare(struct bufferevent* bev, paxos_prepare* p)
 {
-	paxos_message msg = {
+	standard_paxos_message msg = {
 		.type = PAXOS_PREPARE,
 		.u.prepare = *p };
 	send_paxos_message(bev, &msg);
@@ -62,7 +62,7 @@ send_paxos_prepare(struct bufferevent* bev, paxos_prepare* p)
 void
 send_paxos_promise(struct bufferevent* bev, paxos_promise* p)
 {
-	paxos_message msg = {
+	standard_paxos_message msg = {
 		.type = PAXOS_PROMISE,
 		.u.promise = *p };
 	send_paxos_message(bev, &msg);
@@ -72,7 +72,7 @@ send_paxos_promise(struct bufferevent* bev, paxos_promise* p)
 void 
 send_paxos_accept(struct bufferevent* bev, paxos_accept* p)
 {
-	paxos_message msg = {
+	standard_paxos_message msg = {
 		.type = PAXOS_ACCEPT,
 		.u.accept = *p };
 	send_paxos_message(bev, &msg);
@@ -82,7 +82,7 @@ send_paxos_accept(struct bufferevent* bev, paxos_accept* p)
 void
 send_paxos_accepted(struct bufferevent* bev, paxos_accepted* p)
 {	
-	paxos_message msg = {
+	standard_paxos_message msg = {
 		.type = PAXOS_ACCEPTED,
 		.u.accepted = *p };
 	send_paxos_message(bev, &msg);
@@ -92,7 +92,7 @@ send_paxos_accepted(struct bufferevent* bev, paxos_accepted* p)
 void
 send_paxos_preempted(struct bufferevent* bev, paxos_preempted* p)
 {
-	paxos_message msg = {
+	standard_paxos_message msg = {
 		.type = PAXOS_PREEMPTED,
 		.u.preempted = *p };
 	send_paxos_message(bev, &msg);
@@ -102,7 +102,7 @@ send_paxos_preempted(struct bufferevent* bev, paxos_preempted* p)
 void
 send_paxos_repeat(struct bufferevent* bev, paxos_repeat* p)
 {
-	paxos_message msg = {
+	standard_paxos_message msg = {
 		.type = PAXOS_REPEAT,
 		.u.repeat = *p };
 	send_paxos_message(bev, &msg);
@@ -112,7 +112,7 @@ send_paxos_repeat(struct bufferevent* bev, paxos_repeat* p)
 void
 send_paxos_trim(struct bufferevent* bev, paxos_trim* t)
 {
-	paxos_message msg = {
+	standard_paxos_message msg = {
 		.type = PAXOS_TRIM,
 		.u.trim = *t };
 	send_paxos_message(bev, &msg);
@@ -122,7 +122,7 @@ send_paxos_trim(struct bufferevent* bev, paxos_trim* t)
 void
 paxos_submit(struct bufferevent* bev, char* data, int size)
 {
-	paxos_message msg = {
+	standard_paxos_message msg = {
 		.type = PAXOS_CLIENT_VALUE,
 		.u.client_value.value.paxos_value_len = size,
 		.u.client_value.value.paxos_value_val = data };
@@ -130,7 +130,7 @@ paxos_submit(struct bufferevent* bev, char* data, int size)
 }
 
 int
-recv_paxos_message(struct evbuffer* in, paxos_message* out)
+recv_paxos_message(struct evbuffer* in, standard_paxos_message* out)
 {
 	int rv = 0;
 	char* buffer;

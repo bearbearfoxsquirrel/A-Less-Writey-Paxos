@@ -84,7 +84,7 @@ evlearner_deliver_next_closed(struct evlearner* l)
     for that instance and afterwards check if the instance is closed
 */
 static void
-evlearner_handle_accepted(struct peer* p, paxos_message* msg, void* arg)
+evlearner_handle_accepted(struct peer* p, standard_paxos_message* msg, void* arg)
 {
 	struct evlearner* l = arg;
 	learner_receive_accepted(l->state, &msg->u.accepted);

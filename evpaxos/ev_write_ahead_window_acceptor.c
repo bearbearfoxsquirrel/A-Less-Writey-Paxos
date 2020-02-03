@@ -66,9 +66,9 @@ peer_send_paxos_message(struct peer* p, void* arg)
 	Received a prepare request (phase 1a).
 */
 static void
-ev_write_ahead_acceptor_handle_prepare(struct peer* p, paxos_message* msg, void* arg)
+ev_write_ahead_acceptor_handle_prepare(struct peer* p, standard_paxos_message* msg, void* arg)
 {
-    paxos_message out;
+    standard_paxos_message out;
     paxos_prepare* prepare = &msg->u.prepare;
     struct ev_write_ahead_acceptor* a = (struct ev_write_ahead_acceptor*)arg;
     paxos_log_debug("Handle prepare for iid %d ballot %d",
@@ -87,9 +87,9 @@ ev_write_ahead_acceptor_handle_prepare(struct peer* p, paxos_message* msg, void*
 	Received a accept request (phase 2a).
 */
 static void
-ev_write_ahead_acceptor_handle_accept(struct peer* p, paxos_message* msg, void* arg)
+ev_write_ahead_acceptor_handle_accept(struct peer* p, standard_paxos_message* msg, void* arg)
 {
-    paxos_message out;
+    standard_paxos_message out;
     paxos_accept* accept = &msg->u.accept;
     struct ev_write_ahead_acceptor* a = (struct ev_write_ahead_acceptor*)arg;
     paxos_log_debug("Handle accept for iid %d bal %d",
@@ -107,7 +107,7 @@ ev_write_ahead_acceptor_handle_accept(struct peer* p, paxos_message* msg, void* 
 }
 
 static void
-ev_write_ahead_acceptor_handle_repeat(struct peer* p, paxos_message* msg, void* arg)
+ev_write_ahead_acceptor_handle_repeat(struct peer* p, standard_paxos_message* msg, void* arg)
 {
     iid_t iid;
     paxos_accepted accepted;
@@ -123,7 +123,7 @@ ev_write_ahead_acceptor_handle_repeat(struct peer* p, paxos_message* msg, void* 
 }
 
 static void
-ev_write_ahead_acceptor_handle_trim(struct peer* p, paxos_message* msg, void* arg)
+ev_write_ahead_acceptor_handle_trim(struct peer* p, standard_paxos_message* msg, void* arg)
 {
     paxos_trim* trim = &msg->u.trim;
     struct ev_write_ahead_acceptor* a = (struct ev_write_ahead_acceptor*)arg;
@@ -134,7 +134,7 @@ static void
 send_acceptor_state(int fd, short ev, void* arg)
 {
     struct ev_write_ahead_acceptor* a = (struct ev_write_ahead_acceptor*)arg;
-    paxos_message msg = {.type = PAXOS_ACCEPTOR_STATE};
+    standard_paxos_message msg = {.type = PAXOS_ACCEPTOR_STATE};
     write_ahead_window_acceptor_set_current_state(a->state, &msg.u.state);
     peers_foreach_client(a->peers, peer_send_paxos_message, &msg);
     event_add(a->send_state_event, &a->send_state_timer);
@@ -193,8 +193,8 @@ ev_write_ahead_acceptor_init_internal(int id, struct evpaxos_config* c, struct p
             50000,
             10,
             50,
-            100000,
-            500);
+            200000,
+            1024);
    // by making instance window less than min instance
    // catchup you can do a sort of write a little bit at once ahead
    // of time rather than a giant bulk-write of all the written ahead instances
@@ -216,12 +216,12 @@ ev_write_ahead_acceptor_init_internal(int id, struct evpaxos_config* c, struct p
     // New event to check windows async
    // acceptor->instance_window_check_timer = evtimer_new(base, )evti
     acceptor->instance_window_check_event = event_new(base, -1, EV_TIMEOUT, check_instance_epoch_event, acceptor);
-    acceptor->instance_window_check_timer = (struct timeval) {.tv_sec = 3 + (rand() % 3), .tv_usec = 0};
+    acceptor->instance_window_check_timer = (struct timeval) {.tv_sec = 0, .tv_usec = 5000 + (rand() % 200)};
 
     acceptor->instance_window_epoch_iteration_event =  event_new(base, -1, EV_TIMEOUT, write_instance_epoch_event, acceptor);
-    acceptor->instance_window_epoch_iteration_timer = (struct timeval) {.tv_sec = 0, .tv_usec = 50000 + (rand() % 1000)}; //0.5 seconds = 500000  us
+    acceptor->instance_window_epoch_iteration_timer = (struct timeval) {.tv_sec = 0, .tv_usec = (rand() % 100) + 100}; //0.5 seconds = 500000  us
 
-    event_add(acceptor->instance_window_check_event, &acceptor->instance_window_check_timer);
+   // event_add(acceptor->instance_window_check_event, &acceptor->instance_window_check_timer);
 
     // todo add ballot checking and updating event
 

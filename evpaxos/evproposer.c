@@ -83,7 +83,7 @@ try_accept(struct evproposer* p)
 }
 
 static void
-evproposer_handle_promise(struct peer* p, paxos_message* msg, void* arg)
+evproposer_handle_promise(struct peer* p, standard_paxos_message* msg, void* arg)
 {
 	struct evproposer* proposer = arg;
 	paxos_prepare prepare;
@@ -95,7 +95,7 @@ evproposer_handle_promise(struct peer* p, paxos_message* msg, void* arg)
 }
 
 static void
-evproposer_handle_accepted(struct peer* p, paxos_message* msg, void* arg)
+evproposer_handle_accepted(struct peer* p, standard_paxos_message* msg, void* arg)
 {
 	struct evproposer* proposer = arg;
 	paxos_accepted* acc = &msg->u.accepted;
@@ -104,7 +104,7 @@ evproposer_handle_accepted(struct peer* p, paxos_message* msg, void* arg)
 }
 
 static void
-evproposer_handle_preempted(struct peer* p, paxos_message* msg, void* arg)
+evproposer_handle_preempted(struct peer* p, standard_paxos_message* msg, void* arg)
 {
 	struct evproposer* proposer = arg;
 	paxos_prepare prepare;
@@ -122,7 +122,7 @@ evproposer_handle_preempted(struct peer* p, paxos_message* msg, void* arg)
 }
 
 static void
-evproposer_handle_client_value(struct peer* p, paxos_message* msg, void* arg)
+evproposer_handle_client_value(struct peer* p, standard_paxos_message* msg, void* arg)
 {
 	struct evproposer* proposer = arg;
 	struct paxos_client_value* v = &msg->u.client_value;
@@ -133,7 +133,7 @@ evproposer_handle_client_value(struct peer* p, paxos_message* msg, void* arg)
 }
 
 static void
-evproposer_handle_acceptor_state(struct peer* p, paxos_message* msg, void* arg)
+evproposer_handle_acceptor_state(struct peer* p, standard_paxos_message* msg, void* arg)
 {
 	struct evproposer* proposer = arg;
 	struct paxos_standard_acceptor_state* acc_state = &msg->u.state;

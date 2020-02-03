@@ -6,21 +6,21 @@
 #define LIBPAXOS_PAXOS_MESSAGE_CONVERSION_H
 
 
-void paxos_accepted_to_promise(const struct paxos_accepted *acc, paxos_message *out);
+void paxos_accepted_to_promise(const struct paxos_accepted *acc, standard_paxos_message *out);
 
-void paxos_accept_to_accepted(int id, const struct paxos_accept *acc, paxos_message *out);
+void paxos_accept_to_accepted(int id, const struct paxos_accept *acc, standard_paxos_message *out);
 
-void paxos_accepted_to_preempted(int id, const struct paxos_accepted *acc, paxos_message *out);
+void paxos_accepted_to_preempted(int id, const struct paxos_accepted *acc, standard_paxos_message *out);
 
-void paxos_prepare_to_preempted(int id, const struct paxos_prepare *prepare, struct paxos_message *out);
+void paxos_prepare_to_preempted(int id, const struct paxos_prepare *prepare, struct standard_paxos_message *out);
 
 void paxos_accepted_to_accept(const struct paxos_accepted *accepted, paxos_accept *out);
 
 void paxos_accepted_to_prepare(const struct paxos_accepted *accepted, paxos_prepare *out);
 
-void paxos_accept_to_preempted(int id, const struct paxos_accept* accept, paxos_message *out);
+void paxos_accept_to_preempted(int id, const struct paxos_accept* accept, standard_paxos_message *out);
 
-void paxos_promise_from_accept_and_prepare(const struct paxos_prepare* prepare, const struct paxos_accept* accept, const int aid, struct paxos_message* out);
+void paxos_promise_from_accept_and_prepare(const struct paxos_prepare* prepare, const struct paxos_accept* accept, const int aid, struct standard_paxos_message* out);
 
 
 void paxos_accepted_copy(paxos_accepted* dst, paxos_accepted* src);

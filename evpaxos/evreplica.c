@@ -25,7 +25,7 @@
  * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-
+// TODO FIX ALL -- NOT IMPORTANT FOR NOW
 #include "evpaxos_internal.h"
 #include "message.h"
 #include <stdlib.h>
