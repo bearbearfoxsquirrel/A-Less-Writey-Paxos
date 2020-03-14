@@ -81,7 +81,18 @@ struct client
 	int id;
 	int value_size;
 	int outstanding;
-	char* send_buffer;
+
+	struct client_value_buffers {
+	    char* main_buffer;
+	    char* value_buffer;
+	} client_value_buffers;
+
+	struct to_send_buffers {
+	    char* paxos_message_buffer;
+	    char* value_buffer;
+	} to_send_buffers;
+
+
 	struct stats stats;
 	struct event_base* base;
 	struct bufferevent* bev;
@@ -114,8 +125,8 @@ void fill_paxos_value_from_client_value(struct client_value* src, struct paxos_v
     assert(src != NULL);
     assert(dst != NULL);
 
-    dst->paxos_value_len = src->value_size + sizeof(struct client_value) ;
-    dst->paxos_value_val = malloc(dst->paxos_value_len);
+     dst->paxos_value_len = src->value_size + sizeof(struct client_value) ;
+    //dst->paxos_value_val = //malloc(dst->paxos_value_len);
 
     memcpy(dst->paxos_value_val, &src->client_id, sizeof(src->client_id));
     memcpy(dst->paxos_value_val + sizeof(src->client_id), &src->value_size, sizeof(src->value_size));
@@ -131,7 +142,7 @@ void fill_client_value_from_paxos_value(struct paxos_value* src, struct client_v
     memcpy(&dst->client_id, src->paxos_value_val, sizeof(dst->client_id));
     memcpy(&dst->value_size, src->paxos_value_val + sizeof(dst->client_id), sizeof(dst->value_size));
 
-    dst->value = malloc(sizeof(char) * dst->value_size);
+   // dst->value = malloc(sizeof(char) * dst->value_size);
     memcpy(&dst->value, src->paxos_value_val + sizeof(dst->client_id) + sizeof(dst->value_size), dst->value_size);
     memcpy(&dst->submitted_at, src->paxos_value_val + sizeof(dst->client_id) + sizeof(dst->value_size) + dst->value_size,
            sizeof(dst->submitted_at));
@@ -143,24 +154,25 @@ void fill_client_value_from_paxos_value(struct paxos_value* src, struct client_v
 static void
 client_submit_value(struct client* c)
 {
-    struct client_value c_value;
-    c_value.client_id = c->id;
-    c_value.value_size = c->value_size;
-    c_value.value = malloc(sizeof(char) * c_value.value_size);
-    random_string(c_value.value, c_value.value_size);
-    gettimeofday(&c_value.submitted_at, NULL);
+    struct client_value* c_value = (struct client_value *) c->client_value_buffers.main_buffer;
+    c_value->client_id = c->id;
+    c_value->value_size = c->value_size;
+    c_value->value = c->client_value_buffers.value_buffer;
+    random_string(c_value->value, c_value->value_size);
+    gettimeofday(&c_value->submitted_at, NULL);
 
-    struct standard_paxos_message to_send;
-    to_send.type = PAXOS_CLIENT_VALUE;
-    fill_paxos_value_from_client_value(&c_value, &to_send.u.client_value);
-    SHOW(struct paxos_value, to_send.u.client_value);
+    struct standard_paxos_message* to_send = (struct standard_paxos_message*) c->to_send_buffers.paxos_message_buffer;
+    to_send->type = PAXOS_CLIENT_VALUE;
+    to_send->u.client_value.paxos_value_val = c->to_send_buffers.value_buffer;
+    fill_paxos_value_from_client_value(c_value, &to_send->u.client_value);
+    SHOW(struct paxos_value, to_send->u.client_value);
 
-    send_paxos_message(c->bev, &to_send);
+    send_paxos_message(c->bev, to_send);
     
     
     // cleanup
-    free(c_value.value);
-    free(to_send.u.client_value.paxos_value_val);
+//    free(c_value.value);
+  //  free(to_send.u.client_value.paxos_value_val);
 }
 
 // Returns t2 - t1 in microseconds.
@@ -168,7 +180,7 @@ static long
 timeval_diff(struct timeval* t1, struct timeval* t2)
 {
 	long us;
-	us = (t2->tv_sec - t1->tv_sec) * 1e6;
+	us = (t2->tv_sec - t1->tv_sec) * 1000000;
 	if (us < 0) return 0;
 	us += (t2->tv_usec - t1->tv_usec);
 	return us;
@@ -179,15 +191,15 @@ update_stats(struct stats* stats, struct client_value* delivered, size_t size)
 {
 	struct timeval tv;
 	gettimeofday(&tv, NULL);
-	long lat = timeval_diff(&delivered->submitted_at, &tv);
+	long latency = timeval_diff(&delivered->submitted_at, &tv);
 	stats->delivered_count++;
 	stats->delivered_bytes += size;
 	stats->avg_latency = stats->avg_latency +
-		((lat - stats->avg_latency) / stats->delivered_count);
-	if (stats->min_latency == 0 || lat < stats->min_latency)
-		stats->min_latency = lat;
-	if (lat > stats->max_latency)
-		stats->max_latency = lat;
+		((latency - stats->avg_latency) / stats->delivered_count);
+	if (stats->min_latency == 0 || latency < stats->min_latency)
+		stats->min_latency = latency;
+	if (latency > stats->max_latency)
+		stats->max_latency = latency;
 }
 
 static void
@@ -265,7 +277,15 @@ make_client(const char* config, int proposer_id, int outstanding, int value_size
 
 	c->value_size = value_size;
 	c->outstanding = outstanding;
-	c->send_buffer = malloc(sizeof(struct client_value) + value_size);//calloc(1, (sizeof(struct client_value) + value_size));
+
+	c->client_value_buffers.main_buffer = malloc(sizeof(struct client_value));
+	c->client_value_buffers.value_buffer = malloc(sizeof(char) * value_size);
+
+	c->to_send_buffers.paxos_message_buffer = malloc(sizeof(struct standard_paxos_message));
+	c->to_send_buffers.value_buffer = malloc(sizeof(c->client_value_buffers.main_buffer) + sizeof(c->client_value_buffers.value_buffer));
+
+	//c->client_value_buffer = malloc(sizeof(struct client_value) + value_size);
+	//c->to_send_buffer = malloc( sizeof(struct paxos_value) +sizeof(struct client_value) + value_size);
 
 	c->stats_interval = (struct timeval){1, 0};
 	c->stats_ev = evtimer_new(c->base, on_stats, c);
@@ -285,8 +305,13 @@ make_client(const char* config, int proposer_id, int outstanding, int value_size
 static void
 client_free(struct client* c)
 {
-	free(c->send_buffer);
-	bufferevent_free(c->bev);
+	free(c->client_value_buffers.main_buffer);
+    free(c->client_value_buffers.value_buffer);
+
+    free(c->to_send_buffers.paxos_message_buffer);
+    free(c->to_send_buffers.value_buffer);
+
+    bufferevent_free(c->bev);
 	event_free(c->stats_ev);
 	event_free(c->sig);
 	event_base_free(c->base);

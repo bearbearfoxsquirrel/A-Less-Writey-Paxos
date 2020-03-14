@@ -709,6 +709,10 @@ int
 write_ahead_window_acceptor_receive_accept(struct writeahead_window_acceptor* acceptor,
                                            paxos_accept* request, standard_paxos_message* out)
 {
+
+   // assert(request->value != NULL);
+    assert(request->value.paxos_value_len > 1);
+    assert(request->value.paxos_value_val != "");
     bool instance_chosen = false;
     if (request->iid <= acceptor->trim_instance) {
         out->type = PAXOS_TRIM;

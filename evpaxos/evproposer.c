@@ -41,8 +41,8 @@
 #include <paxos_types.h>
 #include <assert.h>
 
-#define INITIAL_BACKOFF_TIME 10
-#define MAX_BACKOFF_TIME 1000000
+#define INITIAL_BACKOFF_TIME 5
+#define MAX_BACKOFF_TIME 100//1000000
 
 
 

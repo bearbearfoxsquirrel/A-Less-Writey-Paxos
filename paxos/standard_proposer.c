@@ -48,10 +48,10 @@ KHASH_MAP_INIT_INT(instance_info, struct standard_proposer_instance_info*)
 
 struct proposer
 {
-	int id;
-	int acceptors;
-	int q1;
-	int q2;
+	unsigned int id;
+	unsigned int acceptors;
+	unsigned int q1;
+	unsigned int q2;
 
 
 	// Stuff to handle client values
@@ -100,7 +100,7 @@ static void proposer_trim_proposer_instance_infos(struct proposer* p, khash_t(in
 	iid_t iid);
 
 
-void check_and_handle_promises_value(struct paxos_promise *ack, struct standard_proposer_instance_info *inst);
+void check_and_handle_promises_value_for_instance(struct paxos_promise *ack, struct standard_proposer_instance_info *inst);
 
 
 void get_prepare_from_instance_info(struct standard_proposer_instance_info *inst, struct paxos_prepare *out);
@@ -321,7 +321,7 @@ proposer_receive_promise(struct proposer* p, paxos_promise* ack,
 		ack->aid, inst->common_info.iid);
 
 
-    check_and_handle_promises_value(ack, inst);
+    check_and_handle_promises_value_for_instance(ack, inst);
 
     if (quorum_reached(&inst->quorum)) {
         return 1;
@@ -330,19 +330,25 @@ proposer_receive_promise(struct proposer* p, paxos_promise* ack,
     }
 }
 
-void check_and_handle_promises_value(paxos_promise *ack, struct standard_proposer_instance_info *inst) {
+void check_and_handle_promises_value_for_instance(paxos_promise *ack, struct standard_proposer_instance_info *inst) {
     if (ack->value.paxos_value_len > 0) {
         paxos_log_debug("Promise has value");
-        if (ballot_greater_than_or_equal(ack->value_ballot, inst->common_info.value_ballot)) {
-            if (proposer_instance_info_has_promised_value(&inst->common_info))
+        if (ballot_greater_than_or_equal(ack->value_ballot, inst->common_info.last_promised_values_ballot)) {
+            if (proposer_instance_info_has_promised_value(&inst->common_info)) {
                 paxos_value_free(inst->common_info.last_promised_value);
-            copy_ballot(&inst->common_info.value_ballot, &ack->value_ballot);
-            inst->common_info.last_promised_value = calloc(1, sizeof(inst->common_info.last_promised_value));
+            }
 
-            copy_value(inst->common_info.last_promised_value, &ack->value);
+            copy_ballot(&ack->value_ballot , &inst->common_info.last_promised_values_ballot);
+
+            assert(ack->value.paxos_value_len > 1);
+            assert(ack->value.paxos_value_val != "");
+
+            inst->common_info.last_promised_value = calloc(1, sizeof(inst->common_info.last_promised_value));
+            copy_value(&ack->value , inst->common_info.last_promised_value);
             paxos_log_debug("Value in promise saved, removed older value");
-        } else
+        } else {
             paxos_log_debug("Value in promise ignored");
+        }
     }
 }
 
@@ -365,7 +371,9 @@ bool proposer_try_determine_value_to_propose(struct proposer* proposer, struct s
         }
     } else {
       //  inst->common_info.value_to_propose = calloc(1, sizeof(struct paxos_value*));
+      inst->common_info.value_to_propose = calloc(1, sizeof(inst->common_info.value_to_propose));
         inst->common_info.value_to_propose = inst->common_info.last_promised_value;
+    //    free(inst->common_info.last_promised_value);
         inst->common_info.last_promised_value = NULL;
      //   copy_value(inst->common_info.last_promised_value, inst->common_info.value_to_propose);
     }
@@ -726,7 +734,7 @@ proposer_update_instance_info_from_preemption(struct proposer *p, struct standar
 {
 
 	inst->common_info.ballot = (struct ballot) {.number = inst->common_info.ballot.number + (rand() % 20), .proposer_id = p->id};
-	inst->common_info.value_ballot = (struct ballot) {.number = 0, .proposer_id = 0};
+	inst->common_info.last_promised_values_ballot = (struct ballot) {.number = 0, .proposer_id = 0};
     inst->common_info.value_to_propose = NULL;
     inst->common_info.last_promised_value = NULL;
 	quorum_clear(&inst->quorum);

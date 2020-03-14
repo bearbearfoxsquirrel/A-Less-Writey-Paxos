@@ -14,10 +14,10 @@ proposer_instance_info_has_promised_value(struct proposer_common_instance_info* 
     return inst->last_promised_value != NULL;
 }
 
-int
+bool
 proposer_instance_info_has_timedout(struct proposer_common_instance_info* inst, struct timeval* now)
 {
-    int diff = now->tv_sec - inst->created_at.tv_sec;
+    long diff = now->tv_sec - inst->created_at.tv_sec;
     return diff >= paxos_config.proposer_timeout;
 }
 
@@ -25,7 +25,7 @@ struct proposer_common_instance_info proposer_common_info_new(iid_t iid, struct 
     struct proposer_common_instance_info common_info;
     common_info.iid = iid;
     common_info.ballot = (struct ballot) {.number = ballot.number, .proposer_id = ballot.proposer_id};
-    common_info.value_ballot = (struct ballot) {.number = 0, .proposer_id = 0};
+    common_info.last_promised_values_ballot = (struct ballot) {.number = 0, .proposer_id = 0};
     common_info.value_to_propose = NULL;
     common_info.last_promised_value = NULL;
     gettimeofday(&common_info.created_at, NULL);
@@ -36,10 +36,8 @@ void
 proposer_common_instance_info_free(struct proposer_common_instance_info* inst)
 {
     if (proposer_instance_info_has_value(inst)) {
-        free(inst->value_to_propose->paxos_value_val);
-        free(inst->value_to_propose);
+        paxos_value_free(inst->value_to_propose);
     }
-        //paxos_value_free(inst->value_to_propose);
     if (proposer_instance_info_has_promised_value(inst))
         paxos_value_free(inst->last_promised_value);
     free(inst);
@@ -48,9 +46,6 @@ proposer_common_instance_info_free(struct proposer_common_instance_info* inst)
 void
 proposer_instance_info_to_accept(struct proposer_common_instance_info* inst, paxos_accept* accept)
 {
-  //  paxos_value* v = inst->value;
-//    if (proposer_instance_info_has_promised_value(inst))
-   //     v = inst->promised_value; // makes the promised value the value to send in the acceptance
     *accept = (struct paxos_accept) {
             .iid = inst->iid,
             .ballot = (struct ballot) {.number = inst->ballot.number, .proposer_id = inst->ballot.proposer_id},
