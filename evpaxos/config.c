@@ -355,7 +355,7 @@ parse_line(struct evpaxos_config* c, char* line)
 		}
 		struct address* pro_addr = &c->proposers[c->proposers_count++];
 		struct address* acc_addr = &c->acceptors[c->acceptors_count++];
-		int rv = parse_address(line, pro_addr);
+		rv = parse_address(line, pro_addr);
 		address_copy(pro_addr, acc_addr);
 		return rv;
 	}

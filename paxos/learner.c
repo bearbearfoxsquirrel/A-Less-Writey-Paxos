@@ -113,13 +113,6 @@ void learner_receive_chosen(struct learner* l, struct paxos_chosen* chosen){
     }
     struct instance* inst;
     inst = learner_get_instance_or_create(l, chosen->iid);
-
- //   copy_value(&chosen->value, &inst->final_value->value);
- //   copy_ballot(&chosen->ballot, &inst->last_update_ballot);
-  //  copy_ballot(&chosen->ballot, &inst->final_value->ballot);
-  //  copy_ballot(&chosen->ballot, &inst->final_value->value_ballot);
- //   inst->iid = chosen->iid;
-  //  inst->final_value->iid = chosen->iid;
   struct paxos_accepted* accepted = calloc(1, sizeof(struct paxos_accepted));
   paxos_accepted_from_paxos_chosen(accepted, chosen);
     inst->final_value = accepted;

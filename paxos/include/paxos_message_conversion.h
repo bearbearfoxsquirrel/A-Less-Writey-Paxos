@@ -15,13 +15,17 @@ void paxos_accept_to_accepted(int id, const struct paxos_accept *acc, standard_p
 
 void paxos_accepted_to_preempted(int id, const struct paxos_accepted *acc, standard_paxos_message *out);
 
-void union_paxos_prepare_to_preempted(int id, const struct paxos_prepare *prepare, struct standard_paxos_message *out);
+void union_paxos_prepare_and_last_acceptor_promise_to_preempted(int id, const struct paxos_prepare *requested_prepare,
+                                                                const struct paxos_prepare *last_acceptor_promise,
+                                                                struct standard_paxos_message *out);
 
 void paxos_accepted_to_accept(const struct paxos_accepted *accepted, paxos_accept *out);
 
 void paxos_accepted_to_prepare(const struct paxos_accepted *accepted, paxos_prepare *out);
 
-void paxos_accept_to_preempted(int id, const struct paxos_accept* accept, standard_paxos_message *out);
+void paxos_accept_request_and_last_acceptor_promise_to_preempted(int id, const struct paxos_accept *accept_request,
+                                                                 const struct paxos_prepare acceptor_last_promise,
+                                                                 standard_paxos_message *out);
 
 void paxos_prepare_from_epoch_ballot_prepare(const struct epoch_ballot_prepare* epoch_ballot_prepare, struct paxos_prepare* out); // information lost
 

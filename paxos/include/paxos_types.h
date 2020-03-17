@@ -81,7 +81,8 @@ struct paxos_preempted
 {
 	uint32_t aid;
 	uint32_t iid;
-	struct ballot ballot;
+	struct ballot attempted_ballot;
+	struct ballot acceptor_current_ballot;
 };
 typedef struct paxos_preempted paxos_preempted;
 

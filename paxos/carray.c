@@ -57,7 +57,7 @@ static void print_bytes_of_value_to_submit(char * ty, char * val, unsigned char 
         asprintf(&to_add, "%*u ", 3, bytes[i]);
         strcat(string, to_add);
     }
-    strcat(string, "]\n");
+    strcat(string, "]");
     paxos_log_debug("%s", string);
 }
 
@@ -105,7 +105,7 @@ void print(struct carray* a) {
         int i = a->head;
         do {
             SHOW(struct paxos_value*, (struct paxos_value*) a->array[i]);
-          //  paxos_log_debug("%s", a->array[i]);
+          //  paxos_log_debug("%s", a->element_storage[i]);
             if(i==a->tail)
                 break;
             i = (i + 1) % (a->size);
@@ -129,28 +129,7 @@ carray_push_back(struct carray* a, void* p)
 	a->array[a->tail] = p;
 	a->count++;
 
-	print(a);
-
-	//for (int i =0; i < a->size; i ++) {
-	//    paxos_log_debug("%s", a->array[i]);
-	//}
-//
-  /*  if (a->tail >= a->head)
-    {
-        for (int i = a->head; i <= a->tail - 1; i++)
-            assert(a->array[i] != NULL);
-//            printf("%d ",arr[i]);
-    }
-    else
-    {
-        for (int i = a->head; i < a->size; i++)
-            assert(a->array[i] != NULL);
-//            printf("%d ", arr[i]);
-
-        for (int i = 0; i <= a->tail - 1; i++)
-            assert(a->array[i] != NULL);
-    }*/
-
+//	print(a);
     return 0;
 }
 
@@ -162,7 +141,7 @@ carray_pop_front(struct carray* a)
 {
 	if (carray_empty(a)) return NULL;
 
-    print(a);
+   // print(a);
 
 	void *p = a->array[a->head];
 	a->head = (a->head + 1) % a->size;
@@ -213,8 +192,13 @@ int carray_push_front(struct carray* a, void* p){
 
     if (carray_full(a))
         carray_grow(a);
+    
+    if (a->head == 0) {
+        a->head = a->size - 1;
+    } else {
+        a->head--;
+    }
 
-    a->head = (a->head - 1) % a->size;
     a->array[a->head] = p;
     a->count++;
     return 0;

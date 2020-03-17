@@ -69,19 +69,31 @@ paxos_accept_to_accepted(int id, const struct paxos_accept *acc, standard_paxos_
 }
 
 void // should this return the same ballot or a higher one?
-union_paxos_prepare_to_preempted(int id, const struct paxos_prepare* prepare, struct standard_paxos_message *out) {
+union_paxos_prepare_and_last_acceptor_promise_to_preempted(int id, const struct paxos_prepare *requested_prepare,
+                                                           const struct paxos_prepare *last_acceptor_promise,
+                                                           struct standard_paxos_message *out) {
     out->type = PAXOS_PREEMPTED;
     out->u.preempted = (struct paxos_preempted) {
         .aid = id,
-        .iid = prepare->iid,
-        .ballot = prepare->ballot
+        .iid = requested_prepare->iid,
+        .attempted_ballot = requested_prepare->ballot,
+        .acceptor_current_ballot = last_acceptor_promise->ballot
     };
 }
 
 void
-paxos_accept_to_preempted(int id, const struct paxos_accept* accept, standard_paxos_message *out){
+paxos_accept_request_and_last_acceptor_promise_to_preempted(int id, const struct paxos_accept *accept_request,
+                                                            const struct paxos_prepare acceptor_last_promise,
+                                                            standard_paxos_message *out) {
+    assert(accept_request->iid == acceptor_last_promise.iid);
     out->type = PAXOS_PREEMPTED;
-    out->u.preempted = (paxos_preempted) {id, accept->iid, accept->ballot};
+    out->u.preempted = (struct paxos_preempted) {.aid = id,
+                                                 .iid = accept_request->iid,
+                                                 .attempted_ballot = (struct ballot) {.number = accept_request->ballot.number,
+                                                                                      .proposer_id = accept_request->ballot.proposer_id},
+                                                 .acceptor_current_ballot = (struct ballot) {.number = acceptor_last_promise.ballot.number,
+                                                                                             .proposer_id = acceptor_last_promise.ballot.proposer_id}
+    };
 }
 
 void

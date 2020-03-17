@@ -10,21 +10,15 @@
 #include "paxos_value.h"
 
 void copy_value(const struct paxos_value *src, struct paxos_value *dst) {
-    //assert(value_to_copy != NULL);
- //   assert(value_to_copy->paxos_value_val != NULL);
-    // assumes that copy
+    assert(src->paxos_value_len > 1);
     char *value = NULL;
     unsigned int value_size = src->paxos_value_len;
     if (value_size > 0) {
-        value = calloc(1, value_size);
+        value = calloc(1, value_size * sizeof(char));
         memcpy(value, src->paxos_value_val, value_size);
     }
 
     *dst = (struct paxos_value) {value_size, value};
-    if (src->paxos_value_len > 0) {
-        assert(dst != NULL);
-        assert(dst->paxos_value_val != NULL);
-    }
 
     assert(is_values_equal(*src, *dst));
 }

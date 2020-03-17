@@ -301,14 +301,16 @@ static int
 }
 
 
-static void bool_copy(bool* dst, bool* src){
+__unused static void bool_copy(bool* dst, bool* src){
     memccpy(dst, src, 1, sizeof(bool));
 }
 
-static void int_copy(int* dst, int* src) {
+__unused static void int_copy(int* dst, int* src) {
     *dst = *src;
 }
-
+/*
+static int hash_mapped_memory_get_min_unchosen_instace(struct hash_mapped_memory* memory, )
+*/
 
 static int
 hash_mapped_memory_is_instance_chosen(const struct hash_mapped_memory* memory, iid_t instance, bool* chosen){

@@ -69,6 +69,7 @@ paxos_value_free(struct paxos_value* v)
 {
 	free(v->paxos_value_val);
 	free(v);
+	v = NULL;
 }
 
 static void
@@ -124,7 +125,7 @@ paxos_client_value_destroy(struct paxos_value* p)
 }
 
 void
-paxos_message_destroy(standard_paxos_message* m)
+paxos_message_destroy_contents(standard_paxos_message* m)
 {
 	switch (m->type) {
 	case PAXOS_PROMISE:

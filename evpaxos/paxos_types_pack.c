@@ -168,11 +168,12 @@ void msgpack_unpack_paxos_accepted(msgpack_object* o, paxos_accepted* v)
 
 void msgpack_pack_paxos_preempted(msgpack_packer* p, paxos_preempted* v)
 {
-	msgpack_pack_array(p, 5);
+	msgpack_pack_array(p, 7);
 	msgpack_pack_int32(p, PAXOS_PREEMPTED);
 	msgpack_pack_uint32(p, v->aid);
 	msgpack_pack_uint32(p, v->iid);
-	msgpack_pack_ballot(p, v->ballot);
+	msgpack_pack_ballot(p, v->attempted_ballot);
+	msgpack_pack_ballot(p, v->acceptor_current_ballot);
 }
 
 void msgpack_unpack_paxos_preempted(msgpack_object* o, paxos_preempted* v)
@@ -180,7 +181,8 @@ void msgpack_unpack_paxos_preempted(msgpack_object* o, paxos_preempted* v)
 	int i = 1;
 	msgpack_unpack_uint32_at(o, &v->aid, &i);
 	msgpack_unpack_uint32_at(o, &v->iid, &i);
-	msgpack_unpack_ballot(o, &v->ballot, &i);
+	msgpack_unpack_ballot(o, &v->attempted_ballot, &i);
+	msgpack_unpack_ballot(o, &v->acceptor_current_ballot, &i);
 }
 
 void msgpack_pack_paxos_repeat(msgpack_packer* p, paxos_repeat* v)
@@ -338,7 +340,7 @@ static void msgpack_pack_epoch_ballot(msgpack_packer* packer, struct epoch_ballo
  //  msgpack_pack_uint32(packer, epoch_bal->ballot);
 }
 
-// For these packing methods you need to ensure that 2 array indexes are given for each epoch ballot
+// For these packing methods you need to ensure that 2 element_storage indexes are given for each epoch ballot
 
 void msgpack_pack_epoch_ballot_prepare(msgpack_packer* packer, struct epoch_ballot_prepare* prepare){
     msgpack_pack_array(packer, 4);

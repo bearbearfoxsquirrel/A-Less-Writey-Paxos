@@ -465,7 +465,7 @@ lmdb_storage_get_all_untrimmed_instances_info(struct lmdb_storage *lmdb_storage,
 
     (*retreved_instances) = calloc(max_possible_instances, sizeof(struct paxos_accepted));
     int index = 0;
-    for(int current_iid = trim_instance + 1; current_iid <= max_inited_instance; current_iid++) {
+    for(unsigned int current_iid = trim_instance + 1; current_iid <= max_inited_instance; current_iid++) {
         struct paxos_accepted *current_instance = calloc(1, sizeof(struct paxos_accepted));
         int found = lmdb_storage_get_instance_info(lmdb_storage, current_iid, current_instance);
         if (found) {

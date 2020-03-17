@@ -42,7 +42,7 @@ quorum_init(struct quorum* q, int acceptors, int quorum_size)
 }
 
 void
-quorum_resize(struct quorum* q, int quorum_size)
+quorum_resize_and_reset(struct quorum* q, int quorum_size)
 {
 	q->quorum = quorum_size;
 	q->count = 0;

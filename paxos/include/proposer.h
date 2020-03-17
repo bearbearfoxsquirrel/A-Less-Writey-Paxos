@@ -29,7 +29,9 @@
 #ifndef _PROPOSER_H_
 #define _PROPOSER_H_
 
-#define INITIAL_BALLOT 1 + (rand() % 20)
+
+#define INITIAL_BALLOT (1 + (rand() % 100))
+#define BALLOT_INCREMENT (rand() % 100)
 #ifdef __cplusplus
 extern "C" {
 #endif

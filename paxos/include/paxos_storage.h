@@ -18,6 +18,8 @@ struct paxos_storage {
     void *handle;
 
     struct {
+        int (*get_min_unchosen_instance) (void* paxos_storage, iid_t* min_unchosen_instance);
+
         int (*set_instance_chosen)(void *paxos_storage, const iid_t instance);
 
         int (*is_instance_chosen)(void *paxos_storage, const iid_t instance, bool* chosen);
@@ -59,6 +61,8 @@ struct paxos_storage {
         int (*get_max_inited_instance)(void *paxos_storage, iid_t* returned_max_inited_instance);
     } api;
 };
+
+int get_min_unchosen_instance(struct paxos_storage* paxos_storage, iid_t* min_unchosen_instance);
 
 int is_instance_chosen(const struct paxos_storage* paxos_storage, iid_t instance, bool* is_chosen);
 

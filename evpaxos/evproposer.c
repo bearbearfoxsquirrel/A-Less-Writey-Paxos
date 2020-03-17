@@ -40,11 +40,15 @@
 #include "paxos_value.h"
 #include <paxos_types.h>
 #include <assert.h>
+#include "stdlib.h"
 
 #define INITIAL_BACKOFF_TIME 5
-#define MAX_BACKOFF_TIME 100//1000000
+#define MAX_BACKOFF_TIME 1000000
 
-
+#define MIN(a,b) \
+   ({ __typeof__ (a) _a = (a); \
+       __typeof__ (b) _b = (b); \
+     _a < _b ? _a : _b; })
 
 KHASH_MAP_INIT_INT(backoffs, struct timeval*)
 KHASH_MAP_INIT_INT(retries, iid_t*)
@@ -82,8 +86,7 @@ peer_send_accept(struct peer* p, void* arg)
 
 // Begins one or more instances, defined by the preexec_window
 static void
-proposer_preexecute(struct evproposer* p)
-{
+proposer_preexecute(struct evproposer* p) {
 	int i;
 	struct paxos_prepare pr;
 	int count = p->preexec_window - proposer_prepared_count(p->state) - proposer_count_instance_in_accept(p->state);
@@ -196,12 +199,14 @@ evproposer_try_higher_ballot(evutil_socket_t fd, short event, void* arg) {
 int get_initial_backoff() { return 1 + (rand() % INITIAL_BACKOFF_TIME); }
 
 unsigned int get_next_backoff(const unsigned int old_time) {
-    unsigned  int new_time = (old_time << (unsigned int) 1) % MAX_BACKOFF_TIME;
+   /* unsigned  int new_time = (old_time << (unsigned int) 1) % MAX_BACKOFF_TIME;
     if (new_time == 0) {
         new_time = get_initial_backoff();
     }
-    return new_time;
-   // return old_time;
+    return (rand() % new_time);
+   // return old_time;*/
+   unsigned int next_jitter_time = (rand() % old_time * 3) + INITIAL_BACKOFF_TIME;
+    return MIN(MAX_BACKOFF_TIME, next_jitter_time);
 }
 
 
@@ -211,7 +216,7 @@ evproposer_handle_preempted(struct peer* p, standard_paxos_message* msg, void* a
     struct evproposer* proposer = arg;
     struct paxos_preempted preempted_msg = msg->u.preempted;
 
-    if (preempted_msg.ballot.proposer_id != proposer->id) return;
+    if (preempted_msg.attempted_ballot.proposer_id != proposer->id) return;
 
 
     struct paxos_prepare* next_prepare = calloc(1, sizeof(struct paxos_prepare));
@@ -304,10 +309,10 @@ evproposer_check_timeouts(evutil_socket_t fd, short event, void *arg)
 		peers_for_n_acceptor(p->peers, peer_send_prepare, &pr, paxos_config.group_1);
 	}
 
-	paxos_accept ar;
-	while (timeout_iterator_accept(iter, &ar)) {
-		paxos_log_info("Instance %d timed out in phase 2.", ar.iid);
-		peers_for_n_acceptor(p->peers, peer_send_accept, &ar, paxos_config.group_2);
+	paxos_accept accept_msg;
+	while (timeout_iterator_accept(iter, &accept_msg)) {
+		paxos_log_info("Instance %d timed out in phase 2.", accept_msg.iid);
+		peers_for_n_acceptor(p->peers, peer_send_accept, &accept_msg, paxos_config.group_2);
 	}
 
 	timeout_iterator_free(iter);
@@ -340,10 +345,8 @@ evproposer_init_internal(int id, struct evpaxos_config* c, struct peers* peers)
 	peers_subscribe(peers, PAXOS_ACCEPTED, evproposer_handle_accepted, p);
 	peers_subscribe(peers, PAXOS_PREEMPTED, evproposer_handle_preempted, p);
 	peers_subscribe(peers, PAXOS_CLIENT_VALUE, evproposer_handle_client_value, p);
-	peers_subscribe(peers, PAXOS_ACCEPTOR_STATE,
-                    evproposer_handle_acceptor_state, p);
+	peers_subscribe(peers, PAXOS_ACCEPTOR_STATE, evproposer_handle_acceptor_state, p);
 	peers_subscribe(peers, PAXOS_CHOSEN, evproposer_handle_chosen, p);
-
 	peers_subscribe(peers, PAXOS_TRIM, evproposer_handle_trim, p);
 
 	// Setup timeout
@@ -376,11 +379,7 @@ evproposer_init(int id, const char* config_file, struct event_base* base)
 	}
 
 	struct peers* peers = peers_new(base, config);
-	//struct peers* peers_proposers = peers_new(base, config);
-
 	peers_connect_to_acceptors(peers);
-   // peers_connect_to_proposers(peers);
-
 	int port = evpaxos_proposer_listen_port(config, id);
 	int rv = peers_listen(peers, port);
 	if (rv == 0 ) // failure

@@ -44,7 +44,7 @@ struct quorum
 
 void quorum_init(struct quorum *q, int acceptors, int quorum_size);
 void quorum_clear(struct quorum* q);
-void quorum_resize(struct quorum* q, int quorum_size);
+void quorum_resize_and_reset(struct quorum* q, int quorum_size);
 void quorum_destroy(struct quorum* q);
 int quorum_add(struct quorum* q, int id);
 int quorum_reached(struct quorum* q);

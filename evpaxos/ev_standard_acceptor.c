@@ -64,7 +64,7 @@ evacceptor_handle_prepare(struct peer* p, standard_paxos_message* msg, void* arg
 		prepare->iid, prepare->ballot);
     if (standard_acceptor_receive_prepare(a->state, prepare, &out) != 0) {
 		send_paxos_message(peer_get_buffer(p), &out);
-		paxos_message_destroy(&out);
+        paxos_message_destroy_contents(&out);
 	}
     // handle sending of chosen to sender
 }
@@ -83,26 +83,25 @@ evacceptor_handle_accept(struct peer* p, standard_paxos_message* msg, void* arg)
     if (standard_acceptor_receive_accept(a->state, accept, &out) != 0) {
 		if (out.type == PAXOS_ACCEPTED) {
 			peers_foreach_client(a->peers, peer_send_paxos_message, &out);
-		} else if (out.type == PAXOS_PREEMPTED) {
-			send_paxos_message(peer_get_buffer(p), &out);
-		}
-		paxos_message_destroy(&out);
+		} else {
+	        send_paxos_message(peer_get_buffer(p), &out);
+	    }
+        paxos_message_destroy_contents(&out);
 	}
-    // handle sending of chosen to sender
 }
 
 static void
 evacceptor_handle_repeat(struct peer* p, standard_paxos_message* msg, void* arg)
 {
 	iid_t iid;
-	paxos_accepted accepted;
+	struct standard_paxos_message out_msg;
 	paxos_repeat* repeat = &msg->u.repeat;
 	struct ev_standard_acceptor* a = (struct ev_standard_acceptor*)arg;
 	paxos_log_debug("Handle repeat for iids %d-%d", repeat->from, repeat->to);
 	for (iid = repeat->from; iid <= repeat->to; ++iid) {
-        if (standard_acceptor_receive_repeat(a->state, iid, &accepted)) {
-			send_paxos_accepted(peer_get_buffer(p), &accepted);
-			paxos_accepted_destroy(&accepted);
+        if (standard_acceptor_receive_repeat(a->state, iid, &out_msg)) {
+			send_paxos_message(peer_get_buffer(p), &out_msg);
+			paxos_message_destroy_contents(&out_msg);
 		}
 	}
 }
@@ -148,8 +147,8 @@ evacceptor_init_internal(int id, struct evpaxos_config* c, struct peers* p)
 	peers_subscribe(p, PAXOS_CHOSEN, evacceptor_handle_chosen, acceptor);
 	
 	struct event_base* base = peers_get_event_base(p);
-	//acceptor->timer_ev = evtimer_new(base, send_acceptor_state, acceptor);
-//	acceptor->timer_tv = (struct timeval){1, 0};
+	acceptor->timer_ev = evtimer_new(base, send_acceptor_state, acceptor);
+	acceptor->timer_tv = (struct timeval){1, 0};
 	event_add(acceptor->timer_ev, &acceptor->timer_tv);
 
 	return acceptor;
@@ -171,15 +170,12 @@ evacceptor_init(int id, const char* config_file, struct event_base* base)
 		return NULL;
 	}
 
-	// todo ask if there are any chosen instances
-
 	struct peers* peers = peers_new(base, config);
 	int port = evpaxos_acceptor_listen_port(config, id);
 	if (peers_listen(peers, port) == 0)
 		return NULL;
 
 
-    // TODO Determine whether or not this should be the place to work out way to handle different acceptors
 	struct ev_standard_acceptor* acceptor = evacceptor_init_internal(id, config, peers);
 	evpaxos_config_free(config);
 	return acceptor;

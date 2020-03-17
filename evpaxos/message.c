@@ -97,7 +97,7 @@ send_paxos_preempted(struct bufferevent* bev, paxos_preempted* p)
 		.type = PAXOS_PREEMPTED,
 		.u.preempted = *p };
 	send_paxos_message(bev, &msg);
-	paxos_log_debug("Send preempted for inst %d ballot %u.%u", p->iid, p->ballot.number, p->ballot.proposer_id);
+	paxos_log_debug("Send preempted for inst %d ballot %u.%u", p->iid, p->attempted_ballot.number, p->attempted_ballot.proposer_id);
 }
 
 void
@@ -131,7 +131,7 @@ send_paxos_trim(struct bufferevent* bev, paxos_trim* t)
 }
 
 void
-paxos_submit_client_value(struct bufferevent* bev, const char* data, int size)
+paxos_submit_client_value(struct bufferevent* bev, char *data, int size)
 {
 	standard_paxos_message msg = {
 		.type = PAXOS_CLIENT_VALUE,

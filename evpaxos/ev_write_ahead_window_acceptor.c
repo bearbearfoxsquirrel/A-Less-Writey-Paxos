@@ -63,6 +63,11 @@ struct ev_write_ahead_acceptor
 
 };
 
+
+static void peer_send_paxos_accepted(struct peer* p, void* arg) {
+    send_paxos_accepted(peer_get_buffer(p), (struct paxos_accepted*) arg);
+}
+
 static void
 peer_send_paxos_message(struct peer* p, void* arg)
 {
@@ -82,8 +87,6 @@ ev_write_ahead_acceptor_handle_prepare(struct peer* p, standard_paxos_message* m
                     prepare->iid, prepare->ballot.number, prepare->ballot.proposer_id);
     if (write_ahead_window_acceptor_receive_prepare(a->state, prepare, &out) != 0) {
 
-
-        // todo new type of message to skip to min unchosen instance
         if (out.type == PAXOS_PROMISE) {
             assert(ballot_equal(&prepare->ballot, out.u.promise.ballot));
             send_paxos_promise(peer_get_buffer(p), &out.u.promise);
@@ -95,7 +98,8 @@ ev_write_ahead_acceptor_handle_prepare(struct peer* p, standard_paxos_message* m
             send_paxos_trim(peer_get_buffer(p), &out.u.trim);
         }
 
-        paxos_message_destroy(&out);
+     //   send_paxos_message(peer_get_buffer(p), &out);
+        paxos_message_destroy_contents(&out);
     }
 
 }
@@ -116,6 +120,15 @@ ev_write_ahead_acceptor_handle_accept(struct peer* p, standard_paxos_message* ms
                     accept->iid, accept->ballot.number, accept->ballot.proposer_id);
     if (write_ahead_window_acceptor_receive_accept(a->state, accept, &out) != 0) {
 
+    /*    if (out.type == PAXOS_ACCEPTED) {
+            peers_foreach_client(a->peers_proposers, peer_send_paxos_message, &out);
+        } else {
+            send_paxos_message(peer_get_buffer(p), &out);
+
+
+
+        }
+*/
 
         if (out.type == PAXOS_ACCEPTED) {
             assert(ballot_equal(&out.u.accepted.promise_ballot, accept->ballot));
@@ -133,7 +146,7 @@ ev_write_ahead_acceptor_handle_accept(struct peer* p, standard_paxos_message* ms
             send_paxos_trim(peer_get_buffer(p), &out.u.trim);
         }
 
-        paxos_message_destroy(&out);
+        paxos_message_destroy_contents(&out);
     }
 }
 
@@ -155,26 +168,28 @@ ev_write_ahead_acceptor_handle_repeat(struct peer* p, standard_paxos_message* ms
             } else if (out_msg.type == PAXOS_CHOSEN) {
                 send_paxos_chosen(peer_get_buffer(p), &out_msg.u.chosen);
                 paxos_value_free(&out_msg.u.chosen.value);
-            } else if (out_msg.type == PAXOS_TRIM) {
-                send_paxos_trim(peer_get_buffer(p), &out_msg.u.trim);
-                break;
-            }
+            } //else if (out_msg.type == PAXOS_TRIM) {
+              //send_paxos_trim(peer_get_buffer(p), &out_msg.u.trim);
+              //  break;
+          //  }
+
+         //  send_paxos_message(peer_get_buffer(p), &out_msg);
+            paxos_message_destroy_contents(&out_msg);
         }
     }
 }
 
 
 static void
-ev_write_ahead_acceptor_handle_chosen(struct peer* p, struct standard_paxos_message* msg, void* arg){
+ev_write_ahead_acceptor_handle_chosen(__unused struct peer* p, struct standard_paxos_message* msg, void* arg){
     struct ev_write_ahead_acceptor* a = (struct ev_write_ahead_acceptor*)arg;
     struct paxos_chosen* chosen_msg = &msg->u.chosen;
     paxos_log_debug("Recieved chosen message for instace %u", chosen_msg->iid);
-    //acceptor_cho
     write_ahead_ballot_acceptor_receive_chosen(a->state, chosen_msg);
 }
 
 static void
-ev_write_ahead_acceptor_handle_trim(struct peer* p, standard_paxos_message* msg, void* arg)
+ev_write_ahead_acceptor_handle_trim(__unused struct peer* p, standard_paxos_message* msg, void* arg)
 {
     paxos_trim* trim = &msg->u.trim;
     struct ev_write_ahead_acceptor* a = (struct ev_write_ahead_acceptor*)arg;
@@ -183,7 +198,7 @@ ev_write_ahead_acceptor_handle_trim(struct peer* p, standard_paxos_message* msg,
 
 
 static void
-send_acceptor_state(int fd, short ev, void* arg)
+send_acceptor_state(__unused int fd, __unused short ev, void* arg)
 {
     struct ev_write_ahead_acceptor* a = (struct ev_write_ahead_acceptor*)arg;
     standard_paxos_message msg = {.type = PAXOS_ACCEPTOR_STATE};
@@ -192,14 +207,14 @@ send_acceptor_state(int fd, short ev, void* arg)
     event_add(a->send_state_event, &a->send_state_timer);
 }
 
-static void write_ballot_event(int fd, short ev, void* arg) {
+static void write_ballot_event(__unused int fd, __unused short ev, void* arg) {
     struct ev_write_ahead_acceptor* a = arg;
     write_ahead_acceptor_write_ballot_window(a->state);
     event_add(a->ballot_window_check_event, &a->ballot_window_check_timer);
 }
 
 static void
-check_ballot_window_event(int fd, short ev, void* arg) {
+check_ballot_window_event(__unused int fd, __unused short ev, void* arg) {
     struct ev_write_ahead_acceptor* a = (struct ev_write_ahead_acceptor*) arg;
 
     if (write_ahead_acceptor_check_ballot_window(a->state))
@@ -209,7 +224,7 @@ check_ballot_window_event(int fd, short ev, void* arg) {
 }
 
 static void
-write_instance_epoch_event(int fd, short ev, void* arg) {
+write_instance_epoch_event(__unused int fd, __unused short ev, void* arg) {
     struct ev_write_ahead_acceptor* a= (struct ev_write_ahead_acceptor*) arg;
     write_ahead_acceptor_write_iteration_of_instance_epoch(a->state);
     if (write_ahead_acceptor_is_writing_epoch(a->state)) {
@@ -221,7 +236,8 @@ write_instance_epoch_event(int fd, short ev, void* arg) {
 }
 
 static void
-check_instance_epoch_event(int fd, short ev, void* arg) {
+check_instance_epoch_event(__unused int fd, __unused short ev, void* arg) {
+    paxos_log_debug("Checking if new Instance Epoch is necessary...");
     struct ev_write_ahead_acceptor* a = (struct ev_write_ahead_acceptor*) arg;
     if (!write_ahead_acceptor_is_writing_epoch(a->state)) {
         if (write_ahead_acceptor_is_new_instance_epoch_needed(a->state)) {
@@ -229,6 +245,7 @@ check_instance_epoch_event(int fd, short ev, void* arg) {
             write_ahead_acceptor_write_iteration_of_instance_epoch(a->state); //write the first iteration
             event_add(a->instance_window_epoch_iteration_event, &a->instance_window_epoch_iteration_timer);
         } else {
+            paxos_log_debug("It was not");
             event_add(a->instance_window_check_event, &a->instance_window_check_timer);
         }
     }
@@ -249,11 +266,11 @@ ev_write_ahead_acceptor_init_internal(int id, struct evpaxos_config* c, struct p
 
 
    acceptor->state = write_ahead_window_acceptor_new(id,
-            25000,
-            200,
-            500,
             50000,
-            3000);
+            300,
+            1000,
+            100000,
+            5000);
    // by making instance window less than min instance
    // catchup you can do a sort of write a little bit at once ahead
    // of time rather than a giant bulk-write of all the written ahead instances
@@ -275,22 +292,17 @@ ev_write_ahead_acceptor_init_internal(int id, struct evpaxos_config* c, struct p
     event_add(acceptor->send_state_event, &acceptor->send_state_timer);
 
     // New event to check windows async
-   // acceptor->instance_window_check_timer = evtimer_new(base, )evti
     acceptor->instance_window_check_event = event_new(base, -1, EV_TIMEOUT, check_instance_epoch_event, acceptor);
-    acceptor->instance_window_check_timer = (struct timeval) {.tv_sec = 3 + (rand() % 3), .tv_usec = 0};
-
+    acceptor->instance_window_check_timer = (struct timeval) {.tv_sec = 1, .tv_usec = rand() % 1000000};
     acceptor->instance_window_epoch_iteration_event =  event_new(base, -1, EV_TIMEOUT, write_instance_epoch_event, acceptor);
-    acceptor->instance_window_epoch_iteration_timer = (struct timeval) {.tv_sec = 0, .tv_usec = 50000 + (rand() % 1000)}; //0.5 seconds = 500000  us
-
+    acceptor->instance_window_epoch_iteration_timer = (struct timeval) {.tv_sec = 0, .tv_usec = 5000000 + (rand() % 1000)}; //0.5 seconds = 500000  us
     event_add(acceptor->instance_window_check_event, &acceptor->instance_window_check_timer);
 
     acceptor->ballot_window_check_event = evtimer_new(base, check_ballot_window_event, acceptor);
     acceptor->ballot_window_check_timer = (struct timeval) {.tv_sec = 0, .tv_usec = 5000 + (rand() % 1000)};
-
     acceptor->ballot_window_iteration_event = evtimer_new(base, write_ballot_event, acceptor);
     acceptor->ballot_window_iteration_timer = (struct timeval) {.tv_sec = 0, .tv_usec = 1000};
-    // todo add ballot checking and updating event
-
+    event_add(acceptor->ballot_window_check_event, &acceptor->ballot_window_check_timer);
 
     //event_set(&acceptor->send_state_event, 0, EV_PERSIST, write_ahead_window_acceptor_check_and_update_write_ahead_windows, acceptor->state);
   //  evtimer_add(&acceptor->send_state_event, &time);
@@ -324,8 +336,6 @@ ev_write_ahead_window_acceptor_init(int id, const char* config_file, struct even
 
     //todo ask if there are any instances chosen
 
-
-    // TODO Determine whether or not this should be the place to work out way to handle different acceptors
     struct ev_write_ahead_acceptor* acceptor = ev_write_ahead_acceptor_init_internal(id, config, peers_proposers);
     evpaxos_config_free(config);
     return acceptor;

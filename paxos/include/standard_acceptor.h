@@ -35,13 +35,13 @@ extern "C" {
 
 #include "paxos.h"
 #include "standard_stable_storage.h"
-
+/*
 struct standard_acceptor {
     int id;
     iid_t trim_iid;
     struct standard_stable_storage stable_storage;
 };
-
+*/
 struct standard_acceptor *standard_acceptor_new(int id);
 
 void standard_acceptor_free(struct standard_acceptor *a);
@@ -55,7 +55,7 @@ int standard_acceptor_receive_accept(struct standard_acceptor *a,
 int standard_acceptor_receive_chosen(struct standard_acceptor* a, struct paxos_chosen *chosen);
 
 int standard_acceptor_receive_repeat(struct standard_acceptor *a,
-                                     iid_t iid, paxos_accepted *out);
+                                     iid_t iid, struct standard_paxos_message *out);
 
 int standard_acceptor_receive_trim(struct standard_acceptor *a, paxos_trim *trim);
 

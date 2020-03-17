@@ -43,7 +43,6 @@ struct evlearner
 	struct event* hole_timer;   /* Timer to check for holes */
 	struct timeval tv;          /* Check for holes every tv units of time */
 	struct peers* peers;    /* Connections to acceptors */
-	iid_t trim_iid;
 };
 
 static void
@@ -139,13 +138,14 @@ struct evlearner*
 evlearner_init_internal(struct evpaxos_config* config, struct peers* peers,
 	deliver_function f, void* arg)
 {
-	int acceptor_count = evpaxos_acceptor_count(config);
+    struct evlearner* learner = malloc(sizeof(struct evlearner));
+    int acceptor_count = evpaxos_acceptor_count(config);
+    learner->state = learner_new(acceptor_count);
+
 	struct event_base* base = peers_get_event_base(peers);
-	struct evlearner* learner = malloc(sizeof(struct evlearner));
-	
+
 	learner->delfun = f;
 	learner->delarg = arg;
-	learner->state = learner_new(acceptor_count);
 	learner->peers = peers;
 	
 	peers_subscribe(peers, PAXOS_ACCEPTED, evlearner_handle_accepted, learner);

@@ -6,6 +6,9 @@
 #include <hash_mapped_memory.h>
 #include "paxos_storage.h"
 
+int get_min_unchosen_instance(struct paxos_storage* paxos_storage, iid_t* min_unchosen_instance){
+    return paxos_storage->api.get_min_unchosen_instance(paxos_storage->handle, min_unchosen_instance);
+}
 
 int is_instance_chosen(const struct paxos_storage* paxos_storage, iid_t instance, bool* is_chosen){
     return paxos_storage->api.is_instance_chosen(paxos_storage->handle, instance, is_chosen);

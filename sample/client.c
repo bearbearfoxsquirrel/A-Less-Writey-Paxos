@@ -28,11 +28,6 @@
 
 #include <paxos.h>
 #include <evpaxos.h>
-#include <stdio.h>
-#include <stdint.h>
-#include <limits.h>
-#include <arpa/inet.h>
-#include <errno.h>
 #include <errno.h>
 #include <stdlib.h>
 #include <time.h>
@@ -40,337 +35,252 @@
 #include <signal.h>
 #include <event2/event.h>
 #include <netinet/tcp.h>
-#include <assert.h>
-#include <message.h>
-#include <paxos_types.h>
-#include "client_value.h"
-#include "include/client_value.h"
 
 #define MAX_VALUE_SIZE 8192
 
 
-
-
-
-static void print_bytes_of_value_to_submit(char * ty, char * val, unsigned char * bytes, size_t num_bytes) {
-    char* string; //= sprintf("(%*s) %*s = [ ", 15, ty, 16, val);
-    asprintf(&string, "(%*s) %*s = [ ", 15, ty, 16, val);
-    for (size_t i = 0; i < num_bytes; i++) {
-        char* to_add;
-        asprintf(&to_add, "%*u ", 3, bytes[i]);
-        strcat(string, to_add);
-    }
-    strcat(string, "]\n");
-    paxos_log_debug("%s", string);
-}
-
-#define SHOW(T,V) do { T x = V; print_bytes_of_value_to_submit(#T, #V, (unsigned char*) &x, sizeof(x)); } while(0)
-
+struct client_value
+{
+    int client_id;
+    struct timeval t;
+    size_t size;
+    char value[0];
+};
 
 struct stats
 {
-	long min_latency;
-	long max_latency;
-	long avg_latency;
-	int delivered_count;
-	size_t delivered_bytes;
+    long min_latency;
+    long max_latency;
+    long avg_latency;
+    int delivered_count;
+    size_t delivered_bytes;
 };
 
 struct client
 {
-	int id;
-	int value_size;
-	int outstanding;
-
-	struct client_value_buffers {
-	    char* main_buffer;
-	    char* value_buffer;
-	} client_value_buffers;
-
-	struct to_send_buffers {
-	    char* paxos_message_buffer;
-	    char* value_buffer;
-	} to_send_buffers;
-
-
-	struct stats stats;
-	struct event_base* base;
-	struct bufferevent* bev;
-	struct event* stats_ev;
-	struct timeval stats_interval;
-	struct event* sig;
-	struct evlearner* learner;
+    int id;
+    int value_size;
+    int outstanding;
+    char* send_buffer;
+    struct stats stats;
+    struct event_base* base;
+    struct bufferevent* bev;
+    struct event* stats_ev;
+    struct timeval stats_interval;
+    struct event* sig;
+    struct evlearner* learner;
 };
 
 static void
 handle_sigint(int sig, short ev, void* arg)
 {
-	struct event_base* base = arg;
-	printf("Caught signal %d\n", sig);
-	event_base_loopexit(base, NULL);
+    struct event_base* base = arg;
+    printf("Caught signal %d\n", sig);
+    event_base_loopexit(base, NULL);
 }
 
 static void
 random_string(char *s, const int len)
 {
-	int i;
-	static const char alphanum[] =
-		"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
-        for (i = 0; i < len - 1; ++i)
-            s[i] = alphanum[rand() % (sizeof(alphanum) - 1)];
-        s[len - 1] = '\0';
+    int i;
+    static const char alphanum[] =
+            "0123456789abcdefghijklmnopqrstuvwxyz";
+    for (i = 0; i < len-1; ++i)
+        s[i] = alphanum[rand() % (sizeof(alphanum) - 1)];
+    s[len-1] = 0;
 }
-
-void fill_paxos_value_from_client_value(struct client_value* src, struct paxos_value* dst) {
-    assert(src != NULL);
-    assert(dst != NULL);
-
-     dst->paxos_value_len = src->value_size + sizeof(struct client_value) ;
-    //dst->paxos_value_val = //malloc(dst->paxos_value_len);
-
-    memcpy(dst->paxos_value_val, &src->client_id, sizeof(src->client_id));
-    memcpy(dst->paxos_value_val + sizeof(src->client_id), &src->value_size, sizeof(src->value_size));
-    strcat(dst->paxos_value_val + sizeof(src->client_id) + sizeof(src->value_size), src->value);
-    memcpy(dst->paxos_value_val + sizeof(src->client_id) + sizeof(src->value_size) + src->value_size, &src->submitted_at, sizeof(struct timeval));
-}
-
-void fill_client_value_from_paxos_value(struct paxos_value* src, struct client_value* dst) {
-    assert(src != NULL);
-    assert(dst != NULL);
-    assert(src->paxos_value_len > sizeof(struct client_value));
-
-    memcpy(&dst->client_id, src->paxos_value_val, sizeof(dst->client_id));
-    memcpy(&dst->value_size, src->paxos_value_val + sizeof(dst->client_id), sizeof(dst->value_size));
-
-   // dst->value = malloc(sizeof(char) * dst->value_size);
-    memcpy(&dst->value, src->paxos_value_val + sizeof(dst->client_id) + sizeof(dst->value_size), dst->value_size);
-    memcpy(&dst->submitted_at, src->paxos_value_val + sizeof(dst->client_id) + sizeof(dst->value_size) + dst->value_size,
-           sizeof(dst->submitted_at));
-}
-
-
-
 
 static void
 client_submit_value(struct client* c)
 {
-    struct client_value* c_value = (struct client_value *) c->client_value_buffers.main_buffer;
-    c_value->client_id = c->id;
-    c_value->value_size = c->value_size;
-    c_value->value = c->client_value_buffers.value_buffer;
-    random_string(c_value->value, c_value->value_size);
-    gettimeofday(&c_value->submitted_at, NULL);
-
-    struct standard_paxos_message* to_send = (struct standard_paxos_message*) c->to_send_buffers.paxos_message_buffer;
-    to_send->type = PAXOS_CLIENT_VALUE;
-    to_send->u.client_value.paxos_value_val = c->to_send_buffers.value_buffer;
-    fill_paxos_value_from_client_value(c_value, &to_send->u.client_value);
-    SHOW(struct paxos_value, to_send->u.client_value);
-
-    send_paxos_message(c->bev, to_send);
-    
-    
-    // cleanup
-//    free(c_value.value);
-  //  free(to_send.u.client_value.paxos_value_val);
+    struct client_value* v = (struct client_value*)c->send_buffer;
+    v->client_id = c->id;
+    gettimeofday(&v->t, NULL);
+    v->size = c->value_size;
+    random_string(v->value, v->size);
+    size_t size = sizeof(struct client_value) + v->size;
+    paxos_submit_client_value(c->bev, c->send_buffer, size);
 }
 
 // Returns t2 - t1 in microseconds.
 static long
 timeval_diff(struct timeval* t1, struct timeval* t2)
 {
-	long us;
-	us = (t2->tv_sec - t1->tv_sec) * 1000000;
-	if (us < 0) return 0;
-	us += (t2->tv_usec - t1->tv_usec);
-	return us;
+    long us;
+    us = (t2->tv_sec - t1->tv_sec) * 1e6;
+    if (us < 0) return 0;
+    us += (t2->tv_usec - t1->tv_usec);
+    return us;
 }
 
 static void
 update_stats(struct stats* stats, struct client_value* delivered, size_t size)
 {
-	struct timeval tv;
-	gettimeofday(&tv, NULL);
-	long latency = timeval_diff(&delivered->submitted_at, &tv);
-	stats->delivered_count++;
-	stats->delivered_bytes += size;
-	stats->avg_latency = stats->avg_latency +
-		((latency - stats->avg_latency) / stats->delivered_count);
-	if (stats->min_latency == 0 || latency < stats->min_latency)
-		stats->min_latency = latency;
-	if (latency > stats->max_latency)
-		stats->max_latency = latency;
+    struct timeval tv;
+    gettimeofday(&tv, NULL);
+    long lat = timeval_diff(&delivered->t, &tv);
+    stats->delivered_count++;
+    stats->delivered_bytes += size;
+    stats->avg_latency = stats->avg_latency +
+                         ((lat - stats->avg_latency) / stats->delivered_count);
+    if (stats->min_latency == 0 || lat < stats->min_latency)
+        stats->min_latency = lat;
+    if (lat > stats->max_latency)
+        stats->max_latency = lat;
 }
 
 static void
 on_deliver(unsigned iid, char* value, size_t size, void* arg)
 {
-	struct client* c = arg;
-	struct client_value* v = (struct client_value*)value;
-	if (v->client_id == c->id) {
-		update_stats(&c->stats, v, size);
-		client_submit_value(c);
-	}
+    struct client* c = arg;
+    struct client_value* v = (struct client_value*)value;
+    if (v->client_id == c->id) {
+        update_stats(&c->stats, v, size);
+        client_submit_value(c);
+    }
 }
 
 static void
 on_stats(evutil_socket_t fd, short event, void *arg)
 {
-	struct client* c = arg;
-	double mbps = (double)(c->stats.delivered_bytes * 8) / (1024*1024);
-	printf("%d value/sec, %.2f Mbps, latency min %ld us max %ld us avg %ld us\n",
-		c->stats.delivered_count, mbps, c->stats.min_latency,
-		c->stats.max_latency, c->stats.avg_latency);
-	memset(&c->stats, 0, sizeof(struct stats));
-	event_add(c->stats_ev, &c->stats_interval);
+    struct client* c = arg;
+    double mbps = (double)(c->stats.delivered_bytes * 8) / (1024*1024);
+    printf("%d value/sec, %.2f Mbps, latency min %ld us max %ld us avg %ld us\n",
+           c->stats.delivered_count, mbps, c->stats.min_latency,
+           c->stats.max_latency, c->stats.avg_latency);
+    memset(&c->stats, 0, sizeof(struct stats));
+    event_add(c->stats_ev, &c->stats_interval);
 }
 
 static void
 on_connect(struct bufferevent* bev, short events, void* arg)
 {
-	int i;
-	struct client* c = arg;
-	if (events & BEV_EVENT_CONNECTED) {
-		printf("Connected to proposer\n");
-		for (i = 0; i < c->outstanding; ++i)
-			client_submit_value(c);
-	} else {
-		printf("%s\n", evutil_socket_error_to_string(EVUTIL_SOCKET_ERROR()));
-
-	}
+    int i;
+    struct client* c = arg;
+    if (events & BEV_EVENT_CONNECTED) {
+        printf("Connected to proposer\n");
+        for (i = 0; i < c->outstanding; ++i)
+            client_submit_value(c);
+    } else {
+        printf("%s\n", evutil_socket_error_to_string(EVUTIL_SOCKET_ERROR()));
+    }
 }
 
 static struct bufferevent*
 connect_to_proposer(struct client* c, const char* config, int proposer_id)
 {
-	struct bufferevent* bev;
-	struct evpaxos_config* conf = evpaxos_config_read(config);
-	if (conf == NULL) {
-		printf("Failed to read config file %s\n", config);
-		return NULL;
-	}
-	struct sockaddr_in addr = evpaxos_proposer_address(conf, proposer_id);
-	bev = bufferevent_socket_new(c->base, -1, BEV_OPT_CLOSE_ON_FREE);
-	bufferevent_setcb(bev, NULL, NULL, on_connect, c);
-	bufferevent_enable(bev, EV_READ|EV_WRITE);
-	bufferevent_socket_connect(bev, (struct sockaddr*)&addr, sizeof(addr));
-	int flag = 1;
-	setsockopt(bufferevent_getfd(bev), IPPROTO_TCP, TCP_NODELAY, &flag, sizeof(int));
-	return bev;
+    struct bufferevent* bev;
+    struct evpaxos_config* conf = evpaxos_config_read(config);
+    if (conf == NULL) {
+        printf("Failed to read config file %s\n", config);
+        return NULL;
+    }
+    struct sockaddr_in addr = evpaxos_proposer_address(conf, proposer_id);
+    bev = bufferevent_socket_new(c->base, -1, BEV_OPT_CLOSE_ON_FREE);
+    bufferevent_setcb(bev, NULL, NULL, on_connect, c);
+    bufferevent_enable(bev, EV_READ|EV_WRITE);
+    bufferevent_socket_connect(bev, (struct sockaddr*)&addr, sizeof(addr));
+    int flag = 1;
+    setsockopt(bufferevent_getfd(bev), IPPROTO_TCP, TCP_NODELAY, &flag, sizeof(int));
+    return bev;
 }
 
 static struct client*
 make_client(const char* config, int proposer_id, int outstanding, int value_size)
 {
-	struct client* c;
-	c = malloc(sizeof(struct client));
-	c->base = event_base_new();
+    struct client* c;
+    c = malloc(sizeof(struct client));
+    c->base = event_base_new();
 
-	memset(&c->stats, 0, sizeof(struct stats));
-	c->bev = connect_to_proposer(c, config, proposer_id);
-	if (c->bev == NULL)
-		exit(1);
+    memset(&c->stats, 0, sizeof(struct stats));
+    c->bev = connect_to_proposer(c, config, proposer_id);
+    if (c->bev == NULL)
+        exit(1);
 
     c->id = rand();
+    c->value_size = value_size;
+    c->outstanding = outstanding;
+    c->send_buffer = malloc(sizeof(struct client_value) + value_size);
 
+    c->stats_interval = (struct timeval){1, 0};
+    c->stats_ev = evtimer_new(c->base, on_stats, c);
+    event_add(c->stats_ev, &c->stats_interval);
 
+    paxos_config.learner_catch_up = 0;
+    c->learner = evlearner_init(config, on_deliver, c, c->base);
 
-	c->value_size = value_size;
-	c->outstanding = outstanding;
+    c->sig = evsignal_new(c->base, SIGINT, handle_sigint, c->base);
+    evsignal_add(c->sig, NULL);
 
-	c->client_value_buffers.main_buffer = malloc(sizeof(struct client_value));
-	c->client_value_buffers.value_buffer = malloc(sizeof(char) * value_size);
-
-	c->to_send_buffers.paxos_message_buffer = malloc(sizeof(struct standard_paxos_message));
-	c->to_send_buffers.value_buffer = malloc(sizeof(c->client_value_buffers.main_buffer) + sizeof(c->client_value_buffers.value_buffer));
-
-	//c->client_value_buffer = malloc(sizeof(struct client_value) + value_size);
-	//c->to_send_buffer = malloc( sizeof(struct paxos_value) +sizeof(struct client_value) + value_size);
-
-	c->stats_interval = (struct timeval){1, 0};
-	c->stats_ev = evtimer_new(c->base, on_stats, c);
-	event_add(c->stats_ev, &c->stats_interval);
-
-	paxos_config.learner_catch_up = 0;
-	c->learner = evlearner_init(config, on_deliver, c, c->base);
-
-	c->sig = evsignal_new(c->base, SIGINT, handle_sigint, c->base);
-	evsignal_add(c->sig, NULL);
-
-	// todo make connection to proposer, then add event to connect to the acceptors and update stats
-
-	return c;
+    return c;
 }
 
 static void
 client_free(struct client* c)
 {
-	free(c->client_value_buffers.main_buffer);
-    free(c->client_value_buffers.value_buffer);
-
-    free(c->to_send_buffers.paxos_message_buffer);
-    free(c->to_send_buffers.value_buffer);
-
+    free(c->send_buffer);
     bufferevent_free(c->bev);
-	event_free(c->stats_ev);
-	event_free(c->sig);
-	event_base_free(c->base);
-	if (c->learner)
-		evlearner_free(c->learner);
-	free(c);
+    event_free(c->stats_ev);
+    event_free(c->sig);
+    event_base_free(c->base);
+    if (c->learner)
+        evlearner_free(c->learner);
+    free(c);
 }
 
 static void
 start_client(const char* config, int proposer_id, int outstanding, int value_size)
 {
-	struct client* client;
-	client = make_client(config, proposer_id, outstanding, value_size);
-	signal(SIGPIPE, SIG_IGN);
-	event_base_dispatch(client->base);
-	client_free(client);
+    struct client* client;
+    client = make_client(config, proposer_id, outstanding, value_size);
+    signal(SIGPIPE, SIG_IGN);
+    event_base_dispatch(client->base);
+    client_free(client);
 }
 
 static void
 usage(const char* name)
 {
-	printf("Usage: %s [path/to/paxos.conf] [-h] [-o] [-v] [-p]\n", name);
-	printf("  %-30s%s\n", "-h, --help", "Output this message and exit");
-	printf("  %-30s%s\n", "-o, --outstanding #", "Number of outstanding client values");
-	printf("  %-30s%s\n", "-v, --value-size #", "Size of client value (in bytes)");
-	printf("  %-30s%s\n", "-p, --proposer-id #", "d of the proposer to connect to");
-	exit(1);
+    printf("Usage: %s [path/to/paxos.conf] [-h] [-o] [-v] [-p]\n", name);
+    printf("  %-30s%s\n", "-h, --help", "Output this message and exit");
+    printf("  %-30s%s\n", "-o, --outstanding #", "Number of outstanding client values");
+    printf("  %-30s%s\n", "-v, --value-size #", "Size of client value (in bytes)");
+    printf("  %-30s%s\n", "-p, --proposer-id #", "d of the proposer to connect to");
+    exit(1);
 }
 
 int
 main(int argc, char const *argv[])
 {
-    // Initial values if no program parameters are provided
-	int i = 1;
-	int proposer_id = 0;
-	int outstanding = 1;
-	int value_size = 64;
-	struct timeval seed;
-	const char* config = "../paxos.conf";
+    int i = 1;
+    int proposer_id = 0;
+    int outstanding = 1;
+    int value_size = 64;
+    struct timeval seed;
+    const char* config = "../paxos.conf";
 
-	while (i != argc) {
-		if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0)
-			usage(argv[0]);
-		else if (strcmp(argv[i], "-o") == 0 || strcmp(argv[i], "--outstanding") == 0)
-			outstanding = atoi(argv[++i]);
-		else if (strcmp(argv[i], "-v") == 0 || strcmp(argv[i], "--value-size") == 0)
-			value_size = atoi(argv[++i]);
-		else if (strcmp(argv[i], "-p") == 0 || strcmp(argv[i], "--proposer-id") == 0)
-			proposer_id = atoi(argv[++i]);
-		else if (strcmp(argv[i], "-c") == 0 || strcmp(argv[i], "--config") == 0)
-		    config = argv[++i];//atoi(argv[++i]);
-		else
-			usage(argv[0]);
-		i++;
-	}
+    if (argc > 1 && argv[1][0] != '-') {
+        config = argv[1];
+        i++;
+    }
 
-	gettimeofday(&seed, NULL);
-	srand(seed.tv_usec);
-	start_client(config, proposer_id, outstanding, value_size);
+    while (i != argc) {
+        if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0)
+            usage(argv[0]);
+        else if (strcmp(argv[i], "-o") == 0 || strcmp(argv[i], "--outstanding") == 0)
+            outstanding = atoi(argv[++i]);
+        else if (strcmp(argv[i], "-v") == 0 || strcmp(argv[i], "--value-size") == 0)
+            value_size = atoi(argv[++i]);
+        else if (strcmp(argv[i], "-p") == 0 || strcmp(argv[i], "--proposer-id") == 0)
+            proposer_id = atoi(argv[++i]);
+        else
+            usage(argv[0]);
+        i++;
+    }
 
-	return 0;
+    gettimeofday(&seed, NULL);
+    srand(seed.tv_usec);
+    start_client(config, proposer_id, outstanding, value_size);
+
+    return 0;
 }

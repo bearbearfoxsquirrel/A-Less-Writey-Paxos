@@ -16,7 +16,7 @@
 struct proposer_common_instance_info {
     iid_t iid;
     struct ballot ballot;
-    struct paxos_value* value_to_propose;
+    struct paxos_value* proposing_value;
     struct paxos_value* last_promised_value;
     struct ballot last_promised_values_ballot;
     struct timeval created_at;

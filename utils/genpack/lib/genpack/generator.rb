@@ -203,7 +203,7 @@ module GenPack
   
   module Helpers
     HELPERS = <<-eos
-#define MSGPACK_OBJECT_AT(obj, i) (obj->via.array.ptr[i].via)
+#define MSGPACK_OBJECT_AT(obj, i) (obj->via.element_storage.ptr[i].via)
 
 
 static void msgpack_pack_string(msgpack_packer* p, char* buffer, int len)
