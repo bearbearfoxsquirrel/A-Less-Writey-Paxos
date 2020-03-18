@@ -161,10 +161,11 @@ learner_receive_accepted(struct learner* l, paxos_accepted* ack, struct paxos_ch
 int
 learner_deliver_next(struct learner* l, paxos_accepted* out)
 {
+    
 	struct instance* inst = learner_get_current_instance(l);
 	if (inst == NULL || !instance_has_quorum(inst, l->acceptors, l->quorum_size))
 		return 0;
-	memcpy(out, inst->final_value, sizeof(paxos_accepted));
+	memcpy(out, inst->final_value, sizeof(struct paxos_accepted));
 	paxos_value_copy(&out->value, &inst->final_value->value);
 	learner_delete_instance(l, inst);
 	l->current_iid++;

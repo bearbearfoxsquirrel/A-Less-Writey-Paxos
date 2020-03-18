@@ -701,7 +701,7 @@ static int write_acceptance_to_storage(struct writeahead_window_acceptor* accept
     get_last_promise(acceptor->stable_storage_duplicate, acceptance->iid, &last_stable_promise);
     copy_ballot(&last_stable_promise.ballot, &to_store.promise_ballot);
 
-    assert(to_store.iid = acceptance->iid);
+    assert(to_store.iid == acceptance->iid);
     assert(ballot_equal(&to_store.value_ballot, acceptance->value_ballot));
     assert(ballot_equal(&to_store.promise_ballot, last_stable_promise.ballot));
     assert(is_values_equal(acceptance->value, to_store.value));
@@ -744,8 +744,8 @@ write_ahead_window_acceptor_receive_accept(struct writeahead_window_acceptor* ac
 
             paxos_log_debug("Accepting iid: %u, ballot: %u", request->iid, request->ballot);
             paxos_accept_to_accepted(acceptor->id, request, out);
-            int success = write_acceptance_to_storage(acceptor, &out->u.accepted);
-            if (success != 0) {
+            int failed = write_acceptance_to_storage(acceptor, &out->u.accepted);
+            if (failed != 0) {
                 storage_tx_abort(&acceptor->stable_storage);
                 return 0;
             } else {

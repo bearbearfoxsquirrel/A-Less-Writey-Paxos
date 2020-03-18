@@ -105,12 +105,14 @@ int main(int argc, char const *argv[]){
 
 
     struct paxos_chosen chosen;
-    proposer_receive_accepted(proposer, &accepted1.u.accepted, &chosen);
+//    proposer_receive_accepted(proposer, &accepted1.u.accepted, &chosen);
+    struct paxos_trim trim = {.iid = 5};
+    proposer_receive_trim(proposer, &trim);
 
-    struct paxos_chosen learner_chosen;
-    learner_receive_accepted(learner, &accepted1.u.accepted, &learner_chosen);
+   // struct paxos_chosen learner_chosen;
+   // learner_receive_accepted(learner, &accepted1.u.accepted, &learner_chosen);
 
-    write_ahead_ballot_acceptor_receive_chosen(acceptor, &chosen);
+   // write_ahead_ballot_acceptor_receive_chosen(acceptor, &chosen);
 
     learner_receive_chosen(learner, &chosen);
 

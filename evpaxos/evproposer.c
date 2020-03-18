@@ -83,6 +83,11 @@ peer_send_accept(struct peer* p, void* arg)
 	send_paxos_accept(peer_get_buffer(p), arg);
 }
 
+static void
+peer_send_trim(struct peer* p, void* arg) {
+    send_paxos_trim(peer_get_buffer(p), arg);
+}
+
 
 // Begins one or more instances, defined by the preexec_window
 static void
@@ -113,6 +118,14 @@ try_accept(struct evproposer* p)
             assert(&accept.value != NULL);
             assert(accept.value.paxos_value_val != NULL);
             assert(accept.value.paxos_value_len > 0);
+            struct paxos_value val = {.paxos_value_len = 4, .paxos_value_val = "NOP."};
+            if (is_values_equal(accept.value, val)){
+                struct timespec sleep_time = {
+                        .tv_sec = 0,
+                        .tv_nsec = rand() % 10000
+                };
+               // nanosleep(&sleep_time, NULL); // sleep before trying to give other proposers a shot
+            }
             peers_for_n_acceptor(p->peers, peer_send_accept, &accept, paxos_config.group_2);
         }
   //  }
@@ -147,6 +160,13 @@ evproposer_handle_accepted(struct peer* p, standard_paxos_message* msg, void* ar
     memset(&chosen_msg, 0, sizeof(struct paxos_chosen));
 
     if (proposer_receive_accepted(proposer->state, acc, &chosen_msg)){
+     //   if (proposer_get_min_unchosen_instance(proposer->state) >= acc->iid){
+     //       struct paxos_trim trim_msg = {.iid = acc->iid};
+      //      peers_foreach_acceptor(proposer->peers, peer_send_trim, &trim_msg);
+
+     //   }
+     //   peers_foreach_acceptor(proposer->peers, peer_send_chosen, &chosen_msg);
+      //  peers_foreach_client(proposer->peers, peer_send_chosen, &chosen_msg);
         assert(chosen_msg.iid == acc->iid);
         assert(ballot_equal(&chosen_msg.ballot, acc->promise_ballot));
         assert(ballot_equal(&chosen_msg.ballot, acc->value_ballot));
@@ -199,14 +219,15 @@ evproposer_try_higher_ballot(evutil_socket_t fd, short event, void* arg) {
 int get_initial_backoff() { return 1 + (rand() % INITIAL_BACKOFF_TIME); }
 
 unsigned int get_next_backoff(const unsigned int old_time) {
-   /* unsigned  int new_time = (old_time << (unsigned int) 1) % MAX_BACKOFF_TIME;
+    unsigned  int new_time = (old_time << (unsigned int) 1) % MAX_BACKOFF_TIME;
     if (new_time == 0) {
         new_time = get_initial_backoff();
     }
-    return (rand() % new_time);
-   // return old_time;*/
-   unsigned int next_jitter_time = (rand() % old_time * 3) + INITIAL_BACKOFF_TIME;
-    return MIN(MAX_BACKOFF_TIME, next_jitter_time);
+    return new_time;
+    //return (rand() % new_time);
+   // return old_time;
+//   unsigned int next_jitter_time = (rand() % old_time * 3) + INITIAL_BACKOFF_TIME;
+  //  return MIN(MAX_BACKOFF_TIME, next_jitter_time);
 }
 
 
