@@ -10,7 +10,8 @@
 #include "paxos_value.h"
 
 void copy_value(const struct paxos_value *src, struct paxos_value *dst) {
-//    assert(src->paxos_value_len > 1);
+    assert(dst != NULL);
+    
     char *value = NULL;
     unsigned int value_size = src->paxos_value_len;
     if (value_size > 0) {
