@@ -121,8 +121,8 @@ proposer_new(int id, int acceptors, int q1, int q2)
 	p->q2 = q2;
 	p->trim_instance = 0;
 	p->current_proposing_instance = 1;
-	p->client_values_to_propose = carray_new(5000);
-	p->pending_client_values = array_list_new(5000, 1000);//calloc(1, sizeof(struct paxos_value*));
+	p->client_values_to_propose = carray_new(500);
+	p->pending_client_values = array_list_new(500, 100);//calloc(1, sizeof(struct paxos_value*));
 	//p->number_proposed_values = 0;
 	p->prepare_phase_instances = kh_init(instance_info);
 	p->accept_phase_instances = kh_init(instance_info);
@@ -344,14 +344,17 @@ void check_and_handle_promises_value_for_instance(paxos_promise *ack, struct sta
             copy_ballot(&ack->value_ballot , &inst->common_info.last_promised_values_ballot);
 
             if (proposer_instance_info_has_promised_value(&inst->common_info)) {
-                free(inst->common_info.last_promised_value->paxos_value_val); // only need to free the value itself
+                paxos_value_free(inst->common_info.last_promised_value);
+               // free(inst->common_info.last_promised_value->paxos_value_val); // only need to free the value itself
             } else {
-                inst->common_info.last_promised_value = calloc(1, sizeof(inst->common_info.last_promised_value));
+                //inst->common_info.last_promised_value = calloc(1, sizeof(inst->common_info.last_promised_value));
             }
 
             assert(ack->value.paxos_value_len > 1);
             assert(strcmp(ack->value.paxos_value_val, "") != 0);
-            copy_value(&ack->value , inst->common_info.last_promised_value);
+
+            inst->common_info.last_promised_value = paxos_value_new(ack->value.paxos_value_val, ack->value.paxos_value_len);
+//            copy_value(&ack-value , inst->common_info.last_promised_value);
             paxos_log_debug("Value in promise saved, removed older value");
         } else {
             paxos_log_debug("Value in promise ignored");
@@ -373,19 +376,19 @@ bool proposer_try_determine_value_to_propose(struct proposer* proposer, struct s
            // copy_value(value_to_propose, inst->common_info.proposing_value);
             array_list_append(proposer->pending_client_values, value_to_propose);
         } else {
-            if (proposer->max_chosen_instance > inst->common_info.iid) {
+        //    if (proposer->max_chosen_instance > inst->common_info.iid) {
                 inst->common_info.proposing_value = calloc(1, sizeof(struct paxos_value));
                 inst->common_info.proposing_value->paxos_value_val = malloc(sizeof(char) * 5);
-                memcpy(inst->common_info.proposing_value, "NOP.", sizeof(char) * 5);
+                memcpy(inst->common_info.proposing_value->paxos_value_val, "NOP.", sizeof(char) * 5);
           //      inst->common_info.proposing_value->paxos_value_val = "NOP.";
                 inst->common_info.proposing_value->paxos_value_len = 5;
                 //paxos_log_debug("Proposer: No value to accept");
                 paxos_log_debug("sending nop");
                 return true;
-            } else {
-                paxos_log_debug("No need to propose value");
-                return false;
-            }
+        //    } else {
+         //       paxos_log_debug("No need to propose value");
+         //       return false;
+         //   }
         }
     } else {
         paxos_log_debug("Instance has a previously proposed value");

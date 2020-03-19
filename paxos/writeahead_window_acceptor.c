@@ -634,8 +634,9 @@ write_ahead_window_acceptor_receive_prepare(struct writeahead_window_acceptor* a
 
 
             struct paxos_accept last_accept;
-            memset(&last_accept, 0, sizeof(last_accept));
+            memset(&last_accept, 0, sizeof(struct paxos_accept));
             int was_previous_accept = get_last_accept(a->stable_storage_duplicate, req->iid, &last_accept);
+           
             union_paxos_promise_from_accept_and_prepare(req, &last_accept, a->id, out);
             if (was_previous_accept) {
                 assert(is_values_equal(last_accept.value, out->u.promise.value));

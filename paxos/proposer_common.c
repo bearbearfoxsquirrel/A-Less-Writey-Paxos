@@ -46,11 +46,12 @@ proposer_common_instance_info_free(struct proposer_common_instance_info* inst)
 void
 proposer_instance_info_to_accept(struct proposer_common_instance_info* inst, paxos_accept* accept)
 {
+   // struct paxos_value* value_copy = paxos_value_new(inst->proposing_value->paxos_value_val, inst->proposing_value->paxos_value_len);
     *accept = (struct paxos_accept) {
             .iid = inst->iid,
             .ballot = (struct ballot) {.number = inst->ballot.number, .proposer_id = inst->ballot.proposer_id},
-            .value = (struct paxos_value) { inst->proposing_value->paxos_value_len,
-              inst->proposing_value->paxos_value_val }
+                    .value = (struct paxos_value) {.paxos_value_val = inst->proposing_value->paxos_value_val, .paxos_value_len = inst->proposing_value->paxos_value_len}
+           // .value = (struct paxos_value) {.paxos_value_len = value_copy->paxos_value_len, .paxos_value_val = value_copy->paxos_value_val}
     };
 }
 

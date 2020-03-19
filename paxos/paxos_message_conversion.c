@@ -29,28 +29,44 @@ void copy_epoch_ballot(const struct epoch_ballot *src, struct epoch_ballot *dst)
 void
 paxos_accepted_to_promise(const struct paxos_accepted *acc, standard_paxos_message *out) {
     out->type = PAXOS_PROMISE;
-    out->u.promise.aid = acc->aid;
-    out->u.promise.iid = acc->iid;
-    copy_ballot(&acc->promise_ballot, &out->u.promise.ballot);//out->u.promise.ballot = acc->ballot;
-    copy_ballot(&acc->value_ballot, &out->u.promise.value_ballot);
-    copy_value(&acc->value, &out->u.promise.value);
-   /* out->u.promise = (paxos_promise) {
+//    out->u.promise.aid = acc->aid;
+//    out->u.promise.iid = acc->iid;
+//    copy_ballot(&acc->promise_ballot, &out->u.promise.ballot);//out->u.promise.ballot = acc->ballot;
+//    copy_ballot(&acc->value_ballot, &out->u.promise.value_ballot);
+//    copy_value(&acc->value, &out->u.promise.value);
+   out->u.promise = (paxos_promise) {
             acc->aid,
             acc->iid,
-            acc->ballot,
+            acc->promise_ballot,
             acc->value_ballot,
             {acc->value.paxos_value_len, acc->value.paxos_value_val}
-    };*/
+    };
 }
 
 void
 paxos_accept_to_accepted(int id, const struct paxos_accept *acc, standard_paxos_message *out) {
+//    out->type = PAXOS_ACCEPTED;
+//    out->u.accepted.iid = acc->iid;
+//    out->u.accepted.aid = id;
+//    copy_ballot(&acc->ballot, &out->u.accepted.promise_ballot);
+//    copy_ballot(&acc->ballot, &out->u.accepted.value_ballot);
+//    copy_value(&acc->value, &out->u.accepted.value);
+
+    char* value = NULL;
+    unsigned int value_size = acc->value.paxos_value_len;
+    if (value_size > 0) {
+        value = malloc(value_size);
+        memcpy(value, acc->value.paxos_value_val, value_size);
+    }
     out->type = PAXOS_ACCEPTED;
-    out->u.accepted.iid = acc->iid;
-    out->u.accepted.aid = id;
-    copy_ballot(&acc->ballot, &out->u.accepted.promise_ballot);
-    copy_ballot(&acc->ballot, &out->u.accepted.value_ballot);
-    copy_value(&acc->value, &out->u.accepted.value);
+    out->u.accepted = (paxos_accepted) {
+            id,
+            acc->iid,
+            acc->ballot,
+            acc->ballot,
+            {value_size, value}
+    };
+
     /*char *value = NULL;
     int value_size = acc->value.paxos_value_len;
     if (value_size > 0) {
@@ -99,7 +115,8 @@ paxos_accept_request_and_last_acceptor_promise_to_preempted(int id, const struct
 void
 paxos_accepted_to_preempted(int id, const struct paxos_accepted *acc, standard_paxos_message *out) {
     out->type = PAXOS_PREEMPTED;
-    out->u.preempted = (paxos_preempted) {id, acc->iid, acc->promise_ballot};
+    //todo remove or fix
+  //  out->u.preempted = (paxos_preempted) {.aid = id, .iid = acc->iid, acc., acc->promise_ballot};
 }
 
 void
@@ -114,21 +131,22 @@ paxos_accepted_to_accept(const struct paxos_accepted *accepted, paxos_accept *ou
 void
 paxos_accepted_to_prepare(const struct paxos_accepted *accepted, paxos_prepare *out) {
     //out->ballot = accepted->ballot;
-    copy_ballot(&accepted->promise_ballot, &out->ballot);
+  //  copy_ballot(&accepted->promise_ballot, &out->ballot);
     out->iid = accepted->iid;
+    out->ballot = accepted->promise_ballot;
 }
 
 void
 union_paxos_promise_from_accept_and_prepare(const struct paxos_prepare* prepare, const struct paxos_accept* accept, const int aid, struct standard_paxos_message* out){
     out->type = PAXOS_PROMISE;
-    struct paxos_value copied_value;
-    copy_value(&accept->value, &copied_value);
+  //  struct paxos_value copied_value;
+   // copy_value(&accept->value, &copied_value);
     out->u.promise = (struct paxos_promise) {
             .aid = aid,
             .iid = prepare->iid,
             .ballot = prepare->ballot,
             .value_ballot = accept->ballot,
-            .value = {copied_value.paxos_value_len, copied_value.paxos_value_val}
+            .value = {.paxos_value_len = accept->value.paxos_value_len, .paxos_value_val = accept->value.paxos_value_val}
     };
 }
 

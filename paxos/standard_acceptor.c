@@ -106,14 +106,13 @@ standard_acceptor_receive_prepare(struct standard_acceptor *a,
 {
 	struct paxos_accepted instance_info;
 	if (req->iid <= a->trim_iid) {
-	    *out = (struct standard_paxos_message) {.type = PAXOS_TRIM,
-             .u.trim = {.iid = a->trim_iid}
-	    };
+	    out->type = PAXOS_TRIM;
+	    out->u.trim = (struct paxos_trim) {.iid = a->trim_iid};
         return 1;
 	}
 
 	bool instance_chosen = standard_acceptor_is_instance_chosen(a, req->iid);
-	memset(&instance_info, 0, sizeof(paxos_accepted));
+	memset(&instance_info, 0, sizeof(struct paxos_accepted));
     if (storage_tx_begin(&a->stable_storage) != 0)
 		return 0;
 
@@ -127,6 +126,11 @@ standard_acceptor_receive_prepare(struct standard_acceptor *a,
             storage_tx_abort(&a->stable_storage);
 			return 0;
 		}
+
+        bool has_value_to_return = instance_info.value.paxos_value_len > 0;
+        if(has_value_to_return) {
+            paxos_log_debug("Previously accepted value to give to the Proposer");
+        }
 
         paxos_accepted_to_promise(&instance_info, out);
 	} else {
@@ -171,7 +175,14 @@ standard_acceptor_receive_accept(struct standard_acceptor *a,
 	        out->type = PAXOS_CHOSEN;
 	        paxos_chosen_from_paxos_accepted(&out->u.chosen, &acc);
 	    } else {
-            paxos_accepted_to_preempted(a->id, &acc, out);
+	        out->type = PAXOS_PREEMPTED;
+	        out->u.preempted = (struct paxos_preempted) {
+	            .aid = a->id,
+	            .iid = req->iid,
+	            .attempted_ballot = req->ballot,
+	            .acceptor_current_ballot = acc.promise_ballot
+	        };
+          //  paxos_accepted_to_preempted(a->id, &acc, out);
 	    }
 
 	}

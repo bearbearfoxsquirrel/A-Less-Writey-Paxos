@@ -54,19 +54,19 @@ static void msgpack_unpack_uint32_at(msgpack_object* o, uint32_t* v, int* i)
 static void msgpack_unpack_string_at(msgpack_object* o, char** buffer, int* len, int* i)
 // NOTE: also increments the value of i as a side effect
 {
-	*buffer = NULL;
-	#if MSGPACK_VERSION_MAJOR > 0
-	*len = MSGPACK_OBJECT_AT(o,*i).bin.size;
-	const char* obj = MSGPACK_OBJECT_AT(o,*i++).bin.ptr;
-	#else
-	*len = MSGPACK_OBJECT_AT(o,*i).raw.size;
+    *buffer = NULL;
+#if MSGPACK_VERSION_MAJOR > 0
+    *len = MSGPACK_OBJECT_AT(o,*i).bin.size;
+    const char* obj = MSGPACK_OBJECT_AT(o,*i).bin.ptr;
+#else
+    *len = MSGPACK_OBJECT_AT(o,*i).raw.size;
 	const char* obj = MSGPACK_OBJECT_AT(o,*i).raw.ptr;
-	#endif
-	if (*len > 0) {
-		*buffer = malloc(*len);
-		memcpy(*buffer, obj, *len);
-	}
-	(*i)++;
+#endif
+    if (*len > 0) {
+        *buffer = malloc(*len);
+        memcpy(*buffer, obj, *len);
+    }
+    (*i)++;
 }
 
 

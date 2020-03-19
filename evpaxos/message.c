@@ -147,18 +147,32 @@ recv_paxos_message(struct evbuffer* in, standard_paxos_message* out)
 	char* buffer;
 	size_t size, offset = 0;
 	msgpack_unpacked msg;
-	
+
 	size = evbuffer_get_length(in);
-	if (size == 0) 
+	if (size == 0)
 		return rv;
-	
+
 	msgpack_unpacked_init(&msg);
-	buffer = (char*)evbuffer_pullup(in, size);	
-	if (msgpack_unpack_next(&msg, buffer, size, &offset)) {
+	buffer = (char*)evbuffer_pullup(in, size);
+
+    if (msgpack_unpack_next(&msg, buffer, size, &offset)) {
+        msgpack_unpack_paxos_message(&msg.data, out);
+        evbuffer_drain(in, offset);
+        rv = 1;
+    }
+
+/*	msgpack_unpack_return error = MSGPACK_UNPACK_CONTINUE;
+	while(error == MSGPACK_UNPACK_CONTINUE) {
+        error = msgpack_unpack_next(&msg, buffer, size, &offset);
+	}
+
+	if (error == MSGPACK_UNPACK_SUCCESS) {
 		msgpack_unpack_paxos_message(&msg.data, out);
 		evbuffer_drain(in, offset);
 		rv = 1;
-	}
+	}*/
+
+
 	msgpack_unpacked_destroy(&msg);
 	return rv;
 }
