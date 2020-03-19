@@ -45,19 +45,14 @@ paxos_accepted_to_promise(const struct paxos_accepted *acc, standard_paxos_messa
 
 void
 paxos_accept_to_accepted(int id, const struct paxos_accept *acc, standard_paxos_message *out) {
-//    out->type = PAXOS_ACCEPTED;
-//    out->u.accepted.iid = acc->iid;
-//    out->u.accepted.aid = id;
-//    copy_ballot(&acc->ballot, &out->u.accepted.promise_ballot);
-//    copy_ballot(&acc->ballot, &out->u.accepted.value_ballot);
-//    copy_value(&acc->value, &out->u.accepted.value);
+    out->type = PAXOS_ACCEPTED;
+    out->u.accepted.iid = acc->iid;
+    out->u.accepted.aid = id;
+    copy_ballot(&acc->ballot, &out->u.accepted.promise_ballot);
+    copy_ballot(&acc->ballot, &out->u.accepted.value_ballot);
+    copy_value(&acc->value, &out->u.accepted.value);
 
-    char* value = NULL;
-    unsigned int value_size = acc->value.paxos_value_len;
-    if (value_size > 0) {
-        value = malloc(value_size);
-        memcpy(value, acc->value.paxos_value_val, value_size);
-    }
+/*
     out->type = PAXOS_ACCEPTED;
     out->u.accepted = (paxos_accepted) {
             id,
@@ -67,7 +62,7 @@ paxos_accept_to_accepted(int id, const struct paxos_accept *acc, standard_paxos_
             {value_size, value}
     };
 
-    /*char *value = NULL;
+    char *value = NULL;
     int value_size = acc->value.paxos_value_len;
     if (value_size > 0) {
         value = malloc(value_size);

@@ -161,15 +161,15 @@ learner_receive_accepted(struct learner* l, paxos_accepted* ack, struct paxos_ch
 int
 learner_deliver_next(struct learner* l, paxos_accepted* out)
 {
-    
-	struct instance* inst = learner_get_current_instance(l);
-	if (inst == NULL || !instance_has_quorum(inst, l->acceptors, l->quorum_size))
-		return 0;
-	memcpy(out, inst->final_value, sizeof(struct paxos_accepted));
-	paxos_value_copy(&out->value, &inst->final_value->value);
-	learner_delete_instance(l, inst);
-	l->current_iid++;
-	return 1;
+
+    struct instance* inst = learner_get_current_instance(l);
+    if (inst == NULL || !instance_has_quorum(inst, l->acceptors, paxos_config.quorum_2))
+        return 0;
+    memcpy(out, inst->final_value, sizeof(struct paxos_accepted));
+    paxos_value_copy(&out->value, &inst->final_value->value);
+    learner_delete_instance(l, inst);
+    l->current_iid++;
+    return 1;
 }
 
 int
@@ -319,6 +319,8 @@ instance_add_accept(struct instance* inst, paxos_accepted* accepted)
 	if (inst->acks[acceptor_id] != NULL)
 		paxos_accepted_free(inst->acks[acceptor_id]);
 	inst->acks[acceptor_id] = paxos_accepted_dup(accepted);
+	assert(accepted->value_ballot.number != 0);
+	assert(accepted->value.paxos_value_len > 0);
 	//if (ballot_greater_than(accepted->value_ballot, inst->last_update_ballot))
     	copy_ballot(&accepted->value_ballot, &inst->last_update_ballot);
 }

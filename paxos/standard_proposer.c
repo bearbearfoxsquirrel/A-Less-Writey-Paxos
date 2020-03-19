@@ -376,7 +376,7 @@ bool proposer_try_determine_value_to_propose(struct proposer* proposer, struct s
            // copy_value(value_to_propose, inst->common_info.proposing_value);
             array_list_append(proposer->pending_client_values, value_to_propose);
         } else {
-        //    if (proposer->max_chosen_instance > inst->common_info.iid) {
+            if (proposer->max_chosen_instance > inst->common_info.iid) {
                 inst->common_info.proposing_value = calloc(1, sizeof(struct paxos_value));
                 inst->common_info.proposing_value->paxos_value_val = malloc(sizeof(char) * 5);
                 memcpy(inst->common_info.proposing_value->paxos_value_val, "NOP.", sizeof(char) * 5);
@@ -385,10 +385,10 @@ bool proposer_try_determine_value_to_propose(struct proposer* proposer, struct s
                 //paxos_log_debug("Proposer: No value to accept");
                 paxos_log_debug("sending nop");
                 return true;
-        //    } else {
-         //       paxos_log_debug("No need to propose value");
-         //       return false;
-         //   }
+            } else {
+                paxos_log_debug("No need to propose value");
+                return false;
+            }
         }
     } else {
         paxos_log_debug("Instance has a previously proposed value");
@@ -462,6 +462,10 @@ proposer_try_accept(struct proposer* p, paxos_accept* out) {
         assert(size_prepares == (kh_size(p->prepare_phase_instances) + 1));
 
         proposer_instance_info_to_accept(&to_accept_inst->common_info, out);
+
+        assert(out->value.paxos_value_len > 1);
+        assert(out->value.paxos_value_val != NULL);
+        assert(strncmp(out->value.paxos_value_val, "", out->value.paxos_value_len));
     }
 
     assert(out->iid != 0);
@@ -636,7 +640,7 @@ void check_and_push_front_of_queue_if_client_value_was_proposed(struct proposer*
 
         if (is_values_equal(*instance_proposed_value, *proposed_value)) {
             array_list_remove_at(p->pending_client_values, i);
-            carray_push_back(p->client_values_to_propose, proposed_value);
+            carray_push_front(p->client_values_to_propose, proposed_value);
             break;
         }
     }

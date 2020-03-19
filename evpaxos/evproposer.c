@@ -159,6 +159,9 @@ evproposer_handle_accepted(struct peer* p, standard_paxos_message* msg, void* ar
     struct paxos_chosen chosen_msg;
     memset(&chosen_msg, 0, sizeof(struct paxos_chosen));
 
+    assert(acc->value.paxos_value_len > 1);
+    assert(acc->value_ballot.number > 0);
+
     if (proposer_receive_accepted(proposer->state, acc, &chosen_msg)){
      //   if (proposer_get_min_unchosen_instance(proposer->state) >= acc->iid){
      //       struct paxos_trim trim_msg = {.iid = acc->iid};
@@ -187,8 +190,6 @@ evproposer_handle_chosen(__unused struct peer* p, struct standard_paxos_message*
         kh_del_backoffs(proposer->current_backoffs, key);
     }
     try_accept(proposer);
-  // proposer_preexecute(proposer);
-//    proposer_preexecute(proposer);
 }
 
 struct retry {

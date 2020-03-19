@@ -33,7 +33,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <assert.h>
+#include "string.h"
 #include <event2/event.h>
+#include "ballot.h"
 #include <paxos_types.h>
 
 
@@ -82,6 +84,11 @@ evacceptor_handle_accept(struct peer* p, standard_paxos_message* msg, void* arg)
 		accept->iid, accept->ballot);
     if (standard_acceptor_receive_accept(a->state, accept, &out) != 0) {
 		if (out.type == PAXOS_ACCEPTED) {
+		    assert(out.u.accepted.value.paxos_value_val != NULL);
+		    assert(out.u.accepted.value.paxos_value_len > 1);
+		    assert(strncmp(out.u.accepted.value.paxos_value_val, "", 2));
+
+		    assert(ballot_equal(&out.u.accepted.value_ballot, out.u.accepted.promise_ballot));
 			peers_foreach_client(a->peers, peer_send_paxos_message, &out);
 		} else {
 	        send_paxos_message(peer_get_buffer(p), &out);
@@ -100,6 +107,7 @@ evacceptor_handle_repeat(struct peer* p, standard_paxos_message* msg, void* arg)
 	paxos_log_debug("Handle repeat for iids %d-%d", repeat->from, repeat->to);
 	for (iid = repeat->from; iid <= repeat->to; ++iid) {
         if (standard_acceptor_receive_repeat(a->state, iid, &out_msg)) {
+            assert(out_msg.u.accepted.value_ballot.number > 0);
 			send_paxos_message(peer_get_buffer(p), &out_msg);
 			paxos_message_destroy_contents(&out_msg);
 		}
