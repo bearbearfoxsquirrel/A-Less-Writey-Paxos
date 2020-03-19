@@ -366,15 +366,19 @@ bool proposer_try_determine_value_to_propose(struct proposer* proposer, struct s
             paxos_log_debug("Proposing client value");
             struct paxos_value* value_to_propose = carray_pop_front(proposer->client_values_to_propose);
             assert(value_to_propose != NULL);
-            inst->common_info.proposing_value = calloc(1, sizeof(struct paxos_value*));
-            copy_value(value_to_propose, inst->common_info.proposing_value);
+            inst->common_info.proposing_value = calloc(1, sizeof(struct paxos_value));
+            inst->common_info.proposing_value->paxos_value_val = malloc(sizeof(char) * value_to_propose->paxos_value_len);
+            memcpy(inst->common_info.proposing_value->paxos_value_val, value_to_propose->paxos_value_val, sizeof(char) * value_to_propose->paxos_value_len);
+            inst->common_info.proposing_value->paxos_value_len = value_to_propose->paxos_value_len;
+           // copy_value(value_to_propose, inst->common_info.proposing_value);
             array_list_append(proposer->pending_client_values, value_to_propose);
         } else {
             if (proposer->max_chosen_instance > inst->common_info.iid) {
                 inst->common_info.proposing_value = calloc(1, sizeof(struct paxos_value));
-                inst->common_info.proposing_value->paxos_value_val = malloc(sizeof(char) * 4);
-                inst->common_info.proposing_value->paxos_value_val = "NOP.";
-                inst->common_info.proposing_value->paxos_value_len = 4;
+                inst->common_info.proposing_value->paxos_value_val = malloc(sizeof(char) * 5);
+                memcpy(inst->common_info.proposing_value, "NOP.", sizeof(char) * 5);
+          //      inst->common_info.proposing_value->paxos_value_val = "NOP.";
+                inst->common_info.proposing_value->paxos_value_len = 5;
                 //paxos_log_debug("Proposer: No value to accept");
                 paxos_log_debug("sending nop");
                 return true;
@@ -408,13 +412,16 @@ static bool get_min_instance_to_begin_accept_phase(const struct proposer *p,
             continue;
         } else {
             struct standard_proposer_instance_info *current_inst = kh_value(hash_table, key);
-            if (quorum_reached(&current_inst->quorum) && !proposer_is_instance_chosen(p, current_inst->common_info.iid)) {
-                if (first) {
-                    (*to_accept_inst) = current_inst;
-                    first = false;
-                } else{
-                    if ((*to_accept_inst)->common_info.iid > current_inst->common_info.iid) {
+            if (get_instance_info(p->prepare_phase_instances, current_inst->common_info.iid, &current_inst)) { // checks if is really there
+                if (quorum_reached(&current_inst->quorum) &&
+                    !proposer_is_instance_chosen(p, current_inst->common_info.iid)) {
+                    if (first) {
                         (*to_accept_inst) = current_inst;
+                        first = false;
+                    } else {
+                        if ((*to_accept_inst)->common_info.iid > current_inst->common_info.iid) {
+                            (*to_accept_inst) = current_inst;
+                        }
                     }
                 }
             }
@@ -649,6 +656,7 @@ int proposer_receive_preempted(struct proposer* p, struct paxos_preempted* preem
     bool proposed_ballot_preempted = false;
     if (in_promise_phase) {
         if (ballot_equal(&preempted->attempted_ballot, prepare_instance_info->common_info.ballot)) {
+            paxos_log_debug("Instance %u Preempted in the Promise Phase", preempted->iid);
             proposed_ballot_preempted = true;
             proposer_update_instance_info_from_preemption(p, prepare_instance_info, preempted);
             get_prepare_from_instance_info(prepare_instance_info, out);
@@ -660,9 +668,10 @@ int proposer_receive_preempted(struct proposer* p, struct paxos_preempted* preem
 
     if (in_acceptance_phase) {
         if (ballot_equal(&preempted->attempted_ballot, accept_instance_info->common_info.ballot)){
+
             proposed_ballot_preempted = true;
             check_and_push_front_of_queue_if_client_value_was_proposed(p, accept_instance_info);
-
+            paxos_log_debug("Instance %u Preempted in the Acceptance Phase", preempted->iid);
             proposer_update_instance_info_from_preemption(p, accept_instance_info, preempted);
             proposer_move_proposer_instance_info(p->accept_phase_instances, p->prepare_phase_instances, accept_instance_info, p->q2);
             get_prepare_from_instance_info(accept_instance_info, out);

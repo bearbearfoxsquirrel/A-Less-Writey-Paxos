@@ -69,7 +69,7 @@ paxos_value_free(struct paxos_value* v)
 {
 	free(v->paxos_value_val);
 	free(v);
-	v = NULL;
+	*v = (struct paxos_value){.paxos_value_len = 0, .paxos_value_val = ""};
 }
 
 static void
