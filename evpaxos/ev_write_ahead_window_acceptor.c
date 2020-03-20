@@ -156,7 +156,7 @@ ev_write_ahead_acceptor_handle_repeat(struct peer* p, standard_paxos_message* ms
                 paxos_accepted_destroy(&out_msg.u.accepted);
             } else if (out_msg.type == PAXOS_CHOSEN) {
                 send_paxos_chosen(peer_get_buffer(p), &out_msg.u.chosen);
-                paxos_value_free(&out_msg.u.chosen.value);
+             //   paxos_value_free(out_msg.u.chosen.value);
             }
             paxos_message_destroy_contents(&out_msg);
         }
@@ -250,10 +250,10 @@ ev_write_ahead_acceptor_init_internal(int id, struct evpaxos_config* c, struct p
 
 
    acceptor->state = write_ahead_window_acceptor_new(id,
-            50000,
-            300,
-            1000,
             100000,
+            500,
+            2000,
+            250000,
             5000);
    // by making instance window less than min instance
    // catchup you can do a sort of write a little bit at once ahead
@@ -279,7 +279,7 @@ ev_write_ahead_acceptor_init_internal(int id, struct evpaxos_config* c, struct p
     acceptor->instance_window_check_event = event_new(base, -1, EV_TIMEOUT, check_instance_epoch_event, acceptor);
     acceptor->instance_window_check_timer = (struct timeval) {.tv_sec = 1, .tv_usec = rand() % 500000};
     acceptor->instance_window_epoch_iteration_event =  event_new(base, -1, EV_TIMEOUT, write_instance_epoch_event, acceptor);
-    acceptor->instance_window_epoch_iteration_timer = (struct timeval) {.tv_sec = 0, .tv_usec = 500000 + (rand() % 1000)}; //0.5 seconds = 500000  us
+    acceptor->instance_window_epoch_iteration_timer = (struct timeval) {.tv_sec = 0, .tv_usec = 100000 + (rand() % 1000)}; //0.5 seconds = 500000  us
     event_add(acceptor->instance_window_check_event, &acceptor->instance_window_check_timer);
 
     acceptor->ballot_window_check_event = evtimer_new(base, check_ballot_window_event, acceptor);

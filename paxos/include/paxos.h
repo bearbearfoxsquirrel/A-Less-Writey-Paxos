@@ -91,7 +91,7 @@ extern struct paxos_config paxos_config;
 
 /* Core functions */
 struct paxos_value* paxos_value_new(const char* v, size_t s);
-void paxos_value_free(struct paxos_value* v);
+void paxos_value_free(struct paxos_value** v);
 void paxos_promise_destroy(paxos_promise* p);
 void paxos_accept_destroy(paxos_accept* a);
 void paxos_accepted_destroy(paxos_accepted* a);

@@ -220,15 +220,15 @@ evproposer_try_higher_ballot(evutil_socket_t fd, short event, void* arg) {
 int get_initial_backoff() { return 1 + (rand() % INITIAL_BACKOFF_TIME); }
 
 unsigned int get_next_backoff(const unsigned int old_time) {
-    unsigned  int new_time = (old_time << (unsigned int) 1) % MAX_BACKOFF_TIME;
-    if (new_time == 0) {
-        new_time = get_initial_backoff();
-    }
-    return new_time;
+    //unsigned  int new_time = (old_time << (unsigned int) 1) % MAX_BACKOFF_TIME;
+   // if (new_time == 0) {
+    //    new_time = get_initial_backoff();
+   // }
+    //return new_time;
     //return (rand() % new_time);
    // return old_time;
-//   unsigned int next_jitter_time = (rand() % old_time * 3) + INITIAL_BACKOFF_TIME;
-  //  return MIN(MAX_BACKOFF_TIME, next_jitter_time);
+   unsigned int next_jitter_time = (rand() % old_time * 3) + INITIAL_BACKOFF_TIME;
+    return MIN(MAX_BACKOFF_TIME, next_jitter_time);
 }
 
 

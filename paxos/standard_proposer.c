@@ -43,10 +43,38 @@
 #include <paxos_message_conversion.h>
 #include <stdbool.h>
 #include <array_list.h>
+#include <stdio.h>
+#include "sys/random.h"
 
 
 KHASH_MAP_INIT_INT(chosen_instances, bool*)
 KHASH_MAP_INIT_INT(instance_info, struct standard_proposer_instance_info*)
+
+
+
+
+
+
+
+
+
+static void print_bytes_of_value_to_submit(char * ty, char * val, unsigned char * bytes, size_t num_bytes) {
+    char* string; //= sprintf("(%*s) %*s = [ ", 15, ty, 16, val);
+    asprintf(&string, "(%*s) %*s = [ ", 15, ty, 16, val);
+    for (size_t i = 0; i < num_bytes; i++) {
+        char* to_add;
+        asprintf(&to_add, "%*u ", 3, bytes[i]);
+        strcat(string, to_add);
+    }
+    strcat(string, "]");
+    paxos_log_debug("%s", string);
+}
+
+#define SHOW(T,V) do { T x = V; print_bytes_of_value_to_submit(#T, #V, (unsigned char*) &x, sizeof(x)); } while(0)
+
+
+
+
 
 struct proposer
 {
@@ -131,9 +159,10 @@ proposer_new(int id, int acceptors, int q1, int q2)
 	return p;
 }
 
-static void standard_proposer_instance_info_free(struct standard_proposer_instance_info* inst) {
-    proposer_common_instance_info_free(&inst->common_info);
-    quorum_destroy(&inst->quorum);
+static void standard_proposer_instance_info_free(struct standard_proposer_instance_info **inst) {
+    proposer_common_instance_info_destroy_contents(&(**inst).common_info);
+    quorum_destroy(&(*inst)->quorum);
+    *inst = NULL;
 }
 
 void
@@ -141,8 +170,8 @@ proposer_free(struct proposer* p)
 {
 	struct standard_proposer_instance_info* inst;
 	bool* boolean;
-	kh_foreach_value(p->prepare_phase_instances, inst, standard_proposer_instance_info_free(inst));
-	kh_foreach_value(p->accept_phase_instances, inst, standard_proposer_instance_info_free(inst));
+	kh_foreach_value(p->prepare_phase_instances, inst, standard_proposer_instance_info_free(&inst));
+	kh_foreach_value(p->accept_phase_instances, inst, standard_proposer_instance_info_free(&inst));
 	kh_foreach_value(p->chosens, boolean, free(boolean));
 	kh_destroy(instance_info, p->prepare_phase_instances);
 	kh_destroy(instance_info, p->accept_phase_instances);
@@ -165,8 +194,8 @@ proposer_instance_info_new(iid_t iid, struct ballot ballot, int acceptors, int q
 
 void proposer_add_paxos_value_to_queue(struct proposer* p, struct paxos_value* value) {
     paxos_log_debug("Recevied new client value");
-    struct paxos_value* value_copy = malloc(sizeof(struct paxos_value*));
-    copy_value(value, value_copy);
+    struct paxos_value* value_copy = paxos_value_new(value->paxos_value_val, value->paxos_value_len);//malloc(sizeof(struct paxos_value*));
+  //  copy_value(value, value_copy);
     assert(value_copy->paxos_value_len > 1);
 	carray_push_back(p->client_values_to_propose, value_copy);
 }
@@ -274,15 +303,15 @@ proposer_try_to_start_preparing_instance(struct proposer* p, iid_t instance, pax
     unsigned int k = kh_get_instance_info(p->prepare_phase_instances, instance);
 
     if (k == kh_end(p->prepare_phase_instances)) {
-        // New instance
-        struct ballot ballot = (struct ballot) {.number = INITIAL_BALLOT, .proposer_id = p->id};
+            // New instance
+            struct ballot ballot = (struct ballot) {.number = INITIAL_BALLOT, .proposer_id = p->id};
 
-        int rv;
-        inst = proposer_instance_info_new(instance, ballot, p->acceptors, p->q1);
-        k = kh_put_instance_info(p->prepare_phase_instances, instance, &rv);
-        assert(rv > 0);
-        kh_value(p->prepare_phase_instances, k) = inst;
-        *out = (struct paxos_prepare) {.iid = inst->common_info.iid, .ballot = inst->common_info.ballot};
+            int rv;
+            inst = proposer_instance_info_new(instance, ballot, p->acceptors, p->q1);
+            k = kh_put_instance_info(p->prepare_phase_instances, instance, &rv);
+            assert(rv > 0);
+            kh_value(p->prepare_phase_instances, k) = inst;
+            *out = (struct paxos_prepare) {.iid = inst->common_info.iid, .ballot = inst->common_info.ballot};
     }
     assert(out->iid != 0);
 }
@@ -344,16 +373,15 @@ void check_and_handle_promises_value_for_instance(paxos_promise *ack, struct sta
             copy_ballot(&ack->value_ballot , &inst->common_info.last_promised_values_ballot);
 
             if (proposer_instance_info_has_promised_value(&inst->common_info)) {
-                paxos_value_free(inst->common_info.last_promised_value);
-               // free(inst->common_info.last_promised_value->paxos_value_val); // only need to free the value itself
-            } else {
-                //inst->common_info.last_promised_value = calloc(1, sizeof(inst->common_info.last_promised_value));
+                paxos_value_free(&inst->common_info.last_promised_value);
             }
 
             assert(ack->value.paxos_value_len > 1);
             assert(strcmp(ack->value.paxos_value_val, "") != 0);
 
             inst->common_info.last_promised_value = paxos_value_new(ack->value.paxos_value_val, ack->value.paxos_value_len);
+
+            SHOW(struct paxos_value, *inst->common_info.last_promised_value);
 //            copy_value(&ack-value , inst->common_info.last_promised_value);
             paxos_log_debug("Value in promise saved, removed older value");
         } else {
@@ -362,41 +390,45 @@ void check_and_handle_promises_value_for_instance(paxos_promise *ack, struct sta
     }
 }
 
+//inst->common_info.proposing_value = paxos_value_new(value_to_propose->paxos_value_val, value_to_propose->paxos_value_len);
+// inst->common_info.proposing_value = calloc(1, sizeof(struct paxos_value));
+// inst->common_info.proposing_value->paxos_value_val = malloc(sizeof(char) * value_to_propose->paxos_value_len);
+// memcpy(inst->common_info.proposing_value->paxos_value_val, value_to_propose->paxos_value_val, sizeof(char) * value_to_propose->paxos_value_len);
+// inst->common_info.proposing_value->paxos_value_len = value_to_propose->paxos_value_len;
+// copy_value(value_to_propose, inst->common_info.proposing_value);
+
+//   inst->common_info.proposing_value = calloc(1, sizeof(struct paxos_value));
+//    inst->common_info.proposing_value->paxos_value_val = malloc(sizeof(char) * 5);
+//  memcpy(inst->common_info.proposing_value->paxos_value_val, "NOP.", sizeof(char) * 5);
+//      inst->common_info.proposing_value->paxos_value_val = "NOP.";
+//   inst->common_info.proposing_value->paxos_value_len = 5;
+//paxos_log_debug("Proposer: No value to accept");
 
 bool proposer_try_determine_value_to_propose(struct proposer* proposer, struct standard_proposer_instance_info* inst) {
     if (!proposer_instance_info_has_promised_value(&inst->common_info)) {
         if (!carray_empty(proposer->client_values_to_propose)) {
+            assert(inst->common_info.proposing_value == NULL);
             paxos_log_debug("Proposing client value");
             struct paxos_value* value_to_propose = carray_pop_front(proposer->client_values_to_propose);
             assert(value_to_propose != NULL);
-            inst->common_info.proposing_value = calloc(1, sizeof(struct paxos_value));
-            inst->common_info.proposing_value->paxos_value_val = malloc(sizeof(char) * value_to_propose->paxos_value_len);
-            memcpy(inst->common_info.proposing_value->paxos_value_val, value_to_propose->paxos_value_val, sizeof(char) * value_to_propose->paxos_value_len);
-            inst->common_info.proposing_value->paxos_value_len = value_to_propose->paxos_value_len;
-           // copy_value(value_to_propose, inst->common_info.proposing_value);
+            inst->common_info.proposing_value = paxos_value_new(value_to_propose->paxos_value_val, value_to_propose->paxos_value_len);
+            SHOW(struct paxos_value, *inst->common_info.proposing_value);
             array_list_append(proposer->pending_client_values, value_to_propose);
+      //      paxos_value_free(&value_to_propose);
         } else {
             if (proposer->max_chosen_instance > inst->common_info.iid) {
-                inst->common_info.proposing_value = calloc(1, sizeof(struct paxos_value));
-                inst->common_info.proposing_value->paxos_value_val = malloc(sizeof(char) * 5);
-                memcpy(inst->common_info.proposing_value->paxos_value_val, "NOP.", sizeof(char) * 5);
-          //      inst->common_info.proposing_value->paxos_value_val = "NOP.";
-                inst->common_info.proposing_value->paxos_value_len = 5;
-                //paxos_log_debug("Proposer: No value to accept");
-                paxos_log_debug("sending nop");
-                return true;
+                inst->common_info.proposing_value = paxos_value_new("NOP.", 5);
+                paxos_log_debug("Sending NOP to fill holes");
             } else {
-                paxos_log_debug("No need to propose value");
+                paxos_log_debug("No need to propose a Value");
                 return false;
             }
         }
     } else {
-        paxos_log_debug("Instance has a previously proposed value");
-       // inst->common_info.proposing_value = calloc(1, sizeof(inst->common_info.proposing_value));
-
-     //   paxos_value_copy(inst->common_info.proposing_value, inst->common_info.last_promised_value);
-        inst->common_info.proposing_value = inst->common_info.last_promised_value;
-        inst->common_info.last_promised_value = NULL;
+        paxos_log_debug("Instance has a previously proposed Value. Proposing it.");
+        inst->common_info.proposing_value = paxos_value_new(inst->common_info.last_promised_value->paxos_value_val, inst->common_info.last_promised_value->paxos_value_len);
+        paxos_value_free(&inst->common_info.last_promised_value);
+        SHOW(struct paxos_value, *inst->common_info.proposing_value);
     }
     assert(inst->common_info.proposing_value != NULL);
     return true;
@@ -454,13 +486,15 @@ proposer_try_accept(struct proposer* p, paxos_accept* out) {
 
 	bool is_value_to_propose = proposer_try_determine_value_to_propose(p, to_accept_inst);
     if (is_value_to_propose) {
-        // MOVE INSTACNE TO ACCEPTANCE PHASE
+        // MOVE INSTANCE TO ACCEPTANCE PHASE
         unsigned int size_prepares = kh_size(p->prepare_phase_instances);
         unsigned int size_accepts = kh_size(p->accept_phase_instances);
         proposer_move_proposer_instance_info(p->prepare_phase_instances, p->accept_phase_instances, to_accept_inst, p->q2);
         assert(size_accepts == (kh_size(p->accept_phase_instances) - 1));
         assert(size_prepares == (kh_size(p->prepare_phase_instances) + 1));
 
+
+        // todo this might be an issue area if contents are deleted
         proposer_instance_info_to_accept(&to_accept_inst->common_info, out);
 
         assert(out->value.paxos_value_len > 1);
@@ -528,7 +562,7 @@ static void check_and_close_client_value_if_was_chosen(struct proposer* proposer
         struct paxos_value* current_proposed_client_value = array_list_get_element_at(proposer->pending_client_values, i);
         if (is_values_equal(chosen_msg->value, *current_proposed_client_value)){
             array_list_remove_at(proposer->pending_client_values, i);
-       //     paxos_value_free(current_proposed_client_value);
+            paxos_value_free(&current_proposed_client_value);
             break;
         }
     }
@@ -555,14 +589,21 @@ int proposer_receive_chosen(struct proposer* p, struct paxos_chosen* ack) {
     if (in_accept_phase) {
          check_and_close_client_value_if_was_chosen(p, ack);
          remove_instance_from_phase(p->accept_phase_instances, ack->iid);
-         standard_proposer_instance_info_free(inst_accept);
+         standard_proposer_instance_info_free(&inst_accept);
+      //   inst_accept = NULL;
     }
 
     struct standard_proposer_instance_info* inst_prepare;
     bool in_prepare_phase = get_instance_info(p->prepare_phase_instances, ack->iid, &inst_prepare);
     if (in_prepare_phase) {
         remove_instance_from_phase(p->prepare_phase_instances, ack->iid);
-        standard_proposer_instance_info_free(inst_prepare);
+        standard_proposer_instance_info_free(&inst_prepare);
+     //   inst_prepare = NULL;
+    }
+
+    if (proposer_get_min_unchosen_instance(p) >= ack->iid) {
+        proposer_trim_proposer_instance_infos(p, p->accept_phase_instances, ack->iid);
+        proposer_trim_proposer_instance_infos(p, p->prepare_phase_instances, ack->iid);
     }
     return 1;
 }
@@ -584,14 +625,14 @@ static struct standard_proposer_instance_info*
 next_timedout(khash_t(instance_info)* h, khiter_t* k, struct timeval* t)
 {
 	for (; *k != kh_end(h); ++(*k)) {
-		if (!kh_exist(h, *k))
+		if (kh_exist(h, *k) != 1)
 			continue;
 		struct standard_proposer_instance_info* inst = kh_value(h, *k);
-		if (quorum_reached(&inst->quorum))
-			continue;
-		if (proposer_instance_info_has_timedout(&inst->common_info, t))
-			return inst;
-	}
+            if (quorum_reached(&inst->quorum))
+                continue;
+            if (proposer_instance_info_has_timedout(&inst->common_info, t))
+                return inst;
+    }
 	return NULL;
 }
 
@@ -617,13 +658,6 @@ timeout_iterator_accept(struct timeout_iterator* iter, paxos_accept* out) {
         return 0;
 
     gettimeofday(&inst->common_info.created_at, NULL);
- /*   if(proposer_instance_info_has_value(&inst->common_info)) {
-        proposer_instance_info_to_accept(&inst->common_info, out);
-        inst->common_info.created_at = iter->timeout;
-        return 1;
-    } else {
-        return 0;
-    }*/
     proposer_instance_info_to_accept(&inst->common_info, out);
     return 1;
 }
@@ -639,8 +673,10 @@ void check_and_push_front_of_queue_if_client_value_was_proposed(struct proposer*
         struct paxos_value* proposed_value = array_list_get_element_at(p->pending_client_values, i);
 
         if (is_values_equal(*instance_proposed_value, *proposed_value)) {
-            array_list_remove_at(p->pending_client_values, i);
-            carray_push_front(p->client_values_to_propose, proposed_value);
+            carray_push_back(p->client_values_to_propose, proposed_value);
+
+            struct paxos_value* val = array_list_remove_at(p->pending_client_values, i);
+         //   paxos_value_free(&val);
             break;
         }
     }
@@ -705,17 +741,12 @@ proposer_update_instance_info_from_preemption(struct proposer *p, struct standar
 	inst->common_info.last_promised_values_ballot = (struct ballot) {.number = 0, .proposer_id = 0};
 
     if (proposer_instance_info_has_promised_value(&inst->common_info)) {
-
-        paxos_value_free(inst->common_info.last_promised_value);
-       // free(inst->common_info.last_promised_value);
+        paxos_value_free(&inst->common_info.last_promised_value);
     }
 
     if (proposer_instance_info_has_value(&inst->common_info)) {
-
-        paxos_value_free(inst->common_info.proposing_value);
-      //  free(inst->common_info.proposing_value);
+        paxos_value_free(&inst->common_info.proposing_value);
     }
-
 
     inst->common_info.proposing_value = NULL;
     inst->common_info.last_promised_value = NULL;
@@ -746,7 +777,7 @@ proposer_trim_proposer_instance_infos(struct proposer* p, khash_t(instance_info)
 {
 	khiter_t k;
 	for (k = kh_begin(h); k != kh_end(h); ++k) {
-		if (!kh_exist(h, k))
+		if (kh_exist(h, k) != 1)
 			continue;
 		struct standard_proposer_instance_info* inst = kh_value(h, k);
 		if (inst->common_info.iid <= iid) {
@@ -754,10 +785,8 @@ proposer_trim_proposer_instance_infos(struct proposer* p, khash_t(instance_info)
                 check_and_push_front_of_queue_if_client_value_was_proposed(p, inst);
 			}
 			kh_del_instance_info(h, k);
-            standard_proposer_instance_info_free(inst);
-
-            //khiter_t test_key = kh_get_instance_info(h, iid);
-          //  assert(test_key == kh_end(h));
+            standard_proposer_instance_info_free(&inst);
+            inst = NULL;
 		}
 	}
 }

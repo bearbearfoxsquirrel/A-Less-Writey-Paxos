@@ -33,14 +33,16 @@ struct proposer_common_instance_info proposer_common_info_new(iid_t iid, struct 
 }
 
 void
-proposer_common_instance_info_free(struct proposer_common_instance_info* inst)
+proposer_common_instance_info_destroy_contents(struct proposer_common_instance_info* inst)
 {
     if (proposer_instance_info_has_value(inst)) {
-        paxos_value_free(inst->proposing_value);
+        paxos_value_free(&inst->proposing_value);
+        inst->proposing_value = NULL;
     }
-    if (proposer_instance_info_has_promised_value(inst))
-        paxos_value_free(inst->last_promised_value);
-    free(inst);
+    if (proposer_instance_info_has_promised_value(inst)) {
+        paxos_value_free(&inst->last_promised_value);
+        inst->proposing_value = NULL;
+    }
 }
 
 void

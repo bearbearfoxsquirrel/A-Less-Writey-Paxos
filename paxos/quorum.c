@@ -60,6 +60,7 @@ void
 quorum_destroy(struct quorum* q)
 {
 	free(q->acceptor_ids);
+	q->acceptor_ids = NULL;
 }
 
 

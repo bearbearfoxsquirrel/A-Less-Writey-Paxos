@@ -56,29 +56,37 @@ struct paxos_config paxos_config =
 struct paxos_value*
 paxos_value_new(const char* value, size_t size)
 {
-	struct paxos_value* v;
-	v = malloc(sizeof(struct paxos_value));
+	struct paxos_value* v = malloc(sizeof(struct paxos_value));
 	v->paxos_value_len = size;
-	v->paxos_value_val = malloc(size);
-	memcpy(v->paxos_value_val, value, size);
+	v->paxos_value_val = malloc(sizeof(char)*size);
+	memcpy(v->paxos_value_val, value, sizeof(char)*size );
 	return v;
 }
 
 void
-paxos_value_free(struct paxos_value* v)
+paxos_value_free(struct paxos_value** v)
 {
-	free(v->paxos_value_val);
-	free(v);
-	*v = (struct paxos_value){.paxos_value_len = 0, .paxos_value_val = ""};
+    if (*v != NULL) {
+        if ((*v)->paxos_value_val != NULL) {
+            free((*v)->paxos_value_val);
+            (*v)->paxos_value_val = NULL;
+        }
+        (*v)->paxos_value_len = 0;
+        free(*v);
+        *v = NULL;
+    }
 }
 
 static void
 paxos_value_destroy(struct paxos_value* v)
 {
     if (v != NULL) {
-        if (v->paxos_value_len > 0)
+        if (v->paxos_value_val != NULL)
             free(v->paxos_value_val);
+        v->paxos_value_val = NULL;
+        v->paxos_value_len = 0; // todo might be an issue here
     }
+
 }
 
 void

@@ -51,7 +51,7 @@ struct epoch_proposer* epoch_proposer_new(int id, int acceptors, int q1, int q2)
 }
 
 static void epoch_proposer_instance_info_free(struct epoch_proposer_instance_info* inst) {
-    proposer_common_instance_info_free(&inst->common_info);
+    proposer_common_instance_info_destroy_contents(&inst->common_info);
     epoch_quorum_destroy(&inst->epoch_quorum);
 }
 

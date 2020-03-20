@@ -25,6 +25,6 @@ void proposer_instance_info_to_accept(struct proposer_common_instance_info* inst
 
 struct proposer_common_instance_info proposer_common_info_new(iid_t iid, struct ballot ballot);
 
-void proposer_common_instance_info_free(struct proposer_common_instance_info* inst);
+void proposer_common_instance_info_destroy_contents(struct proposer_common_instance_info* inst);
 
 #endif //LIBPAXOS_PROPOSER_COMMON_H
