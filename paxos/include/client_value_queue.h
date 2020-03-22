@@ -33,16 +33,16 @@
 extern "C" {
 #endif
 
-struct carray;
+struct client_value_queue;
 
-struct carray* carray_new(int size);
-void carray_free(struct carray* a);
-int carray_empty(struct carray* a);
-int carray_size(struct carray* a);
-int carray_push_back(struct carray* a, void* p);
-int carray_push_front(struct carray* a, void* p);
-void carray_foreach(struct carray* a, void (*carray_cb)(void*));
-void* carray_pop_front(struct carray* a);
+struct client_value_queue* carray_new(int size);
+void carray_free(struct client_value_queue* a);
+int carray_empty(struct client_value_queue* a);
+int carray_size(struct client_value_queue* a);
+int carray_push_back(struct client_value_queue* a, void* p);
+int carray_push_front(struct client_value_queue* a, void* p);
+void carray_foreach(struct client_value_queue* a, void (*carray_cb)(void*));
+void* carray_pop_front(struct client_value_queue* a);
 
 #ifdef __cplusplus
 }

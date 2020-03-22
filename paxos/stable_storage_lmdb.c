@@ -60,7 +60,7 @@ struct lmdb_storage
 
 static int
 lmdb_storage_get_max_instance(struct lmdb_storage *lmdb_storage, iid_t *retrieved_instance) {
-    assert(lmdb_storage->txn != NULL);
+    // assert(lmdb_storage->txn != NULL);
 
     int result;
     MDB_val key, data;
@@ -72,7 +72,7 @@ lmdb_storage_get_max_instance(struct lmdb_storage *lmdb_storage, iid_t *retrieve
     if ((result = mdb_get(lmdb_storage->txn, lmdb_storage->dbi, &key, &data)) != 0) {
         if (result != MDB_NOTFOUND) { // something else went wrong so freak out
             paxos_log_error("mdb_get failed: %s", mdb_strerror(result));
-            return 1;//assert(result == 0); // return an error code
+            return 1;//// assert(result == 0); // return an error code
         } else {
             *retrieved_instance = 0; // the trim instance has not been found so return 0
         }
@@ -84,7 +84,7 @@ lmdb_storage_get_max_instance(struct lmdb_storage *lmdb_storage, iid_t *retrieve
 
 static int
 lmdb_storage_put_max_instance(struct lmdb_storage *lmdb_storage, iid_t max_instance) {
-    assert(lmdb_storage->txn != NULL);
+    // assert(lmdb_storage->txn != NULL);
 
     int result;
 
@@ -99,7 +99,7 @@ lmdb_storage_put_max_instance(struct lmdb_storage *lmdb_storage, iid_t max_insta
     result = mdb_put(lmdb_storage->txn, lmdb_storage->dbi, &key, &data, 0);
     if (result != 0)
         paxos_log_error("%s\n", mdb_strerror(result));
-    assert(result == 0);
+    // assert(result == 0);
 
   //  paxos_log_debug("last inited instance: %u", max_instance);
     return 0;
@@ -113,8 +113,8 @@ static int
 lmdb_compare_iid(const MDB_val* lhs, const MDB_val* rhs)
 {
 	iid_t lid, rid;
-	assert(lhs->mv_size == sizeof(iid_t));
-	assert(rhs->mv_size == sizeof(iid_t));
+	// assert(lhs->mv_size == sizeof(iid_t));
+	// assert(rhs->mv_size == sizeof(iid_t));
 	lid = *((iid_t*) lhs->mv_data);
 	rid = *((iid_t*) rhs->mv_data);
 	return (lid == rid) ? 0 : (lid < rid) ? -1 : 1;
@@ -249,7 +249,7 @@ lmdb_storage_close(struct lmdb_storage *lmdb_storage) {
 
 static int
 lmdb_storage_tx_begin(struct lmdb_storage *lmdb_storage) {
-    assert(lmdb_storage->txn == NULL);
+    // assert(lmdb_storage->txn == NULL);
     return mdb_txn_begin(lmdb_storage->env, NULL, 0, &lmdb_storage->txn);
 }
 
@@ -257,7 +257,7 @@ static int
 lmdb_storage_tx_commit(struct lmdb_storage *lmdb_storage)
 {
 	int result;
-    assert(lmdb_storage->txn);
+    // assert(lmdb_storage->txn);
     result = mdb_txn_commit(lmdb_storage->txn);
     lmdb_storage->txn = NULL;
 	return result;
@@ -265,7 +265,7 @@ lmdb_storage_tx_commit(struct lmdb_storage *lmdb_storage)
 
 static void
 lmdb_storage_tx_abort(struct lmdb_storage *lmdb_storage) {
-    assert(lmdb_storage->txn != NULL);
+    // assert(lmdb_storage->txn != NULL);
 
     if (lmdb_storage->txn) {
         mdb_txn_abort(lmdb_storage->txn);
@@ -277,7 +277,7 @@ lmdb_storage_tx_abort(struct lmdb_storage *lmdb_storage) {
 static int
 lmdb_storage_get_instance_info(struct lmdb_storage *lmdb_storage, iid_t iid, paxos_accepted *out)
 {
-    assert(lmdb_storage->txn != NULL);
+    // assert(lmdb_storage->txn != NULL);
 
     int result;
 	MDB_val key, data;
@@ -299,8 +299,8 @@ lmdb_storage_get_instance_info(struct lmdb_storage *lmdb_storage, iid_t iid, pax
 
     paxos_accepted_from_buffer(data.mv_data, out);
 
-    assert(&out->promise_ballot != NULL);
-	assert(iid == out->iid);
+    // assert(&out->promise_ballot != NULL);
+	// assert(iid == out->iid);
 
 	return 1;
 }
@@ -308,7 +308,7 @@ lmdb_storage_get_instance_info(struct lmdb_storage *lmdb_storage, iid_t iid, pax
 static int
 lmdb_storage_store_instance_info(struct lmdb_storage *lmdb_storage, paxos_accepted *acc)
 {
-    assert(lmdb_storage->txn != NULL);
+    // assert(lmdb_storage->txn != NULL);
 
     int result;
 	MDB_val key, data;
@@ -327,9 +327,9 @@ lmdb_storage_store_instance_info(struct lmdb_storage *lmdb_storage, paxos_accept
    // struct paxos_accepted test_accepted;
    // lmdb_storage_get_instance_info(lmdb_storage, acc->iid, &test_accepted);
 
-   // assert(acc->iid == test_accepted.iid);
-   // assert(ballot_equal(&acc->promise_ballot, test_accepted.promise_ballot));
-   // assert(ballot_equal(&acc->value_ballot, test_accepted.value_ballot));
+   // // assert(acc->iid == test_accepted.iid);
+   // // assert(ballot_equal(&acc->promise_ballot, test_accepted.promise_ballot));
+   // // assert(ballot_equal(&acc->value_ballot, test_accepted.value_ballot));
 
     iid_t max_inited_instance;
     lmdb_storage_get_max_instance(lmdb_storage, &max_inited_instance);
@@ -345,7 +345,7 @@ lmdb_storage_store_instance_info(struct lmdb_storage *lmdb_storage, paxos_accept
 static int
 lmdb_storage_get_trim_instance(struct lmdb_storage *lmdb_storage, iid_t *retrieved_instance)
 {
-    assert(lmdb_storage->txn != NULL);
+    // assert(lmdb_storage->txn != NULL);
 
     if (retrieved_instance == NULL)
         retrieved_instance = malloc(sizeof(iid_t));
@@ -359,7 +359,7 @@ lmdb_storage_get_trim_instance(struct lmdb_storage *lmdb_storage, iid_t *retriev
     if ((result = mdb_get(lmdb_storage->txn, lmdb_storage->dbi, &key, &data)) != 0) {
         if (result != MDB_NOTFOUND) { // something else when wrong so freak out
 			paxos_log_error("mdb_get failed: %s", mdb_strerror(result));
-            return 1;//assert(result == 0); // return an error code
+            return 1;//// assert(result == 0); // return an error code
 		} else {
             *retrieved_instance = 0; // the trim instance has not been found so it is 0
 		}
@@ -372,7 +372,7 @@ lmdb_storage_get_trim_instance(struct lmdb_storage *lmdb_storage, iid_t *retriev
 static int
 lmdb_storage_put_trim_instance(struct lmdb_storage *lmdb_storage, iid_t iid)
 {
-    assert(lmdb_storage->txn != NULL);
+    // assert(lmdb_storage->txn != NULL);
 
     int result;
 
@@ -387,7 +387,7 @@ lmdb_storage_put_trim_instance(struct lmdb_storage *lmdb_storage, iid_t iid)
     result = mdb_put(lmdb_storage->txn, lmdb_storage->dbi, &key, &data, 0);
 	if (result != 0)
 		paxos_log_error("%s\n", mdb_strerror(result));
-	assert(result == 0);
+	// assert(result == 0);
 
 	return 0;
 }
@@ -395,7 +395,7 @@ lmdb_storage_put_trim_instance(struct lmdb_storage *lmdb_storage, iid_t iid)
 // Tells the storage to delete everything before the iid passed
 static int
 lmdb_storage_trim(struct lmdb_storage *lmdb_storage, iid_t iid) {
-    assert(lmdb_storage->txn != NULL);
+    // assert(lmdb_storage->txn != NULL);
 
     int result;
     iid_t min = 0;
@@ -417,7 +417,7 @@ lmdb_storage_trim(struct lmdb_storage *lmdb_storage, iid_t iid) {
 
     do {
         if ((result = mdb_cursor_get(cursor, &key, &data, MDB_NEXT)) == 0) {
-            assert(key.mv_size = sizeof(iid_t));
+            // assert(key.mv_size = sizeof(iid_t));
             min = *(iid_t *) key.mv_data;
         } else {
             goto cleanup_exit;
@@ -443,7 +443,7 @@ static int
 lmdb_storage_get_all_untrimmed_instances_info(struct lmdb_storage *lmdb_storage,
                                               struct paxos_accepted **retreved_instances,
                                               int *number_of_instances_retrieved) {
-    assert(lmdb_storage->txn != NULL);
+    // assert(lmdb_storage->txn != NULL);
 
     iid_t trim_instance = 0;
     lmdb_storage_get_trim_instance(lmdb_storage, &trim_instance);
@@ -546,7 +546,7 @@ void storage_init_lmdb_standard(struct standard_stable_storage* s, int acceptor_
 
 
 static int lmdb_get_current_epoch(struct lmdb_storage* lmdb_storage, uint32_t * retreived_epoch) {
-    assert(lmdb_storage->txn != NULL);
+    // assert(lmdb_storage->txn != NULL);
 
     int result;
     MDB_val key, data;
@@ -558,7 +558,7 @@ static int lmdb_get_current_epoch(struct lmdb_storage* lmdb_storage, uint32_t * 
     if ((result = mdb_get(lmdb_storage->txn, lmdb_storage->dbi, &key, &data)) != 0) {
         if (result != MDB_NOTFOUND) { // something else went wrong so freak out
             paxos_log_error("mdb_get failed: %s", mdb_strerror(result));
-            return -100;//assert(result == 0); // return an error code
+            return -100;//// assert(result == 0); // return an error code
         } else {
             *retreived_epoch = 0; // the trim instance has not been found so return 0
         }
@@ -569,7 +569,7 @@ static int lmdb_get_current_epoch(struct lmdb_storage* lmdb_storage, uint32_t * 
 }
 
 static int lmdb_store_current_epoch(struct lmdb_storage* lmdb_storage, uint32_t epoch) {
-    assert(lmdb_storage->txn != NULL);
+    // assert(lmdb_storage->txn != NULL);
 
     int result;
 
@@ -584,13 +584,13 @@ static int lmdb_store_current_epoch(struct lmdb_storage* lmdb_storage, uint32_t 
     result = mdb_put(lmdb_storage->txn, lmdb_storage->dbi, &key, &data, 0);
     if (result != 0)
         paxos_log_error("%s\n", mdb_strerror(result));
-    assert(result == 0);
+    // assert(result == 0);
 
     return 0;
 }
 
 static int lmdb_store_accept_epoch(struct lmdb_storage* lmdb_storage, iid_t instance, uint32_t epoch) {
-    assert(lmdb_storage->txn != NULL);
+    // assert(lmdb_storage->txn != NULL);
 
     int result;
 
@@ -607,13 +607,13 @@ static int lmdb_store_accept_epoch(struct lmdb_storage* lmdb_storage, iid_t inst
     result = mdb_put(lmdb_storage->txn, lmdb_storage->dbi, &key, &data, 0);
     if (result != 0)
         paxos_log_error("%s\n", mdb_strerror(result));
-    assert(result == 0);
+    // assert(result == 0);
 
     return 0;
 }
 
 static int lmdb_get_accept_epoch(struct lmdb_storage* lmdb_storage, iid_t instance, uint32_t* retrieved_epoch) {
-    assert(lmdb_storage->txn != NULL);
+    // assert(lmdb_storage->txn != NULL);
     int result;
     MDB_val key, data;
     memset(&data, 0, sizeof(data));
@@ -626,7 +626,7 @@ static int lmdb_get_accept_epoch(struct lmdb_storage* lmdb_storage, iid_t instan
     if ((result = mdb_get(lmdb_storage->txn, lmdb_storage->dbi, &key, &data)) != 0) {
         if (result != MDB_NOTFOUND) { // something else went wrong so freak out
             paxos_log_error("mdb_get failed: %s", mdb_strerror(result));
-            return 1;//assert(result == 0); // return an error code
+            return 1;//// assert(result == 0); // return an error code
         } else {
             *retrieved_epoch = 0; // the trim instance has not been found so return 0
         }

@@ -136,8 +136,10 @@ on_deliver(unsigned iid, char* value, size_t size, void* arg)
     struct client_value* v = (struct client_value*)value;
     if (v->client_id == c->id) {
         update_stats(&c->stats, v, size);
-        client_submit_value(c);
+
     }
+
+    client_submit_value(c);
 }
 
 static void

@@ -29,14 +29,16 @@
 #ifndef _PROPOSER_H_
 #define _PROPOSER_H_
 
+#include <stdlib.h>
+#include "paxos.h"
+#include "stdint.h"
 
-#define INITIAL_BALLOT (1 + (rand() % 100))
-#define BALLOT_INCREMENT (rand() % 100)
+#define INITIAL_BALLOT  (rand() % 20) + 1//(int)((double)rand() / ((double)50 + 1) * 1)
+#define BALLOT_INCREMENT (rand() % 20) + 1// (int)((double)rand() / ((double)50 + 1) * 1)
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#include "paxos.h"
 
 struct proposer;
 struct timeout_iterator;

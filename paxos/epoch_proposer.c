@@ -10,7 +10,7 @@
 #include <proposer_common.h>
 
 #include <khash.h>
-#include <carray.h>
+#include <client_value_queue.h>
 
 KHASH_MAP_INIT_INT(instance_info, struct epoch_proposer_instance_info*)
 
@@ -20,7 +20,7 @@ struct epoch_proposer {
     int acceptors;
     int q1;
     int q2;
-    struct carray* values;
+    struct client_value_queue* values;
     iid_t max_trim_iid;
     iid_t next_prepare_iid;
     khash_t(instance_info)* prepare_proposer_instance_infos; /* Waiting for prepare acks */

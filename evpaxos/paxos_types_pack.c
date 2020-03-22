@@ -215,17 +215,19 @@ void msgpack_unpack_paxos_trim(msgpack_object* o, paxos_trim* v)
 
 void msgpack_pack_paxos_acceptor_state(msgpack_packer* p, paxos_standard_acceptor_state* v)
 {
-	msgpack_pack_array(p, 3);
+	msgpack_pack_array(p, 4);
 	msgpack_pack_int32(p, PAXOS_ACCEPTOR_STATE);
 	msgpack_pack_uint32(p, v->aid);
 	msgpack_pack_uint32(p, v->trim_iid);
+	msgpack_pack_uint32(p, v->current_instance);
 }
 
-void msgpack_unpack_paxos_acceptor_state(msgpack_object* o, paxos_standard_acceptor_state* v)
+void msgpack_unpack_paxos_acceptor_state(msgpack_object* o, struct paxos_standard_acceptor_state* v)
 {
 	int i = 1;
 	msgpack_unpack_uint32_at(o, &v->aid, &i);
 	msgpack_unpack_uint32_at(o, &v->trim_iid, &i);
+	msgpack_unpack_uint32_at(o, &v->current_instance, &i);
 }
 
 void msgpack_pack_paxos_client_value(msgpack_packer* p, struct paxos_value* v)
@@ -243,7 +245,7 @@ void msgpack_unpack_paxos_client_value(msgpack_object* o, struct paxos_value* v)
 
 
 void msgpack_unpack_paxos_chosen(msgpack_object* msg_object, struct paxos_chosen* unpacked_chosen_msg){
-    int i = 0;
+    int i = 1;
     msgpack_unpack_uint32_at(msg_object, &unpacked_chosen_msg->iid, &i);
     msgpack_unpack_ballot(msg_object, &unpacked_chosen_msg->ballot, &i);
     msgpack_unpack_paxos_value_at(msg_object, &unpacked_chosen_msg->value, &i);
@@ -252,7 +254,7 @@ void msgpack_unpack_paxos_chosen(msgpack_object* msg_object, struct paxos_chosen
 
 void msgpack_pack_paxos_chosen(msgpack_packer* packer, struct paxos_chosen* instance_chosen) {
     msgpack_pack_array(packer, 5);
-    msgpack_pack_uint32(packer, PAXOS_CHOSEN);
+    msgpack_pack_int32(packer, PAXOS_CHOSEN);
     msgpack_pack_uint32(packer, instance_chosen->iid);
     msgpack_pack_ballot(packer, instance_chosen->ballot);
     msgpack_pack_paxos_value(packer, &instance_chosen->value);

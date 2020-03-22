@@ -109,6 +109,7 @@ struct paxos_standard_acceptor_state
 {
 	uint32_t aid;
 	uint32_t trim_iid;
+    uint32_t current_instance;
 };
 typedef struct paxos_standard_acceptor_state paxos_standard_acceptor_state;
 

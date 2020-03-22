@@ -96,7 +96,7 @@ void
 paxos_accept_request_and_last_acceptor_promise_to_preempted(int id, const struct paxos_accept *accept_request,
                                                             const struct paxos_prepare acceptor_last_promise,
                                                             standard_paxos_message *out) {
-    assert(accept_request->iid == acceptor_last_promise.iid);
+    // assert(accept_request->iid == acceptor_last_promise.iid);
     out->type = PAXOS_PREEMPTED;
     out->u.preempted = (struct paxos_preempted) {.aid = id,
                                                  .iid = accept_request->iid,
@@ -167,7 +167,7 @@ void paxos_prepare_from_epoch_ballot_prepare(const struct epoch_ballot_prepare* 
 
 
 void union_epoch_ballot_promise_from_epoch_ballot_accept_and_paxos_prepare(struct writeahead_epoch_paxos_message* message_to_be_promise, const struct paxos_prepare* prepare, const struct epoch_ballot_accept* accept, int aid, uint32_t promised_epoch){
-    assert(prepare->iid == accept->instance);
+    // assert(prepare->iid == accept->instance);
     message_to_be_promise->type = WRITEAHED_EPOCH_BALLOT_PROMISE;
     message_to_be_promise->message_contents.epoch_ballot_promise.acceptor_id = aid;
     message_to_be_promise->message_contents.epoch_ballot_promise.instance = prepare->iid;
@@ -179,7 +179,7 @@ void union_epoch_ballot_promise_from_epoch_ballot_accept_and_paxos_prepare(struc
 
 
 void union_epoch_ballot_promise_from_epoch_ballot_accept_and_epoch_ballot_prepare(struct writeahead_epoch_paxos_message* message_to_be_promise, const struct epoch_ballot_prepare* prepare, const struct epoch_ballot_accept* accept, int aid){
-    assert(prepare->instance == accept->instance);
+    // assert(prepare->instance == accept->instance);
     message_to_be_promise->type = WRITEAHED_EPOCH_BALLOT_PROMISE;
     message_to_be_promise->message_contents.epoch_ballot_promise.acceptor_id = aid;
     message_to_be_promise->message_contents.epoch_ballot_promise.instance = prepare->instance;
@@ -268,7 +268,7 @@ void paxos_chosen_from_paxos_accept(struct paxos_chosen* chosen, struct paxos_ac
 }
 
 void paxos_accepted_from_paxos_prepare_and_accept(struct paxos_prepare* prepare, struct paxos_accept* accept, int id, struct paxos_accepted* accepted) {
-    assert(prepare->iid == accept->iid);
+    // assert(prepare->iid == accept->iid);
     accepted->iid = prepare->iid;
     accepted->aid = id;
     copy_ballot(&prepare->ballot, &accepted->promise_ballot);

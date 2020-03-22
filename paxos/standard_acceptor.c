@@ -165,7 +165,7 @@ standard_acceptor_receive_accept(struct standard_acceptor *a,
 	if (write_ahead_acceptor_safe_to_acknowledge_paxos_request(found, req->ballot, acc.promise_ballot)) {
 		paxos_log_debug("Accepting iid: %u, ballot: %u.%u", req->iid, req->ballot.number, req->ballot.proposer_id);
 
-		assert(strncmp(req->value.paxos_value_val, "", req->value.paxos_value_len));
+		// assert(strncmp(req->value.paxos_value_val, "", req->value.paxos_value_len));
 
 		paxos_accept_to_accepted(a->id, req, out);
 

@@ -525,11 +525,11 @@ write_ahead_window_acceptor_new (
         get_last_promise(acceptor->volatile_storage, i, &volatile_prepare);
 
 
-        assert(stable_stored_info.iid == stable_dup_accept.iid && stable_dup_accept.iid == stable_dup_prepare.iid && stable_dup_prepare.iid == volatile_prepare.iid);
-        assert(ballot_equal(&stable_stored_info.promise_ballot, stable_dup_prepare.ballot));
-        assert(ballot_equal(&stable_stored_info.value_ballot, stable_dup_accept.ballot));
-        assert(ballot_equal(&stable_stored_info.promise_ballot, stable_dup_prepare.ballot) && ballot_equal(&stable_dup_prepare.ballot, volatile_prepare.ballot));
-        assert(is_values_equal(stable_stored_info.value, stable_dup_accept.value));
+        // assert(stable_stored_info.iid == stable_dup_accept.iid && stable_dup_accept.iid == stable_dup_prepare.iid && stable_dup_prepare.iid == volatile_prepare.iid);
+        // assert(ballot_equal(&stable_stored_info.promise_ballot, stable_dup_prepare.ballot));
+        // assert(ballot_equal(&stable_stored_info.value_ballot, stable_dup_accept.ballot));
+        // assert(ballot_equal(&stable_stored_info.promise_ballot, stable_dup_prepare.ballot) && ballot_equal(&stable_dup_prepare.ballot, volatile_prepare.ballot));
+        // assert(is_values_equal(stable_stored_info.value, stable_dup_accept.value));
     }
 
     // Write ahead promises and initiate new instances
@@ -573,6 +573,7 @@ write_ahead_window_acceptor_get_current_state(struct writeahead_window_acceptor*
     paxos_log_debug("Getting current state to: aid: %u, trim iid %u", a->id, a->trim_instance);
     state->aid = a->id;
     state->trim_iid = a->trim_instance;
+    get_max_inited_instance(a->stable_storage_duplicate, &state->current_instance);
 }
 
 
@@ -639,7 +640,7 @@ write_ahead_window_acceptor_receive_prepare(struct writeahead_window_acceptor* a
            
             union_paxos_promise_from_accept_and_prepare(req, &last_accept, a->id, out);
             if (was_previous_accept) {
-                assert(is_values_equal(last_accept.value, out->u.promise.value));
+                // assert(is_values_equal(last_accept.value, out->u.promise.value));
             }
             is_there_response_message = true;
         } else {
@@ -702,17 +703,17 @@ static int write_acceptance_to_storage(struct writeahead_window_acceptor* accept
     get_last_promise(acceptor->stable_storage_duplicate, acceptance->iid, &last_stable_promise);
     copy_ballot(&last_stable_promise.ballot, &to_store.promise_ballot);
 
-    assert(to_store.iid == acceptance->iid);
-    assert(ballot_equal(&to_store.value_ballot, acceptance->value_ballot));
-    assert(ballot_equal(&to_store.promise_ballot, last_stable_promise.ballot));
-    assert(is_values_equal(acceptance->value, to_store.value));
+    // assert(to_store.iid == acceptance->iid);
+    // assert(ballot_equal(&to_store.value_ballot, acceptance->value_ballot));
+    // assert(ballot_equal(&to_store.promise_ballot, last_stable_promise.ballot));
+    // assert(is_values_equal(acceptance->value, to_store.value));
 
     int success = write_ahead_window_acceptor_store_in_all_storages(acceptor, &to_store);
 
 
     write_ahead_window_acceptor_store_prepare_in_volatile_storage(acceptor, &(struct paxos_prepare){acceptance->iid, acceptance->value_ballot});
 
-    assert(ballot_equal(&acceptance->promise_ballot, acceptance->value_ballot));
+    // assert(ballot_equal(&acceptance->promise_ballot, acceptance->value_ballot));
     return success;
 }
 
@@ -721,8 +722,8 @@ write_ahead_window_acceptor_receive_accept(struct writeahead_window_acceptor* ac
                                            paxos_accept* request, standard_paxos_message* out)
 {
 
-    assert(request->value.paxos_value_len > 1);
-    assert(request->value.paxos_value_val != "");
+    // assert(request->value.paxos_value_len > 1);
+    // assert(request->value.paxos_value_val != "");
 
     bool instance_chosen = false;
     if (request->iid <= acceptor->trim_instance) {

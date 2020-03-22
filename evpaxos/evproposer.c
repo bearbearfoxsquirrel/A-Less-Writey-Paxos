@@ -99,7 +99,7 @@ proposer_preexecute(struct evproposer* p) {
     if (count <= 0) return;
 	for (i = 0; i < count; i++) {
 	    iid_t current_instance = proposer_get_next_instance_to_prepare(p->state);
-	    assert(current_instance != 0);
+	    // assert(current_instance != 0);
 	    proposer_set_current_instance(p->state, current_instance);
         paxos_log_debug("current proposing instance: %u", current_instance);
         proposer_try_to_start_preparing_instance(p->state, proposer_get_current_instance(p->state), &pr);
@@ -113,23 +113,13 @@ static void
 try_accept(struct evproposer* p)
 {
 	paxos_accept accept;
-	//if (p->preexec_window < proposer_prepared_count(p->state)) {
-        while (proposer_try_accept(p->state, &accept)) {
-            assert(&accept.value != NULL);
-            assert(accept.value.paxos_value_val != NULL);
-            assert(accept.value.paxos_value_len > 0);
-            struct paxos_value val = {.paxos_value_len = 4, .paxos_value_val = "NOP."};
-            if (is_values_equal(accept.value, val)){
-                struct timespec sleep_time = {
-                        .tv_sec = 0,
-                        .tv_nsec = rand() % 10000
-                };
-               // nanosleep(&sleep_time, NULL); // sleep before trying to give other proposers a shot
-            }
-            peers_for_n_acceptor(p->peers, peer_send_accept, &accept, paxos_config.group_2);
-        }
-  //  }
-	proposer_preexecute(p);
+    while (proposer_try_accept(p->state, &accept)) {
+        // assert(&accept.value != NULL);
+        // assert(accept.value.paxos_value_val != NULL);
+        // assert(accept.value.paxos_value_len > 0);
+        peers_for_n_acceptor(p->peers, peer_send_accept, &accept, paxos_config.group_2);
+    }
+    proposer_preexecute(p);
 }
 
 
@@ -154,34 +144,32 @@ evproposer_handle_accepted(struct peer* p, standard_paxos_message* msg, void* ar
 	struct evproposer* proposer = arg;
 	paxos_accepted* acc = &msg->u.accepted;
 
-	if (acc->promise_ballot.proposer_id != proposer->id) return; // todo fix instance info so that proposers can handle other proposals instead of just their last one
+    if (acc->promise_ballot.proposer_id != proposer->id){
+        return;
+    }
 
     struct paxos_chosen chosen_msg;
     memset(&chosen_msg, 0, sizeof(struct paxos_chosen));
 
-    assert(acc->value.paxos_value_len > 1);
-    assert(acc->value_ballot.number > 0);
+    // assert(acc->value.paxos_value_len > 1);
+    // assert(acc->value_ballot.number > 0);
 
     if (proposer_receive_accepted(proposer->state, acc, &chosen_msg)){
-     //   if (proposer_get_min_unchosen_instance(proposer->state) >= acc->iid){
-     //       struct paxos_trim trim_msg = {.iid = acc->iid};
-      //      peers_foreach_acceptor(proposer->peers, peer_send_trim, &trim_msg);
-
-     //   }
-     //   peers_foreach_acceptor(proposer->peers, peer_send_chosen, &chosen_msg);
-      //  peers_foreach_client(proposer->peers, peer_send_chosen, &chosen_msg);
-        assert(chosen_msg.iid == acc->iid);
-        assert(ballot_equal(&chosen_msg.ballot, acc->promise_ballot));
-        assert(ballot_equal(&chosen_msg.ballot, acc->value_ballot));
-        assert(is_values_equal(chosen_msg.value, acc->value));
-	try_accept(proposer);
+        peers_foreach_acceptor(proposer->peers, peer_send_chosen, &chosen_msg);
+        peers_foreach_client(proposer->peers, peer_send_chosen, &chosen_msg);
+        // assert(chosen_msg.iid == acc->iid);
+        // assert(ballot_equal(&chosen_msg.ballot, acc->promise_ballot));
+        // assert(ballot_equal(&chosen_msg.ballot, acc->value_ballot));
+        // assert(is_values_equal(chosen_msg.value, acc->value));
     }
+    try_accept(proposer);
 }
 
 static void
 evproposer_handle_chosen(__unused struct peer* p, struct standard_paxos_message* msg, void* arg) {
     struct evproposer* proposer = arg;
     struct paxos_chosen* chosen_msg = &msg->u.chosen;
+
     proposer_receive_chosen(proposer->state, chosen_msg);
 
     khiter_t key = kh_get_backoffs(proposer->current_backoffs, chosen_msg->iid);
@@ -220,15 +208,19 @@ evproposer_try_higher_ballot(evutil_socket_t fd, short event, void* arg) {
 int get_initial_backoff() { return 1 + (rand() % INITIAL_BACKOFF_TIME); }
 
 unsigned int get_next_backoff(const unsigned int old_time) {
-    //unsigned  int new_time = (old_time << (unsigned int) 1) % MAX_BACKOFF_TIME;
-   // if (new_time == 0) {
-    //    new_time = get_initial_backoff();
-   // }
-    //return new_time;
+    unsigned  int new_time = (old_time << (unsigned int) 1) % MAX_BACKOFF_TIME;
+    if (new_time == 0) {
+        new_time = get_initial_backoff();
+    }
+    return new_time;
     //return (rand() % new_time);
    // return old_time;
-   unsigned int next_jitter_time = (rand() % old_time * 3) + INITIAL_BACKOFF_TIME;
-    return MIN(MAX_BACKOFF_TIME, next_jitter_time);
+ // unsigned int next_jitter_time = (rand() % old_time * 3) + INITIAL_BACKOFF_TIME;
+  //  unsigned int next_jitter_time = (int)((double)rand() / ((double)(old_time * 3) + 1) * INITIAL_BACKOFF_TIME);
+
+    //((double) rand() % (double) ((old_time * 3) + 1 - INITIAL_BACKOFF_TIME)) + INITIAL_BACKOFF_TIME;
+
+   // return MIN(MAX_BACKOFF_TIME, next_jitter_time);
 }
 
 
@@ -244,14 +236,16 @@ evproposer_handle_preempted(struct peer* p, standard_paxos_message* msg, void* a
     struct paxos_prepare* next_prepare = calloc(1, sizeof(struct paxos_prepare));
 
     if (proposer_receive_preempted(proposer->state, &preempted_msg, next_prepare)) {
-        assert(next_prepare->iid != 0);
+        // assert(next_prepare->iid != 0);
 
         paxos_log_debug("Next ballot to try for Instance %u, %u.%u", next_prepare->iid, next_prepare->ballot.number, next_prepare->ballot.proposer_id);
 
         khiter_t retries_key = kh_get_retries(proposer->awaiting_reties, preempted_msg.iid);
         if (retries_key != kh_end(proposer->awaiting_reties)) { // already queued
-            paxos_log_debug("Preempted disregarded, it is already backing off");
-            return;
+            if (kh_exist(proposer->awaiting_reties, retries_key)) {
+                paxos_log_debug("Preempted disregarded, it is already backing off");
+                return;
+            }
         }
 
         khiter_t backoffs_key = kh_get_backoffs(proposer->current_backoffs, preempted_msg.iid);
@@ -264,18 +258,20 @@ evproposer_handle_preempted(struct peer* p, standard_paxos_message* msg, void* a
             backoff_new->tv_sec = 0;
             backoff_new->tv_usec = get_initial_backoff();
 
+
             int success;
             backoffs_key = kh_put_backoffs(proposer->current_backoffs, preempted_msg.iid, &success);
-            assert(success > 0);
+            // assert(success > 0);
             kh_value(proposer->current_backoffs, backoffs_key) = backoff_new;
         } else {
             // next preempt
             backoff_new = kh_value(proposer->current_backoffs, backoffs_key);
             backoff_new->tv_usec = get_next_backoff(backoff_new->tv_usec);
-            paxos_log_debug("Backoff time %u", backoff_new->tv_usec);
             kh_value(proposer->current_backoffs, backoffs_key) = backoff_new;
         }
 
+
+        paxos_log_debug("Backoff time %u", backoff_new->tv_usec);
 
         // add new event to send after backoff
         struct retry* retry_args = calloc(1, sizeof(struct retry));
@@ -287,7 +283,7 @@ evproposer_handle_preempted(struct peer* p, standard_paxos_message* msg, void* a
 }
 
 static void
-evproposer_handle_trim(struct peer* p, standard_paxos_message* msg, void* arg) {
+evproposer_handle_trim(__unused struct peer* p, standard_paxos_message* msg, void* arg) {
 
     struct evproposer* proposer = arg;
     struct paxos_trim* trim_msg = &msg->u.trim;
@@ -296,14 +292,14 @@ evproposer_handle_trim(struct peer* p, standard_paxos_message* msg, void* arg) {
 }
 
 static void
-evproposer_handle_client_value(struct peer* p, standard_paxos_message* msg, void* arg)
+evproposer_handle_client_value(__unused struct peer* p, standard_paxos_message* msg, void* arg)
 {
     struct evproposer* proposer = arg;
 	struct paxos_value* v = &msg->u.client_value;
-	assert(v->paxos_value_len > 1);
-	assert(v->paxos_value_val != NULL);
-	assert(v->paxos_value_val != "");
-	//assert(v->paxos_value_val != "");
+	// assert(v->paxos_value_len > 1);
+	// assert(v->paxos_value_val != NULL);
+	// assert(v->paxos_value_val != "");
+	//// assert(v->paxos_value_val != "");
     proposer_add_paxos_value_to_queue(proposer->state, v);
 	try_accept(proposer);
 }
@@ -318,7 +314,7 @@ evproposer_handle_acceptor_state(__unused struct peer* p, standard_paxos_message
 }
 
 static void
-evproposer_check_timeouts(evutil_socket_t fd, short event, void *arg)
+evproposer_check_timeouts(__unused evutil_socket_t fd, __unused short event, void *arg)
 {
 	struct evproposer* p = arg;
 	struct timeout_iterator* iter = proposer_timeout_iterator(p->state);
@@ -342,7 +338,12 @@ evproposer_check_timeouts(evutil_socket_t fd, short event, void *arg)
 }
 
 static void
-evproposer_preexec_once(evutil_socket_t fd, short event, void *arg)
+evproposer_check_and_try_to_fill_holes(__unused evutil_socket_t fd, __unused short event, void* arg) {
+  //  struct evproposer* p =
+}
+
+static void
+evproposer_preexec_once(__unused evutil_socket_t fd,__unused short event, void *arg)
 {
 	struct evproposer* p = arg;
 	proposer_preexecute(p);

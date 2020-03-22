@@ -88,7 +88,7 @@ ev_write_ahead_acceptor_handle_prepare(struct peer* p, standard_paxos_message* m
     if (write_ahead_window_acceptor_receive_prepare(a->state, prepare, &out) != 0) {
 /*
         if (out.type == PAXOS_PROMISE) {
-            assert(ballot_equal(&prepare->ballot, out.u.promise.ballot));
+            // assert(ballot_equal(&prepare->ballot, out.u.promise.ballot));
             send_paxos_promise(peer_get_buffer(p), &out.u.promise);
         } else if (out.type == PAXOS_CHOSEN) {
             send_paxos_chosen(peer_get_buffer(p), &out.u.chosen);
@@ -114,21 +114,21 @@ ev_write_ahead_acceptor_handle_accept(struct peer* p, standard_paxos_message* ms
     paxos_accept* accept = &msg->u.accept;
     struct ev_write_ahead_acceptor* a = (struct ev_write_ahead_acceptor*)arg;
 
-    assert(accept->value.paxos_value_len > 0);
+    // assert(accept->value.paxos_value_len > 0);
 
     paxos_log_debug("Handle accept for iid %dballot %u.%u",
                     accept->iid, accept->ballot.number, accept->ballot.proposer_id);
     if (write_ahead_window_acceptor_receive_accept(a->state, accept, &out) != 0) {
         if (out.type == PAXOS_ACCEPTED) {
-            assert(ballot_equal(&out.u.accepted.promise_ballot, accept->ballot));
-            assert(ballot_equal(&out.u.accepted.value_ballot, accept->ballot));
-            assert(out.u.accepted.value.paxos_value_len > 0);
+            // assert(ballot_equal(&out.u.accepted.promise_ballot, accept->ballot));
+            // assert(ballot_equal(&out.u.accepted.value_ballot, accept->ballot));
+            // assert(out.u.accepted.value.paxos_value_len > 0);
             peers_foreach_client(a->peers_proposers,  peer_send_paxos_message, &out);
         //   peers_foreach_proposer(a->peers_proposers, peer_send_paxos_message, &out);
         } else if (out.type == PAXOS_PREEMPTED) {
             send_paxos_preempted(peer_get_buffer(p), &out.u.preempted);
         } else if (out.type == PAXOS_CHOSEN) {
-            assert(out.u.chosen.value.paxos_value_len > 0);
+            // assert(out.u.chosen.value.paxos_value_len > 0);
             send_paxos_chosen(peer_get_buffer(p), &out.u.chosen);
            //send_paxos_message(peer_get_buffer(p), &out);
         } else if (out.type == PAXOS_TRIM) {

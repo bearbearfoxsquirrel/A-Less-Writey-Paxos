@@ -117,8 +117,8 @@ hash_mapped_memory_store_last_promise(struct hash_mapped_memory *volatile_storag
     struct paxos_prepare test_prepare;
     memset(& test_prepare, 0, sizeof(test_prepare));
     hash_mapped_memory_get_last_promise(volatile_storage, last_ballot_promised->iid, &test_prepare);
-    assert(test_prepare.iid == last_ballot_promised->iid);
-    assert(ballot_equal(&test_prepare.ballot, last_ballot_promised->ballot));
+    // assert(test_prepare.iid == last_ballot_promised->iid);
+    // assert(ballot_equal(&test_prepare.ballot, last_ballot_promised->ballot));
     return error;
 }
 
@@ -286,7 +286,7 @@ static struct hash_mapped_memory*
     hash_mapped_mem->aid = aid;
     for (int i = 0; i < number_of_instances; i++) {
         struct paxos_accepted instance_info = instances_info[i];
-        assert(instance_info.iid > trim_instance);
+        // assert(instance_info.iid > trim_instance);
         hash_mapped_memory_store_instance_info(hash_mapped_mem, &instance_info);
     }
     return hash_mapped_mem;

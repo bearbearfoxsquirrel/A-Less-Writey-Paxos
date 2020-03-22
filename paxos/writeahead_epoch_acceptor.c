@@ -22,7 +22,7 @@ struct writeahead_epoch_acceptor {
 
 void writeahead_epoch_acceptor_increase_epoch(struct writeahead_epoch_acceptor* acceptor, uint32_t new_epoch){
     // stored epochs should only ever increase
-    assert(new_epoch >= acceptor->current_epoch);
+    // assert(new_epoch >= acceptor->current_epoch);
     acceptor->current_epoch = new_epoch;
     epoch_stable_storage_store_epoch(&acceptor->stable_storage, new_epoch);
 }
@@ -97,7 +97,7 @@ struct writeahead_epoch_acceptor* writeahead_epoch_acceptor_init(int id, struct 
 
     epoch_stable_storage_tx_commit(&acceptor->stable_storage);
 
-    assert(incremented_epoch > old_epoch);
+    // assert(incremented_epoch > old_epoch);
 
 
     if (acceptor->current_epoch > 0) {
@@ -224,7 +224,7 @@ int writeahead_epoch_acceptor_receive_epoch_ballot_prepare(struct writeahead_epo
 }
 
 void writeahead_epoch_acceptor_store_accept(struct writeahead_epoch_acceptor* acceptor, struct epoch_ballot_accept* accept) {
-    assert(acceptor->current_epoch >= accept->epoch_ballot_requested.epoch);
+    // assert(acceptor->current_epoch >= accept->epoch_ballot_requested.epoch);
     acceptor->current_epoch = accept->epoch_ballot_requested.epoch;
     epoch_stable_storage_store_epoch_ballot_accept(&acceptor->stable_storage, accept);
 }
