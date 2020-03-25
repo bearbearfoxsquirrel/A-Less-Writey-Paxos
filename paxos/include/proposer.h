@@ -33,8 +33,8 @@
 #include "paxos.h"
 #include "stdint.h"
 
-#define INITIAL_BALLOT  (rand() % 20) + 1//(int)((double)rand() / ((double)50 + 1) * 1)
-#define BALLOT_INCREMENT (rand() % 20) + 1// (int)((double)rand() / ((double)50 + 1) * 1)
+//#define INITIAL_BALLOT  (rand() % 100) + 1//(int)((double)rand() / ((double)50 + 1) * 1)
+//#define BALLOT_INCREMENT (rand() % 100) + 1// (int)((double)rand() / ((double)50 + 1) * 1)
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -46,8 +46,8 @@ struct timeout_iterator;
 struct proposer* proposer_new(int id, int acceptors, int q1, int q2);
 void proposer_free(struct proposer* p);
 void proposer_add_paxos_value_to_queue(struct proposer* p, struct paxos_value* value);
-int proposer_prepared_count(struct proposer* p);
-int proposer_count_instance_in_accept(struct proposer* p);
+int proposer_prepare_count(struct proposer* p);
+int proposer_acceptance_count(struct proposer* p);
 void proposer_set_current_instance(struct proposer* p, iid_t iid);
 
 
@@ -59,7 +59,7 @@ uint32_t proposer_get_min_unchosen_instance(struct proposer* p);
 iid_t proposer_get_next_instance_to_prepare(struct proposer* p);
 
 // phase 1
-void proposer_try_to_start_preparing_instance(struct proposer* p, iid_t instance, paxos_prepare* out);
+bool proposer_try_to_start_preparing_instance(struct proposer* p, iid_t instance, paxos_prepare* out);
 
 int proposer_receive_promise(struct proposer* p, paxos_promise* ack,
 	paxos_prepare* out);

@@ -132,7 +132,7 @@ int main(int argc, char const *argv[]){
         .iid = 1,
         .ballot = next_prepare.ballot,
         .value_ballot = (struct ballot) {.number = 0, .proposer_id = 0},
-                .value = NULL
+                .value = (struct paxos_value ) {NULL}
     };
     proposer_receive_promise(proposer, &promise, NULL);
 

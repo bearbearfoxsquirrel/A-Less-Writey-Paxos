@@ -5,6 +5,10 @@
 #ifndef LIBPAXOS_BALLOT_H
 #define LIBPAXOS_BALLOT_H
 
+#include "stdbool.h"
+#include "paxos_types.h"
+
+
 void copy_ballot(const struct ballot *src, struct ballot *dst);
 
 bool ballot_equal(const struct ballot *lhs, const struct ballot rhs);
@@ -15,9 +19,5 @@ bool ballot_greater_than_or_equal(const struct ballot lhs, const struct ballot r
 
 // todo add is uninited_ballot
 bool is_ballot_legit(const struct ballot ballot);
-
-#include <paxos_types.h>
-#include <paxos.h>
-#include "stdbool.h"
 
 #endif //LIBPAXOS_BALLOT_H

@@ -37,6 +37,8 @@
 #include <event2/event.h>
 #include "ballot.h"
 #include <paxos_types.h>
+#include "ev_timer_threshold_timer_util.h"
+#include "performance_threshold_timer.h"
 
 
 struct ev_standard_acceptor
@@ -45,6 +47,8 @@ struct ev_standard_acceptor
 	struct standard_acceptor* state;
 	struct event* timer_ev;
 	struct timeval timer_tv;
+	struct performance_threshold_timer* promise_timer;
+	struct performance_threshold_timer* acceptance_timer;
 };
 
 static void
@@ -64,10 +68,13 @@ evacceptor_handle_prepare(struct peer* p, standard_paxos_message* msg, void* arg
 	struct ev_standard_acceptor* a = (struct ev_standard_acceptor*)arg;
 	paxos_log_debug("Handle prepare for iid %d ballot %d",
 		prepare->iid, prepare->ballot);
+
+	performance_threshold_timer_begin_timing(a->promise_timer);
     if (standard_acceptor_receive_prepare(a->state, prepare, &out) != 0) {
 		send_paxos_message(peer_get_buffer(p), &out);
         paxos_message_destroy_contents(&out);
 	}
+    ev_performance_timer_stop_check_and_clear_timer(a->promise_timer, "Promise Phase");
     // handle sending of chosen to sender
 }
 
@@ -82,19 +89,21 @@ evacceptor_handle_accept(struct peer* p, standard_paxos_message* msg, void* arg)
 	struct ev_standard_acceptor* a = (struct ev_standard_acceptor*)arg;
 	paxos_log_debug("Handle accept for iid %d bal %d", 
 		accept->iid, accept->ballot);
+	performance_threshold_timer_begin_timing(a->acceptance_timer);
     if (standard_acceptor_receive_accept(a->state, accept, &out) != 0) {
 		if (out.type == PAXOS_ACCEPTED) {
-		    // assert(out.u.accepted.value.paxos_value_val != NULL);
-		    // assert(out.u.accepted.value.paxos_value_len > 1);
-		    // assert(strncmp(out.u.accepted.value.paxos_value_val, "", 2));
+		    assert(out.u.accepted.value.paxos_value_val != NULL);
+		    assert(out.u.accepted.value.paxos_value_len > 1);
+		    assert(strncmp(out.u.accepted.value.paxos_value_val, "", 2));
 
-		    // assert(ballot_equal(&out.u.accepted.value_ballot, out.u.accepted.promise_ballot));
+		    assert(ballot_equal(&out.u.accepted.value_ballot, out.u.accepted.promise_ballot));
 			peers_foreach_client(a->peers, peer_send_paxos_message, &out);
 		} else {
 	        send_paxos_message(peer_get_buffer(p), &out);
 	    }
         paxos_message_destroy_contents(&out);
 	}
+    ev_performance_timer_stop_check_and_clear_timer(a->acceptance_timer, "Acceptance Phase");
 }
 
 static void
@@ -107,7 +116,7 @@ evacceptor_handle_repeat(struct peer* p, standard_paxos_message* msg, void* arg)
 	paxos_log_debug("Handle repeat for iids %d-%d", repeat->from, repeat->to);
 	for (iid = repeat->from; iid <= repeat->to; ++iid) {
         if (standard_acceptor_receive_repeat(a->state, iid, &out_msg)) {
-            // assert(out_msg.u.accepted.value_ballot.number > 0);
+            assert(out_msg.u.accepted.value_ballot.number > 0);
 			send_paxos_message(peer_get_buffer(p), &out_msg);
 			paxos_message_destroy_contents(&out_msg);
 		}
@@ -158,6 +167,9 @@ evacceptor_init_internal(int id, struct evpaxos_config* c, struct peers* p)
 	acceptor->timer_ev = evtimer_new(base, send_acceptor_state, acceptor);
 	acceptor->timer_tv = (struct timeval){1, 0};
 	event_add(acceptor->timer_ev, &acceptor->timer_tv);
+
+	acceptor->promise_timer = get_promise_performance_threshold_timer_new();
+	acceptor->acceptance_timer = get_acceptance_performance_threshold_timer_new();
 
 	return acceptor;
 }

@@ -53,7 +53,7 @@ void union_epoch_ballot_chosen_from_epoch_ballot_accept(struct writeahead_epoch_
 
 void union_ballot_chosen_from_epoch_ballot_accept(struct standard_paxos_message* chosen_message, const struct paxos_accept* accept);
 
-void paxos_accepted_from_paxos_chosen(struct paxos_accepted* accepted, struct paxos_chosen* chosen);
+void paxos_accepted_from_paxos_chosen(struct paxos_accepted *accepted, struct paxos_chosen *chosen, unsigned int aid);
 
 void paxos_chosen_from_paxos_accepted(struct paxos_chosen* chosen, struct paxos_accepted* accepted);
 

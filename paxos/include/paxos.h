@@ -42,7 +42,7 @@ extern "C" {
 typedef uint32_t iid_t;
 typedef uint32_t ballot_t;
 
-#define MIN_INSTANCE_ID 0;
+#define BELOW_MIN_INSTANCE_ID 0;
 /* Logging and verbosity levels */
 typedef enum
 {

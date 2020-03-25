@@ -113,9 +113,9 @@ void learner_receive_chosen(struct learner* l, struct paxos_chosen* chosen){
     }
     struct instance* inst;
     inst = learner_get_instance_or_create(l, chosen->iid);
-    if (inst->final_value != NULL) {
+    if (inst->final_value == NULL) {
         struct paxos_accepted *accepted = calloc(1, sizeof(struct paxos_accepted));
-        paxos_accepted_from_paxos_chosen(accepted, chosen);
+        paxos_accepted_from_paxos_chosen(accepted, chosen, 0);
 
         inst->last_update_ballot = (struct ballot) {chosen->ballot.number, chosen->ballot.proposer_id};
         inst->final_value = accepted;
@@ -211,7 +211,7 @@ learner_get_instance_or_create(struct learner* l, iid_t iid)
 	if (inst == NULL) {
 		int rv;
 		khiter_t k = kh_put_instance(l->instances, iid, &rv);
-		// assert(rv != -1);
+		assert(rv != -1);
 		inst = instance_new(l->acceptors);
 		kh_value(l->instances, k) = inst;
 	}
@@ -254,7 +254,7 @@ static void
 instance_update(struct instance* inst, paxos_accepted* accepted, int acceptors, int quorum_size)
 {
 	if (inst->iid == 0) {
-		paxos_log_debug("Received first message for iid: %u", accepted->iid);
+		paxos_log_debug("Received first message for iid: %u at Ballot %u.%u", accepted->iid, accepted->value_ballot.number, accepted->value_ballot.proposer_id);
 		inst->iid = accepted->iid;
 		copy_ballot(&accepted->value_ballot, &inst->last_update_ballot);
 	}
@@ -321,8 +321,8 @@ instance_add_accept(struct instance* inst, paxos_accepted* accepted)
 	if (inst->acks[acceptor_id] != NULL)
 		paxos_accepted_free(inst->acks[acceptor_id]);
 	inst->acks[acceptor_id] = paxos_accepted_dup(accepted);
-	// assert(accepted->value_ballot.number != 0);
-	// assert(accepted->value.paxos_value_len > 0);
+	assert(accepted->value_ballot.number != 0);
+	assert(accepted->value.paxos_value_len > 0);
 	//if (ballot_greater_than(accepted->value_ballot, inst->last_update_ballot))
     	copy_ballot(&accepted->value_ballot, &inst->last_update_ballot);
 }
@@ -353,7 +353,7 @@ void
 learner_receive_chosen(struct learner* l, struct paxos_chosen* chosen_msg) {
     // this is weird - change later
     struct instance *inst = learner_get_instance(l, chosen_msg->iid);
-    // assert(inst->iid == chosen_msg->iid);
+    assert(inst->iid == chosen_msg->iid);
 
     struct paxos_accepted* accepted = calloc(1, sizeof(struct paxos_accepted));
     paxos_accepted_from_paxos_chosen(accepted, chosen_msg);

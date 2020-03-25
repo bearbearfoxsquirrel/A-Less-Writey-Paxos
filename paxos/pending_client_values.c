@@ -58,7 +58,7 @@ struct pending_client_values* pending_client_values_new() {
 void client_value_now_pending_at(struct pending_client_values* array_list, iid_t instance, const struct paxos_value* copy_of_val_now_pending){
     int rv;
     khiter_t key = kh_put_pending_values(array_list->pending_values, instance, &rv);
-    // assert(rv > 0);
+    assert(rv > 0);
 
     struct pending_value* value = malloc(sizeof(struct pending_value));
     copy_value(copy_of_val_now_pending, &value->client_value_pending);

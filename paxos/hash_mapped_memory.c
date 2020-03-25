@@ -11,9 +11,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <assert.h>
-
-
-
+#include <paxos_storage.h>
 
 
 #define store_to_hash_map(symbol, map_ptr, map_store_type, key, original_value_to_store, type_freeing_function, copy_method, error) \
@@ -56,6 +54,7 @@ struct hash_mapped_memory {
     kh_chosen_t *chosen;
 
     iid_t max_inited_instance;
+    iid_t min_chosen_instance;
 
     int trim_instance_id;
     int aid;
@@ -117,8 +116,8 @@ hash_mapped_memory_store_last_promise(struct hash_mapped_memory *volatile_storag
     struct paxos_prepare test_prepare;
     memset(& test_prepare, 0, sizeof(test_prepare));
     hash_mapped_memory_get_last_promise(volatile_storage, last_ballot_promised->iid, &test_prepare);
-    // assert(test_prepare.iid == last_ballot_promised->iid);
-    // assert(ballot_equal(&test_prepare.ballot, last_ballot_promised->ballot));
+    assert(test_prepare.iid == last_ballot_promised->iid);
+    assert(ballot_equal(&test_prepare.ballot, last_ballot_promised->ballot));
     return error;
 }
 
@@ -256,8 +255,8 @@ new_hash_mapped_memory(int aid) {
     struct hash_mapped_memory *hash_mapped_mem = calloc(1, sizeof(struct hash_mapped_memory));
     init_hash_tables(hash_mapped_mem);
     hash_mapped_mem->aid = aid;
-    hash_mapped_mem->trim_instance_id = MIN_INSTANCE_ID;
-
+    hash_mapped_mem->trim_instance_id = BELOW_MIN_INSTANCE_ID;
+    hash_mapped_mem->min_chosen_instance = BELOW_MIN_INSTANCE_ID;
     return hash_mapped_mem;
 }
 
@@ -286,7 +285,7 @@ static struct hash_mapped_memory*
     hash_mapped_mem->aid = aid;
     for (int i = 0; i < number_of_instances; i++) {
         struct paxos_accepted instance_info = instances_info[i];
-        // assert(instance_info.iid > trim_instance);
+        assert(instance_info.iid > trim_instance);
         hash_mapped_memory_store_instance_info(hash_mapped_mem, &instance_info);
     }
     return hash_mapped_mem;
@@ -307,9 +306,11 @@ static void bool_copy(bool* dst, bool* src){
 static void int_copy(int* dst, int* src) {
     *dst = *src;
 }
-/*
-static int hash_mapped_memory_get_min_unchosen_instace(struct hash_mapped_memory* memory, )
-*/
+
+static int hash_mapped_memory_get_min_unchosen_instace(struct hash_mapped_memory* memory, iid_t* min_unchosen_instance){
+    *min_unchosen_instance = memory->min_chosen_instance + 1;
+}
+
 
 static int
 hash_mapped_memory_is_instance_chosen(const struct hash_mapped_memory* memory, iid_t instance, bool* chosen){
@@ -335,7 +336,7 @@ static void chosen_store_copy(struct chosen_store* dst, struct chosen_store* src
 }
 
 static int
-hash_mapped_memory_instance_chosen(const struct hash_mapped_memory* memory, iid_t instance){
+hash_mapped_memory_instance_chosen(struct hash_mapped_memory* memory, iid_t instance){
     int error = 0;
 
     int rv;
@@ -352,6 +353,14 @@ hash_mapped_memory_instance_chosen(const struct hash_mapped_memory* memory, iid_
         free(kh_value(memory->chosen, k));
     }
     kh_value(memory->chosen, k) = record;
+
+    for (iid_t i = memory->min_chosen_instance + 1; i <= instance; i++) {
+        bool instance_chosen;
+        hash_mapped_memory_is_instance_chosen(memory, i, &instance_chosen);
+        if (instance_chosen) {
+            memory->min_chosen_instance = i;
+        }
+    }
   //  int* tmp = calloc(1, sizeof(int));
   //  *tmp = 1;
   //  store_to_hash_map(chosen, memory->chosen, struct chosen_store, instance, (struct chosen_store*){1}, free, chosen_store_copy, error);
@@ -377,6 +386,7 @@ initialise_hash_mapped_memory_function_pointers(struct paxos_storage *volatile_s
 
     volatile_storage->api.set_instance_chosen = (int (*) (void *, iid_t)) hash_mapped_memory_instance_chosen;
     volatile_storage->api.is_instance_chosen = (int (*) (void *, iid_t, bool*)) hash_mapped_memory_is_instance_chosen;
+    volatile_storage->api.get_min_unchosen_instance = (int (*) (void *, iid_t *)) hash_mapped_memory_get_min_unchosen_instace;
 
     volatile_storage->api.get_instance_info = (int (*) (void*, iid_t, struct paxos_accepted*)) hash_mapped_memory_get_instance_info;
 

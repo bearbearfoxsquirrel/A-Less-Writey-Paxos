@@ -115,7 +115,7 @@ evlearner_handle_accepted(struct peer* p, standard_paxos_message* msg, void* arg
 
 	if (chosen) {
      //   peers_foreach_proposer(l->peers, peer_send_chosen, &chosen_msg);
-      //  peers_foreach_acceptor(l->peers, peer_send_chosen, &chosen_msg);
+        peers_foreach_acceptor(l->peers, peer_send_chosen, &chosen_msg);
 	}
 
 	evlearner_deliver_next_closed(l);
@@ -123,6 +123,7 @@ evlearner_handle_accepted(struct peer* p, standard_paxos_message* msg, void* arg
 
 static void
 evlearner_handle_trim(struct peer* p, struct standard_paxos_message* msg, void* arg) {
+    // not recevied at the moment
     struct evlearner* l = arg;
     struct paxos_trim trim_msg= msg->u.trim;
     learner_receive_trim(l->state, &trim_msg);
