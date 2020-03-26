@@ -11,12 +11,14 @@
 
 #include <khash.h>
 #include <client_value_queue.h>
+#include "timeout.h"
 
 KHASH_MAP_INIT_INT(instance_info, struct epoch_proposer_instance_info*)
 
 
 struct epoch_proposer {
     int id;
+    int known_epoch;
     int acceptors;
     int q1;
     int q2;
@@ -28,25 +30,20 @@ struct epoch_proposer {
 };
 
 
-struct timeout_iterator{
-    khiter_t prepare_instance, accept_instance;
-    struct timeval timeout;
-    struct epoch_proposer* proposer;
-};
-
 struct epoch_proposer* epoch_proposer_new(int id, int acceptors, int q1, int q2){
     struct epoch_proposer* proposer = calloc(1, sizeof(struct epoch_proposer));
     proposer->id = id;
     proposer->acceptors = acceptors;
     proposer->q1 = q1;
     proposer->q2 = q2;
+    proposer->known_epoch = INVALID_EPOCH;
 
     proposer->prepare_proposer_instance_infos = kh_init(instance_info);
     proposer->accept_proposer_instance_infos = kh_init(instance_info);
 
-    proposer->max_trim_iid = 0;
-    proposer->next_prepare_iid = 0;
-    proposer->values = carray_new(128); // why?
+    proposer->max_trim_iid = INVALID_INSTANCE;
+    proposer->next_prepare_iid = INVALID_INSTANCE;
+    proposer->values = carray_new(128);
     return proposer;
 }
 
@@ -65,6 +62,45 @@ void epoch_proposer_free(struct epoch_proposer* p){
     carray_free(p->values);
     free(p);
 }
+
+
+
+void epoch_proposer_add_paxos_value_to_queue(struct epoch_proposer* p, struct paxos_value* value);
+int epoch_proposer_prepare_count(struct epoch_proposer* p);
+int epoch_proposer_acceptance_count(struct epoch_proposer* p);
+void epoch_proposer_set_current_instance(struct epoch_proposer* p, iid_t iid);
+
+
+void epoch_proposer_next_instance(struct epoch_proposer* p);
+
+uint32_t epoch_proposer_get_current_instance(struct epoch_proposer* p);
+
+uint32_t epoch_proposer_get_min_unchosen_instance(struct epoch_proposer* p);
+iid_t epoch_proposer_get_next_instance_to_prepare(struct epoch_proposer* p);
+
+// phase 1
+bool epoch_proposer_try_to_start_preparing_instance(struct epoch_proposer* p, iid_t instance, paxos_prepare* out);
+
+int epoch_proposer_receive_promise(struct epoch_proposer* p, paxos_promise* ack,
+                                   paxos_prepare* out);
+
+// phase 2
+int epoch_proposer_try_accept(struct epoch_proposer* p, paxos_accept* out);
+int epoch_proposer_receive_accepted(struct epoch_proposer* p, paxos_accepted* ack, struct paxos_chosen* chosen);
+int epoch_proposer_receive_chosen(struct epoch_proposer* p, struct paxos_chosen* ack);
+
+//void epoch_proposer_preempt(struct epoch_proposer* p, struct standard_epoch_proposer_instance_info* inst, paxos_prepare* out);
+int epoch_proposer_receive_preempted(struct epoch_proposer* p, struct paxos_preempted* preempted, struct paxos_prepare* out);
+
+int is_epoch_proposer_instance_pending_and_message_return(struct epoch_proposer* p, paxos_preempted* ack,
+                                                          paxos_prepare* out);
+
+// periodic acceptor state
+void epoch_proposer_receive_acceptor_state(struct epoch_proposer* p,
+                                           paxos_standard_acceptor_state* state);
+void epoch_proposer_receive_trim(struct epoch_proposer* p,
+                                 struct paxos_trim* trim_msg);
+
 
 
 void epoch_proposer_propose(struct epoch_proposer* p, const char* value, size_t size);

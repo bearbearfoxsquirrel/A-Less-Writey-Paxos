@@ -33,6 +33,9 @@
 #include <stdbool.h>
 #include "paxos_value.h"
 
+#define INVALID_EPOCH 0
+#define INVALID_INSTANCE 0
+
 struct ballot {
     uint32_t number;
     uint32_t proposer_id;

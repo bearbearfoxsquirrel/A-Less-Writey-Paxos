@@ -41,7 +41,6 @@ extern "C" {
 
 
 struct proposer;
-struct timeout_iterator;
 
 struct proposer* proposer_new(int id, int acceptors, int q1, int q2);
 void proposer_free(struct proposer* p);
@@ -80,11 +79,6 @@ void proposer_receive_acceptor_state(struct proposer* p,
                                      paxos_standard_acceptor_state* state);
 void proposer_receive_trim(struct proposer* p,
                                      struct paxos_trim* trim_msg);
-// timeouts
-struct timeout_iterator* proposer_timeout_iterator(struct proposer* p);
-int timeout_iterator_prepare(struct timeout_iterator* iter, paxos_prepare* out);
-int timeout_iterator_accept(struct timeout_iterator* iter, paxos_accept* out);
-void timeout_iterator_free(struct timeout_iterator* iter);
 
 #ifdef __cplusplus
 }

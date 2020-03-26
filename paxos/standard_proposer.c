@@ -26,6 +26,8 @@
  */
 
 
+#include <paxos.h>
+#include <paxos_types.h>
 #include "proposer.h"
 #include <instance.h>
 #include "client_value_queue.h"
@@ -45,6 +47,7 @@
 #include <pending_client_values.h>
 #include <stdio.h>
 #include "random.h"
+#include "timeout.h"
 
 KHASH_MAP_INIT_INT(chosen_instances, bool*)
 KHASH_MAP_INIT_INT(instance_info, struct standard_proposer_instance_info*)
@@ -99,6 +102,11 @@ struct proposer
     uint32_t max_instance_inited;
 };
 
+struct timeout_iterator{
+    khiter_t prepare_instance, accept_instance;
+    struct timeval timeout;
+    struct epoch_proposer* proposer;
+};
 struct timeout_iterator
 {
 	khiter_t pi, ai;
@@ -614,18 +622,6 @@ int proposer_receive_chosen(struct proposer* p, struct paxos_chosen* ack) {
 }
 
 
-struct timeout_iterator*
-proposer_timeout_iterator(struct proposer* p)
-{
-	struct timeout_iterator* iter;
-	iter = malloc(sizeof(struct timeout_iterator));
-	iter->pi = kh_begin(p->prepare_phase_instances);
-	iter->ai = kh_begin(p->accept_phase_instances);
-	iter->proposer = p;
-	gettimeofday(&iter->timeout, NULL);
-	return iter;
-}
-
 static struct standard_proposer_instance_info*
 next_timedout(khash_t(instance_info)* h, khiter_t* k, struct timeval* t)
 {
@@ -641,34 +637,16 @@ next_timedout(khash_t(instance_info)* h, khiter_t* k, struct timeval* t)
 	return NULL;
 }
 
-int
-timeout_iterator_prepare(struct timeout_iterator* iter, paxos_prepare* out)
+struct timeout_iterator*
+proposer_timeout_iterator(struct proposer* p)
 {
-	struct proposer* p = iter->proposer;
-    struct standard_proposer_instance_info *inst = next_timedout(p->prepare_phase_instances, &iter->pi, &iter->timeout);
-	if (inst == NULL)
-		return 0;
-	*out = (struct paxos_prepare){.iid = inst->common_info.iid, (struct ballot) {.number = inst->common_info.ballot.number, .proposer_id = inst->common_info.ballot.proposer_id}};
-	inst->common_info.created_at = iter->timeout;
-	return 1;
-}
-
-int
-timeout_iterator_accept(struct timeout_iterator* iter, paxos_accept* out) {
-    struct standard_proposer_instance_info *inst;
-    struct proposer *p = iter->proposer;
-    inst = next_timedout(p->accept_phase_instances, &iter->ai, &iter->timeout);
-    if (inst == NULL)
-        return 0;
-
-    gettimeofday(&inst->common_info.created_at, NULL);
-    proposer_instance_info_to_accept(&inst->common_info, out);
-    return 1;
-}
-
-void
-timeout_iterator_free(struct timeout_iterator* iter) {
-	free(iter);
+	struct timeout_iterator* iter;
+	iter = malloc(sizeof(struct timeout_iterator));
+	iter->pi = kh_begin(p->prepare_phase_instances);
+	iter->ai = kh_begin(p->accept_phase_instances);
+	iter->proposer = p;
+	gettimeofday(&iter->timeout, NULL);
+	return iter;
 }
 
 void check_and_push_front_of_queue_if_client_value_was_proposed(struct proposer* p, struct standard_proposer_instance_info* instance_info) {
@@ -742,7 +720,7 @@ proposer_update_instance_info_from_preemption(struct proposer *p, struct standar
                                               struct paxos_preempted *preempted_message)
 {
 
-	inst->common_info.ballot = (struct ballot) {.number = random_between(preempted_message->acceptor_current_ballot.number, preempted_message->acceptor_current_ballot.number + BALLOT_INCREMENT), .proposer_id = p->id};
+	inst->common_info.ballot = (struct ballot) {.number = random_between(preempted_message->acceptor_current_ballot.number + 1, preempted_message->acceptor_current_ballot.number + BALLOT_INCREMENT + 1), .proposer_id = p->id};
 	inst->common_info.last_promised_values_ballot = (struct ballot) {.number = 0, .proposer_id = 0};
 
     if (proposer_instance_info_has_promised_value(&inst->common_info)) {
@@ -840,4 +818,34 @@ void proposer_receive_trim(struct proposer* p,
     if (p->current_proposing_instance < trim_msg->iid) {
         p->current_proposing_instance = trim_msg->iid + 1;
     }
+}
+
+int
+timeout_iterator_prepare(struct timeout_iterator* iter, paxos_prepare* out)
+{
+	struct proposer* p = iter->proposer;
+    struct standard_proposer_instance_info *inst = next_timedout(p->prepare_phase_instances, &iter->pi, &iter->timeout);
+	if (inst == NULL)
+		return 0;
+	*out = (struct paxos_prepare){.iid = inst->common_info.iid, (struct ballot) {.number = inst->common_info.ballot.number, .proposer_id = inst->common_info.ballot.proposer_id}};
+	inst->common_info.created_at = iter->timeout;
+	return 1;
+}
+
+int
+timeout_iterator_accept(struct timeout_iterator* iter, paxos_accept* out) {
+    struct standard_proposer_instance_info *inst;
+    struct proposer *p = iter->proposer;
+    inst = next_timedout(p->accept_phase_instances, &iter->ai, &iter->timeout);
+    if (inst == NULL)
+        return 0;
+
+    gettimeofday(&inst->common_info.created_at, NULL);
+    proposer_instance_info_to_accept(&inst->common_info, out);
+    return 1;
+}
+
+void
+timeout_iterator_free(struct timeout_iterator* iter) {
+	free(iter);
 }

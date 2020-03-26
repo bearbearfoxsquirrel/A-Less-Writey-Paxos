@@ -299,11 +299,11 @@ static int
     return 0;
 }
 
-static void bool_copy(bool* dst, bool* src){
+__unused static void bool_copy(bool* dst, bool* src){
     memccpy(dst, src, 1, sizeof(bool));
 }
 
-static void int_copy(int* dst, int* src) {
+__unused static void int_copy(int* dst, int* src) {
     *dst = *src;
 }
 

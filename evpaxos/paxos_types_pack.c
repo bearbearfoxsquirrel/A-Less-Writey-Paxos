@@ -346,14 +346,14 @@ static void msgpack_pack_epoch_ballot(msgpack_packer* packer, struct epoch_ballo
 
 void msgpack_pack_epoch_ballot_prepare(msgpack_packer* packer, struct epoch_ballot_prepare* prepare){
     msgpack_pack_array(packer, 4);
-    msgpack_pack_uint32(packer, WRITEAHEAD_EPOCH_BALLOT_PREPARE);
+    msgpack_pack_int32(packer, WRITEAHEAD_EPOCH_BALLOT_PREPARE);
     msgpack_pack_uint32(packer, prepare->instance);
     msgpack_pack_epoch_ballot(packer, &prepare->epoch_ballot_requested);
 }
 
 void msgpack_pack_epoch_ballot_promise(msgpack_packer* packer, struct epoch_ballot_promise* promise){
     msgpack_pack_array(packer, 8);
-    msgpack_pack_uint32(packer, WRITEAHED_EPOCH_BALLOT_PROMISE);
+    msgpack_pack_int32(packer, WRITEAHED_EPOCH_BALLOT_PROMISE);
     msgpack_pack_uint32(packer, promise->acceptor_id);
     msgpack_pack_uint32(packer, promise->instance);
     msgpack_pack_epoch_ballot(packer, &promise->promised_epoch_ballot);
@@ -363,7 +363,7 @@ void msgpack_pack_epoch_ballot_promise(msgpack_packer* packer, struct epoch_ball
 
 void msgpack_pack_epoch_ballot_accept(msgpack_packer* packer, struct epoch_ballot_accept* accept){
     msgpack_pack_array(packer, 5);
-    msgpack_pack_uint32(packer, WRITEAHEAD_EPOCH_BALLOT_ACCEPT);
+    msgpack_pack_int32(packer, WRITEAHEAD_EPOCH_BALLOT_ACCEPT);
     msgpack_pack_uint32(packer, accept->instance);
     msgpack_pack_epoch_ballot(packer, &accept->epoch_ballot_requested);
     msgpack_pack_paxos_value(packer, &accept->value_to_accept);
@@ -371,7 +371,7 @@ void msgpack_pack_epoch_ballot_accept(msgpack_packer* packer, struct epoch_ballo
 
 void msgpack_pack_epoch_ballot_accepted(msgpack_packer* packer, struct epoch_ballot_accepted* accepted){
     msgpack_pack_array(packer, 6);
-    msgpack_pack_uint32(packer, WRITEAHEAD_EPOCH_BALLOT_ACCEPTED);
+    msgpack_pack_int32(packer, WRITEAHEAD_EPOCH_BALLOT_ACCEPTED);
     msgpack_pack_uint32(packer, accepted->acceptor_id);
     msgpack_pack_uint32(packer, accepted->instance);
     msgpack_pack_epoch_ballot(packer, &accepted->accepted_epoch_ballot);
@@ -380,7 +380,7 @@ void msgpack_pack_epoch_ballot_accepted(msgpack_packer* packer, struct epoch_bal
 
 void msgpack_pack_epoch_ballot_preempted(msgpack_packer* packer, struct epoch_ballot_preempted* preempted) {
     msgpack_pack_array(packer, 7);
-    msgpack_pack_uint32(packer, WRITEAHEAD_EPOCH_BALLOT_PREEMPTED);
+    msgpack_pack_int32(packer, WRITEAHEAD_EPOCH_BALLOT_PREEMPTED);
     msgpack_pack_uint32(packer, preempted->acceptor_id);
     msgpack_pack_uint32(packer, preempted->instance);
     msgpack_pack_epoch_ballot(packer, &preempted->requested_epoch_ballot);
@@ -390,7 +390,7 @@ void msgpack_pack_epoch_ballot_preempted(msgpack_packer* packer, struct epoch_ba
 
 void msgpack_pack_instance_chosen_at_epoch_ballot(msgpack_packer* packer, struct instance_chosen_at_epoch_ballot* instance_chosen) {
     msgpack_pack_array(packer, 5);
-    msgpack_pack_uint32(packer, WRITEAHEAD_INSTANCE_CHOSEN_AT_EPOCH_BALLOT);
+    msgpack_pack_int32(packer, WRITEAHEAD_INSTANCE_CHOSEN_AT_EPOCH_BALLOT);
     msgpack_pack_uint32(packer, instance_chosen->instance);
     msgpack_pack_epoch_ballot(packer, &instance_chosen->chosen_epoch_ballot);
     msgpack_pack_paxos_value(packer, &instance_chosen->chosen_value);
@@ -400,13 +400,13 @@ void msgpack_pack_instance_chosen_at_epoch_ballot(msgpack_packer* packer, struct
 
 void msgpack_pack_epoch_notification(msgpack_packer* packer, struct epoch_notification* epoch_notification){
     msgpack_pack_array(packer, 2);
-    msgpack_pack_uint32(packer, WRITEAHEAD_EPOCH_NOTIFICATION);
+    msgpack_pack_int32(packer, WRITEAHEAD_EPOCH_NOTIFICATION);
     msgpack_pack_uint32(packer, epoch_notification->new_epoch);
 }
 
 void msgpack_pack_writeahead_epoch_acceptor_state(msgpack_packer* packer, struct writeahead_epoch_acceptor_state* state){
     msgpack_pack_array(packer, 4);
-    msgpack_pack_uint32(packer, WRITEAHEAD_ACCEPTOR_STATE);
+    msgpack_pack_int32(packer, WRITEAHEAD_ACCEPTOR_STATE);
     msgpack_pack_uint32(packer, state->standard_acceptor_state.aid);
     msgpack_pack_uint32(packer, state->standard_acceptor_state.trim_iid);
     msgpack_pack_uint32(packer, state->current_epoch);
@@ -420,6 +420,7 @@ void msgpack_pack_writeahead_epoch_paxos_message(msgpack_packer* packer, struct 
            break;
        case WRITEAHEAD_EPOCH_BALLOT_PREPARE:
            msgpack_pack_epoch_ballot_prepare(packer, &message->message_contents.epoch_ballot_prepare);
+           break;
        case WRITEAHED_EPOCH_BALLOT_PROMISE:
            msgpack_pack_epoch_ballot_promise(packer, &message->message_contents.epoch_ballot_promise);
            break;

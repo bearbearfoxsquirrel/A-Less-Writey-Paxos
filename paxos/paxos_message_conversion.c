@@ -7,8 +7,6 @@
 //
 
 
-#include "standard_acceptor.h"
-#include "standard_stable_storage.h"
 #include "ballot.h"
 #include "paxos_value.h"
 #include <stdlib.h>
@@ -107,8 +105,8 @@ paxos_accept_request_and_last_acceptor_promise_to_preempted(int id, const struct
     };
 }
 
-void
-paxos_accepted_to_preempted(int id, const struct paxos_accepted *acc, standard_paxos_message *out) {
+__unused void
+paxos_accepted_to_preempted(__unused int id, __unused const struct paxos_accepted *acc, standard_paxos_message *out) {
     out->type = PAXOS_PREEMPTED;
     //todo remove or fix
   //  out->u.preempted = (paxos_preempted) {.aid = id, .iid = acc->iid, acc., acc->promise_ballot};

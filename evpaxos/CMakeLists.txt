@@ -3,7 +3,7 @@ include_directories(${CMAKE_SOURCE_DIR}/evpaxos/include)
 include_directories(${LIBEVENT_INCLUDE_DIRS} ${MSGPACK_INCLUDE_DIRS})
 
 set(LOCAL_SOURCES config.c message.c paxos_types_pack.c peers.c ev_write_ahead_window_acceptor.c
-		ev_standard_acceptor.c evlearner.c evproposer.c evreplica.c ev_timer_threshold_timer_util.c)
+		ev_standard_acceptor.c evlearner.c evproposer.c evreplica.c ev_timer_threshold_timer_util.c include/backoff_manager.h backoff.c include/backoff.h backoff_manager.c include/backoff_implementations.h)
 
 add_library(evpaxos SHARED ${LOCAL_SOURCES})
 

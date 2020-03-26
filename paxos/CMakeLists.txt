@@ -6,7 +6,7 @@ SET(SRCS paxos.c standard_acceptor.c learner.c standard_proposer.c client_value_
 		include/writeahead_epoch_acceptor.h writeahead_epoch_acceptor.c include/epoch_paxos_storage.h epoch_paxos_storage.c
 		epoch_proposer.c include/epoch_proposer.h include/epoch_learner.h include/epoch_quorum.h include/instance.h
 		include/paxos_util.h paxos_util.c include/proposer_common.h proposer_common.c include/pending_client_values.h
-		pending_client_values.c include/random.h random.c include/performance_threshold_timer.h performance_threshold_timer.c)
+		pending_client_values.c include/random.h random.c include/performance_threshold_timer.h performance_threshold_timer.c include/timeout.h)
 
 IF (LMDB_FOUND)
 	LIST(APPEND SRCS stable_storage_lmdb.c)

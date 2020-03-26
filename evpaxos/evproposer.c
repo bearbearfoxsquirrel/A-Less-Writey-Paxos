@@ -44,9 +44,12 @@
 #include <assert.h>
 #include <fcntl.h>
 #include "time.h"
+#include "backoff_implementations.h"
+#include "backoff_manager.h"
 #include "stdlib.h"
 #include "random.h"
 #include "stdio.h"
+#include "timeout.h"
 
 #define MIN_BACKOFF_TIME 15000
 #define MAX_BACKOFF_TIME 1000000
@@ -69,7 +72,8 @@ struct evproposer {
 	struct timeval tv;
 	struct event* timeout_ev;
 
-	khash_t(backoffs)* current_backoffs;
+	struct backoff_manager* backoff_manager;
+//	khash_t(backoffs)* current_backoffs;
 
     int proposers_count;
     struct event *random_seed_event;
@@ -230,12 +234,7 @@ evproposer_handle_chosen(__unused struct peer* p, struct standard_paxos_message*
 
     proposer_receive_chosen(proposer->state, chosen_msg);
 
-    khiter_t key = kh_get_backoffs(proposer->current_backoffs, chosen_msg->iid);
-
-    if (key != kh_end(proposer->current_backoffs)) {
-        kh_del_backoffs(proposer->current_backoffs, key);
-        free(kh_value(proposer->current_backoffs, key));
-    }
+    backoff_manager_close_backoff_if_exists(proposer->backoff_manager, chosen_msg->iid);
 
     try_accept(proposer);
 }
@@ -251,54 +250,12 @@ evproposer_try_higher_ballot(evutil_socket_t fd, short event, void* arg) {
     struct retry* args =  arg;
     struct evproposer* proposer = args->proposer;
     iid_t instance = args->instance;
-  //  struct paxos_prepare next_prepare;
 
     paxos_log_debug("Trying next ballot %u, %u.%u", args->prepare->iid, args->prepare->ballot.number, args->prepare->ballot.proposer_id);
     peers_for_n_acceptor(proposer->peers, peer_send_prepare, args->prepare, paxos_config.group_1);
    paxos_prepare_free(args->prepare);
 
    try_accept(proposer);
-}
-
-static int get_decorrolated_jitter(const unsigned int x){
-
-}
-
-static unsigned int get_initial_backoff() {
-   // srand(time(NULL));
-    return random_between(MIN_BACKOFF_TIME, MAX_INITIAL_BACKOFF_TIME);
-}
-
-static unsigned int get_randomised_rollover_exp_backoff(const unsigned int prev_time, const unsigned int max, const unsigned int min, unsigned int (*rollover_method)(const unsigned int, const unsigned int), const unsigned int init_min, const unsigned int init_max) {
-    unsigned  int new_time = (prev_time << (unsigned int) 1) % max;
-    if (new_time < min) {
-        new_time = rollover_method(init_min, init_max);
-    }
-    return new_time;
-}
-
-static unsigned int get_full_jitter(const unsigned int min, const unsigned int prev_time, const unsigned int cap) {
-    return random_between(min, get_randomised_rollover_exp_backoff(prev_time, cap, min, get_initial_backoff, min, cap));
-}
-
-static unsigned int get_next_backoff(const unsigned int old_time) {
-    return get_full_jitter(MIN_BACKOFF_TIME, old_time, MAX_BACKOFF_TIME);
-   // srand(time(NULL));
-   // unsigned  int new_time = (old_time << (unsigned int) 1) % MAX_BACKOFF_TIME;
-   //     if (new_time == 0) {
-    //    new_time = get_initial_backoff();
-   // }
-   // return new_time;
-    //return (rand() % new_time);
-   // return old_time;
- // unsigned int next_jitter_time = (rand() % old_time * 3) + MIN_BACKOFF_TIME;
- //   unsigned int next_jitter_time = (rand() % old_time * 3) + MIN_BACKOFF_TIME;
- // unsigned  int next_jitter_time = random_between(MIN_BACKOFF_TIME, old_time * 3);//MIN_BACKOFF_TIME + (rand() / (RAND_MAX / (MIN_BACKOFF_TIME - (old_time * 3) + 1) + 1));
-    //(int)((double)rand() / ((double)(old_time * 3) + 1) * MIN_BACKOFF_TIME);
-
-   // ((double) rand() % (double) ((old_time * 3) + 1 - MIN_BACKOFF_TIME)) + MIN_BACKOFF_TIME;
-
-  //  return MIN(MAX_BACKOFF_TIME, next_jitter_time);
 }
 
 
@@ -311,60 +268,25 @@ evproposer_handle_preempted(struct peer* p, standard_paxos_message* msg, void* a
     if (preempted_msg.attempted_ballot.proposer_id != proposer->id) return;
 
     struct paxos_prepare* next_prepare = calloc(1, sizeof(struct paxos_prepare));
-
+    assert(ballot_greater_than(preempted_msg.acceptor_current_ballot, preempted_msg.attempted_ballot));
     if (proposer_receive_preempted(proposer->state, &preempted_msg, next_prepare)) {
         assert(next_prepare->iid != 0);
-
-        paxos_log_debug("Next ballot to try for Instance %u, %u.%u", next_prepare->iid, next_prepare->ballot.number, next_prepare->ballot.proposer_id);
-
-        khiter_t backoffs_key = kh_get_backoffs(proposer->current_backoffs, preempted_msg.iid);
-
-        struct timeval* backoff_new;
-        // check if backoff is existing
-        if (backoffs_key == kh_end(proposer->current_backoffs)) {
-            // first preempt
-            backoff_new = calloc(1, sizeof(struct timeval));
-            backoff_new->tv_sec = 0;
-            backoff_new->tv_usec = get_initial_backoff();
+        assert(ballot_greater_than(next_prepare->ballot, preempted_msg.acceptor_current_ballot));
 
 
-            int success;
-            backoffs_key = kh_put_backoffs(proposer->current_backoffs, preempted_msg.iid, &success);
-            assert(success > 0);
-            kh_value(proposer->current_backoffs, backoffs_key) = backoff_new;
-
-            proposer_preexecute(proposer);
-        } else {
-            // next preempt
-            backoff_new = kh_value(proposer->current_backoffs, backoffs_key);
-            backoff_new->tv_usec = get_next_backoff(backoff_new->tv_usec);
-            kh_value(proposer->current_backoffs, backoffs_key) = backoff_new;
-        }
+        const struct timeval* current_backoff = backoff_manager_get_backoff(proposer->backoff_manager, preempted_msg.iid);
 
 
-        paxos_log_debug("Backoff time %u", backoff_new->tv_usec);
+        paxos_log_debug("Trying next Ballot for Instance %u, %u.%u in %u microseconds", next_prepare->iid, next_prepare->ballot.number, next_prepare->ballot.proposer_id, current_backoff->tv_usec);
 
-        // add new event to send after backoff
         struct retry* retry_args = calloc(1, sizeof(struct retry));
         *retry_args = (struct retry) {.proposer = proposer, .prepare = next_prepare, .instance = preempted_msg.iid};
 
         struct event* ev = evtimer_new(peers_get_event_base(proposer->peers), evproposer_try_higher_ballot, retry_args);
-        event_add(ev, backoff_new);
-
+        event_add(ev, current_backoff);
     }
 }
 
-
-static void kh_backoff_free_if_less_than_or_equal(khash_t(backoffs)* hash_table, khiter_t key, struct timeval* value, iid_t comp){
-    if (kh_exist(hash_table, key)) {
-        if (key <= comp) {
-
-            free(value);
-            khiter_t  key_iter = kh_get_backoffs(hash_table, key);
-            kh_del_backoffs(hash_table, key_iter);
-        }
-    }
-}
 
 static void
 evproposer_handle_trim(__unused struct peer* p, standard_paxos_message* msg, void* arg) {
@@ -374,10 +296,7 @@ evproposer_handle_trim(__unused struct peer* p, standard_paxos_message* msg, voi
     proposer_receive_trim(proposer->state, trim_msg);
     proposer_preexecute(proposer);
 
-    iid_t key;
-    struct timeval* backoff;
-    kh_foreach(proposer->current_backoffs, key, backoff, kh_backoff_free_if_less_than_or_equal(proposer->current_backoffs, key, backoff, trim_msg->iid))
-    //todo delete all backoffs and retries less that or equal to trim
+    backoff_manager_close_less_than_or_equal(proposer->backoff_manager, trim_msg->iid);
 }
 
 static void
@@ -401,10 +320,7 @@ evproposer_handle_acceptor_state(__unused struct peer* p, standard_paxos_message
 	proposer_receive_acceptor_state(proposer->state, acc_state);
 	try_accept(proposer);
 
-    iid_t key;
-    struct timeval* backoff;
-    kh_foreach(proposer->current_backoffs, key, backoff, kh_backoff_free_if_less_than_or_equal(proposer->current_backoffs, key, backoff, acc_state->trim_iid))
-
+    backoff_manager_close_less_than_or_equal(proposer->backoff_manager, acc_state->trim_iid);
 
 }
 
@@ -472,7 +388,7 @@ static void evproposer_gen_random_seed(evutil_socket_t fd, short event, void* ar
 
 
 struct evproposer*
-evproposer_init_internal(int id, struct evpaxos_config* c, struct peers* peers)
+evproposer_init_internal(int id, struct evpaxos_config* c, struct peers* peers, struct backoff_manager* backoff_manager)
 {
 	struct evproposer* p;
 	int acceptor_count = evpaxos_acceptor_count(c);
@@ -484,8 +400,8 @@ evproposer_init_internal(int id, struct evpaxos_config* c, struct peers* peers)
     p->state = proposer_new(p->id, acceptor_count,paxos_config.quorum_1,paxos_config.quorum_2);
 	p->preexec_window = paxos_config.proposer_preexec_window;
 
-	p->current_backoffs = kh_init_backoffs();
-	kh_init_retries();
+//	p->current_backoffs = kh_init_backoffs();
+//	kh_init_retries();
 
 
 	peers_subscribe(peers, PAXOS_PROMISE, evproposer_handle_promise, p);
@@ -511,6 +427,7 @@ evproposer_init_internal(int id, struct evpaxos_config* c, struct peers* peers)
 
 	p->peers = peers;
 
+	p->backoff_manager = backoff_manager;
     // This initiates the first Paxos Event in the Proposer-Acceptor communication
 	event_base_once(base, 0, EV_TIMEOUT, evproposer_preexec_once, p, NULL);
 
@@ -538,7 +455,11 @@ evproposer_init(int id, const char* config_file, struct event_base* base)
 	if (rv == 0 ) // failure
 		return NULL;
 
-	struct evproposer* p = evproposer_init_internal(id, config, peers);
+	//todo config mechanism to work out backoff type
+	struct backoff* backoff = full_jitter_backoff_new(MAX_BACKOFF_TIME, MIN_BACKOFF_TIME, MAX_INITIAL_BACKOFF_TIME);
+	struct backoff_manager* backoff_manager = backoff_manager_new(backoff);
+
+	struct evproposer* p = evproposer_init_internal(id, config, peers, backoff_manager);
 	evpaxos_config_free(config);
 	return p;
 }
@@ -547,6 +468,7 @@ void
 evproposer_free_internal(struct evproposer* p)
 {
 	event_free(p->timeout_ev);
+	backoff_manager_free(&p->backoff_manager);
 	proposer_free(p->state);
 	free(p);
 }
