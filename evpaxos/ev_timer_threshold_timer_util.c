@@ -4,31 +4,25 @@
 
 #include "ballot.h"
 #include "paxos_message_conversion.h"
-#include <paxos_types.h>
-#include <evdns.h>
-#include <event2/event.h>
-#include <assert.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include "message.h"
-#include "writeahead_window_acceptor.h"
-#include "peers.h"
-#include "standard_stable_storage.h"
 #include "evpaxos.h"
 #include "ev_timer_threshold_timer_util.h"
 
 
+struct performance_threshold_timer * get_chosen_performance_threshold_timer_new(){
+    return performance_threshold_timer_new((struct timespec) {.tv_sec = 0, .tv_nsec = 1000});
+}
 struct performance_threshold_timer * get_acceptance_performance_threshold_timer_new() {
-    return performance_threshold_timer_new((struct timespec) {.tv_sec = 0, .tv_nsec = 100000});
+    return performance_threshold_timer_new((struct timespec) {.tv_sec = 0, .tv_nsec = 1000});
 }
 
 struct performance_threshold_timer * get_promise_performance_threshold_timer_new() {
-    return performance_threshold_timer_new((struct timespec) {.tv_sec = 0, .tv_nsec = 1000000});
+    return performance_threshold_timer_new((struct timespec) {.tv_sec = 0, .tv_nsec = 1000});
 }
 
 void ev_performance_timer_and_log_threshold_timer(struct performance_threshold_timer *timer, char* timer_name){
     if (performance_threshold_timer_was_threshold_exceeded(timer)) {
-        paxos_log_debug("Time target exceeded for %s", timer_name);
+        struct timespec elapsed_time = performance_threshold_timer_get_elapsed_time(timer);
+        paxos_log_debug("Time target exceeded for %s. It took %lld.%.9ld seconds", timer_name, elapsed_time.tv_sec, elapsed_time.tv_nsec);
     }
 }
 

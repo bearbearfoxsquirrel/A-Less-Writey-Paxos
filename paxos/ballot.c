@@ -18,8 +18,8 @@ void copy_ballot(const struct ballot *src, struct ballot *dst) {
     *dst = (struct ballot) {.proposer_id = src->proposer_id, .number = src->number};
 }
 
-bool ballot_equal(const struct ballot *lhs, const struct ballot rhs) {
-    return lhs->proposer_id == rhs.proposer_id && lhs->number == rhs.number;
+bool ballot_equal(const struct ballot lhs, const struct ballot rhs) {
+    return lhs.proposer_id == rhs.proposer_id && lhs.number == rhs.number;
 }
 
 bool ballot_greater_than(const struct ballot lhs, const struct ballot rhs) {

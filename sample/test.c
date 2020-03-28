@@ -9,7 +9,7 @@
 #include <string.h>
 #include <paxos_types.h>
 //#include <writeahead_epoch_acceptor.h>
-#include "writeahead_window_acceptor.h"
+#include "writeahead_ballot_acceptor.h"
 #include "paxos_message_conversion.h"
 #include "learner.h"
 #include "proposer.h"
@@ -86,7 +86,7 @@ int main(int argc, char const *argv[]){
 //    return 0;
 /*
     struct proposer* proposer = proposer_new(0, 1, 1, 1);
-    struct writeahead_window_acceptor* acceptor = write_ahead_window_acceptor_new(0, 1, 1, 5, 5, 5);
+    struct writeahead_ballot_acceptor* acceptor = write_ahead_window_acceptor_new(0, 1, 1, 5, 5, 5);
     struct learner* learner = learner_new(1);
 
     struct paxos_prepare prepare;

@@ -96,7 +96,7 @@ evacceptor_handle_accept(struct peer* p, standard_paxos_message* msg, void* arg)
 		    assert(out.u.accepted.value.paxos_value_len > 1);
 		    assert(strncmp(out.u.accepted.value.paxos_value_val, "", 2));
 
-		    assert(ballot_equal(&out.u.accepted.value_ballot, out.u.accepted.promise_ballot));
+		    assert(ballot_equal(out.u.accepted.value_ballot, out.u.accepted.promise_ballot));
 			peers_foreach_client(a->peers, peer_send_paxos_message, &out);
 		} else {
 	        send_paxos_message(peer_get_buffer(p), &out);

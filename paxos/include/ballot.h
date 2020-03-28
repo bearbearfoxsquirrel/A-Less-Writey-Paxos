@@ -11,7 +11,7 @@
 
 void copy_ballot(const struct ballot *src, struct ballot *dst);
 
-bool ballot_equal(const struct ballot *lhs, const struct ballot rhs);
+bool ballot_equal(const struct ballot lhs, const struct ballot rhs);
 
 bool ballot_greater_than(const struct ballot lhs, const struct ballot rhs);
 

@@ -115,7 +115,7 @@ void learner_receive_chosen(struct learner* l, struct paxos_chosen* chosen){
     inst = learner_get_instance_or_create(l, chosen->iid);
     if (inst->final_value == NULL) {
         struct paxos_accepted *accepted = calloc(1, sizeof(struct paxos_accepted));
-        paxos_accepted_from_paxos_chosen(accepted, chosen, 0);
+        paxos_accepted_update_instance_info_with_chosen(accepted, chosen, 0);
 
         inst->last_update_ballot = (struct ballot) {chosen->ballot.number, chosen->ballot.proposer_id};
         inst->final_value = accepted;
@@ -296,7 +296,7 @@ instance_has_quorum(struct instance* inst, int acceptors, int quorum_size)
 		if (curr_ack == NULL) continue;
 
 		// Count the ones "agreeing" with the last added
-		if (ballot_equal(&curr_ack->value_ballot, inst->last_update_ballot)) {
+		if (ballot_equal(curr_ack->value_ballot, inst->last_update_ballot)) {
 			count++;
 			a_valid_index = i;
 		}

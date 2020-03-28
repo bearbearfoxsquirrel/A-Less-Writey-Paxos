@@ -50,10 +50,12 @@
 #include "random.h"
 #include "stdio.h"
 #include "timeout.h"
+#include "performance_threshold_timer.h"
+#include "ev_timer_threshold_timer_util.h"
 
-#define MIN_BACKOFF_TIME 15000
+#define MIN_BACKOFF_TIME 30000
 #define MAX_BACKOFF_TIME 1000000
-#define MAX_INITIAL_BACKOFF_TIME 30000
+#define MAX_INITIAL_BACKOFF_TIME 50000
 
 #define MIN(a,b) \
    ({ __typeof__ (a) _a = (a); \
@@ -78,6 +80,15 @@ struct evproposer {
     int proposers_count;
     struct event *random_seed_event;
     struct timeval random_seed_timer;
+
+
+    struct performance_threshold_timer* preexecute_timer;
+    struct performance_threshold_timer* promise_timer;
+    struct performance_threshold_timer* acceptance_timer;
+    struct performance_threshold_timer* propose_timer;
+    struct performance_threshold_timer* trim_timer;
+    struct performance_threshold_timer* preemption_timer;
+    struct performance_threshold_timer* chosen_timer;
 };
 
 static void
@@ -111,16 +122,24 @@ proposer_preexecute(struct evproposer* p) {
     struct paxos_prepare pr;
     int count = p->preexec_window - proposer_prepare_count(p->state) - proposer_acceptance_count(p->state);
 
-    if (count <= 0) return;
+    iid_t current_instance = proposer_get_current_instance(p->state);//proposer_get_next_instance_to_prepare(p->state);
+    if (count <= 0) {
+        //ev_performance_timer_stop_check_and_clear_timer(p->preexecute_timer, "Preexecuting");
+        return;
+    }
     for (i = 0; i < count; i++) {
-        iid_t current_instance = proposer_get_next_instance_to_prepare(p->state);
         assert(current_instance != 0);
         proposer_set_current_instance(p->state, current_instance);
         paxos_log_debug("current proposing instance: %u", current_instance);
+
+        performance_threshold_timer_begin_timing(p->preexecute_timer);
         bool prepred = proposer_try_to_start_preparing_instance(p->state, proposer_get_current_instance(p->state), &pr);
+        ev_performance_timer_stop_check_and_clear_timer(p->preexecute_timer, "prepaing a new Instace");
         if (prepred) {
             peers_for_n_acceptor(p->peers, peer_send_prepare, &pr, paxos_config.group_1);
         }
+
+        current_instance++;
     }
     paxos_log_debug("Opened %d new instances", count);
 }
@@ -169,12 +188,18 @@ static void
 try_accept(struct evproposer* p)
 {
 	paxos_accept accept;
+
+	performance_threshold_timer_begin_timing(p->propose_timer);
     while (proposer_try_accept(p->state, &accept)) {
         assert(&accept.value != NULL);
         assert(accept.value.paxos_value_val != NULL);
         assert(accept.value.paxos_value_len > 0);
         peers_for_n_acceptor(p->peers, peer_send_accept, &accept, paxos_config.group_2);
+
     }
+
+    ev_performance_timer_stop_check_and_clear_timer(p->propose_timer, "Proposing Values");
+
     proposer_preexecute(p);
 }
 
@@ -189,7 +214,9 @@ evproposer_handle_promise(__unused struct peer* p, standard_paxos_message* msg, 
 	if (promise->ballot.proposer_id != proposer->id)
 	    return;
 
+	performance_threshold_timer_begin_timing(proposer->promise_timer);
 	int quorum_reached = proposer_receive_promise(proposer->state, promise, &prepare);
+	ev_performance_timer_stop_check_and_clear_timer(proposer->promise_timer, "Handling a Promise");
 	if (quorum_reached)
 	    try_accept(proposer);
 }
@@ -210,19 +237,21 @@ evproposer_handle_accepted(struct peer* p, standard_paxos_message* msg, void* ar
     assert(acc->value.paxos_value_len > 1);
     assert(acc->value_ballot.number > 0);
 
+    performance_threshold_timer_begin_timing(proposer->acceptance_timer);
     if (proposer_receive_accepted(proposer->state, acc, &chosen_msg)){
-        peers_foreach_acceptor(proposer->peers, peer_send_chosen, &chosen_msg);
+     //   peers_foreach_acceptor(proposer->peers, peer_send_chosen, &chosen_msg);
         //peers_foreach_client(proposer->peers, peer_send_chosen, &chosen_msg);
 
-        if (proposer_get_min_unchosen_instance(proposer->state) > chosen_msg.iid) {
-            struct paxos_trim trim_msg = {.iid = chosen_msg.iid};
-            peers_foreach_acceptor(proposer->peers, peer_send_trim, &trim_msg);
-        }
+       // if (proposer_get_min_unchosen_instance(proposer->state) > chosen_msg.iid) {
+         //   struct paxos_trim trim_msg = {.iid = chosen_msg.iid};
+          //  peers_foreach_acceptor(proposer->peers, peer_send_trim, &trim_msg);
+      //  }
         assert(chosen_msg.iid == acc->iid);
-        assert(ballot_equal(&chosen_msg.ballot, acc->promise_ballot));
-        assert(ballot_equal(&chosen_msg.ballot, acc->value_ballot));
+        assert(ballot_equal(chosen_msg.ballot, acc->promise_ballot));
+        assert(ballot_equal(chosen_msg.ballot, acc->value_ballot));
         assert(is_values_equal(chosen_msg.value, acc->value));
     }
+    ev_performance_timer_stop_check_and_clear_timer(proposer->acceptance_timer, "Handing an Acceptance");
     try_accept(proposer);
 }
 
@@ -242,14 +271,12 @@ evproposer_handle_chosen(__unused struct peer* p, struct standard_paxos_message*
 struct retry {
     struct evproposer* proposer;
     struct paxos_prepare* prepare;
-    iid_t instance;
 };
 
 static void
 evproposer_try_higher_ballot(evutil_socket_t fd, short event, void* arg) {
     struct retry* args =  arg;
     struct evproposer* proposer = args->proposer;
-    iid_t instance = args->instance;
 
     paxos_log_debug("Trying next ballot %u, %u.%u", args->prepare->iid, args->prepare->ballot.number, args->prepare->ballot.proposer_id);
     peers_for_n_acceptor(proposer->peers, peer_send_prepare, args->prepare, paxos_config.group_1);
@@ -280,7 +307,7 @@ evproposer_handle_preempted(struct peer* p, standard_paxos_message* msg, void* a
         paxos_log_debug("Trying next Ballot for Instance %u, %u.%u in %u microseconds", next_prepare->iid, next_prepare->ballot.number, next_prepare->ballot.proposer_id, current_backoff->tv_usec);
 
         struct retry* retry_args = calloc(1, sizeof(struct retry));
-        *retry_args = (struct retry) {.proposer = proposer, .prepare = next_prepare, .instance = preempted_msg.iid};
+        *retry_args = (struct retry) {.proposer = proposer, .prepare = next_prepare};
 
         struct event* ev = evtimer_new(peers_get_event_base(proposer->peers), evproposer_try_higher_ballot, retry_args);
         event_add(ev, current_backoff);
@@ -293,6 +320,8 @@ evproposer_handle_trim(__unused struct peer* p, standard_paxos_message* msg, voi
 
     struct evproposer* proposer = arg;
     struct paxos_trim* trim_msg = &msg->u.trim;
+
+
     proposer_receive_trim(proposer->state, trim_msg);
     proposer_preexecute(proposer);
 
@@ -428,6 +457,11 @@ evproposer_init_internal(int id, struct evpaxos_config* c, struct peers* peers, 
 	p->peers = peers;
 
 	p->backoff_manager = backoff_manager;
+
+	p->preexecute_timer = performance_threshold_timer_new((struct timespec) {0, 50});
+	p->promise_timer = performance_threshold_timer_new((struct timespec) {0, 50});
+	p->propose_timer = performance_threshold_timer_new((struct timespec) {0, 50});
+	p->acceptance_timer = performance_threshold_timer_new((struct timespec) {0, 50});
     // This initiates the first Paxos Event in the Proposer-Acceptor communication
 	event_base_once(base, 0, EV_TIMEOUT, evproposer_preexec_once, p, NULL);
 

@@ -117,8 +117,8 @@ paxos_accepted_to_accept(const struct paxos_accepted *accepted, paxos_accept *ou
  //   out->ballot = accepted->value_ballot;
     copy_ballot(&accepted->value_ballot, &out->ballot);
     out->iid = accepted->iid;
-
-    copy_value(&accepted->value, &out->value);
+    out->value = accepted->value;
+    //copy_value(&accepted->value, &out->value);
 
 }
 void
@@ -241,14 +241,15 @@ void union_ballot_chosen_from_epoch_ballot_accept(struct standard_paxos_message*
     copy_value(&accept->value, &chosen_message->u.chosen.value);
 }
 
-void paxos_accepted_from_paxos_chosen(struct paxos_accepted *accepted, struct paxos_chosen *chosen, unsigned int aid) {
+void paxos_accepted_update_instance_info_with_chosen(struct paxos_accepted *accepted, struct paxos_chosen *chosen, unsigned int aid) {
    accepted->iid = chosen->iid;
  //  if (chosen->value.paxos_value_len != 0)
        copy_value(&chosen->value, &accepted->value);
 //   accepted->ballot = chosen->ballot;
  //  accepted->value_ballot = chosen->ballot;
-    copy_ballot(&chosen->ballot, &accepted->promise_ballot);
+  //  copy_ballot(&chosen->ballot, &accepted->promise_ballot);
     copy_ballot(&chosen->ballot, &accepted->value_ballot);
+    copy_ballot(&INVALID_BALLOT, &accepted->promise_ballot);
     accepted->aid = aid;
 }
 
@@ -262,16 +263,20 @@ void paxos_chosen_from_paxos_accepted(struct paxos_chosen* chosen, struct paxos_
 void paxos_chosen_from_paxos_accept(struct paxos_chosen* chosen, struct paxos_accept* accept) {
     chosen->iid = accept->iid;
     copy_ballot(&accept->ballot, &chosen->ballot);
-    copy_value(&accept->value, &chosen->value);
+    chosen->value = accept->value;
+//    copy_value(&accept->value, &chosen->value);
 }
 
 void paxos_accepted_from_paxos_prepare_and_accept(struct paxos_prepare* prepare, struct paxos_accept* accept, int id, struct paxos_accepted* accepted) {
     assert(prepare->iid == accept->iid);
     accepted->iid = prepare->iid;
     accepted->aid = id;
-    copy_ballot(&prepare->ballot, &accepted->promise_ballot);
-    copy_ballot(&accept->ballot, &accepted->value_ballot);
-    copy_value(&accept->value, &accepted->value);
+    accepted->promise_ballot = prepare->ballot;
+    accepted->value_ballot = accept->ballot;
+  //  copy_ballot(&prepare->ballot, &accepted->promise_ballot);
+   // copy_ballot(&accept->ballot, &accepted->value_ballot);
+    accepted->value = accept->value;
+  //  copy_value(&accept->value, &accepted->value);
 }
 
 void

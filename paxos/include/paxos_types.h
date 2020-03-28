@@ -35,6 +35,7 @@
 
 #define INVALID_EPOCH 0
 #define INVALID_INSTANCE 0
+#define INVALID_BALLOT (struct ballot) {0, 0}
 
 struct ballot {
     uint32_t number;

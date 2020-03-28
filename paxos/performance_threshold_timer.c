@@ -67,14 +67,14 @@ void performance_threshold_timer_clear(struct performance_threshold_timer* timer
     timer->end_time = get_cleared_timespec();
 }
 
-
+/*
 struct performance_threshold_timer performance_threshold_timer_initialise(struct timespec max_time) {
     struct performance_threshold_timer new_timer;
     performance_threshold_timer_clear(&new_timer);
     new_timer.threshold_time = max_time;
     return new_timer;
 }
-
+*/
 
 
 struct performance_threshold_timer* performance_threshold_timer_new(struct timespec max_time){

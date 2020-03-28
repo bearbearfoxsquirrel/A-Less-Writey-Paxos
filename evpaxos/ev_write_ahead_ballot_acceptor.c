@@ -28,7 +28,7 @@
 
 #include "evpaxos.h"
 #include "peers.h"
-#include "writeahead_window_acceptor.h"
+#include "writeahead_ballot_acceptor.h"
 #include "message.h"
 #include <stdlib.h>
 #include <assert.h>
@@ -46,7 +46,7 @@ struct ev_write_ahead_acceptor
     struct peers* peers_proposers;
    // struct peers* peers_acceptors;
 
-    struct writeahead_window_acceptor* state;
+    struct writeahead_ballot_acceptor* state;
     struct event* send_state_event;
     struct timeval send_state_timer;
 
@@ -64,6 +64,7 @@ struct ev_write_ahead_acceptor
     struct performance_threshold_timer* promise_timer;
     struct performance_threshold_timer* acceptance_timer;
 
+    struct performance_threshold_timer* chosen_timer;
 };
 
 
@@ -115,8 +116,8 @@ ev_write_ahead_acceptor_handle_accept(struct peer* p, standard_paxos_message* ms
                     accept->iid, accept->ballot.number, accept->ballot.proposer_id);
     if (write_ahead_window_acceptor_receive_accept(a->state, accept, &out) != 0) {
         if (out.type == PAXOS_ACCEPTED) {
-            assert(ballot_equal(&out.u.accepted.promise_ballot, accept->ballot));
-            assert(ballot_equal(&out.u.accepted.value_ballot, accept->ballot));
+            assert(ballot_equal(out.u.accepted.promise_ballot, accept->ballot));
+            assert(ballot_equal(out.u.accepted.value_ballot, accept->ballot));
             assert(out.u.accepted.value.paxos_value_len > 0);
             peers_foreach_client(a->peers_proposers,  peer_send_paxos_message, &out);
         //   peers_foreach_proposer(a->peers_proposers, peer_send_paxos_message, &out);
@@ -164,7 +165,8 @@ static void
 ev_write_ahead_acceptor_handle_chosen(__unused struct peer* p, struct standard_paxos_message* msg, void* arg){
     struct ev_write_ahead_acceptor* a = (struct ev_write_ahead_acceptor*)arg;
     struct paxos_chosen* chosen_msg = &msg->u.chosen;
-    paxos_log_debug("Recieved chosen message for instace %u", chosen_msg->iid);
+    //paxos_log_debug("Recieved chosen message for instace %u", chosen_msg->iid);
+
     write_ahead_ballot_acceptor_receive_chosen(a->state, chosen_msg);
 }
 
@@ -173,6 +175,7 @@ ev_write_ahead_acceptor_handle_trim(__unused struct peer* p, standard_paxos_mess
 {
     paxos_trim* trim = &msg->u.trim;
     struct ev_write_ahead_acceptor* a = (struct ev_write_ahead_acceptor*)arg;
+
     write_ahead_window_acceptor_receive_trim(a->state, trim);
 }
 
@@ -250,7 +253,7 @@ ev_write_ahead_acceptor_init_internal(int id, __unused struct evpaxos_config* c,
             3000,
             15000,
             2000,
-            1000 / sizeof(struct paxos_accepted)); // dont want iteration to be larger than 4kb (page size)
+            2000 ); // dont want iteration to be larger than 4kb (page size)
    // by making instance window less than min instance
    // catchup you can do a sort of write a little bit at once ahead
    // of time rather than a giant bulk-write of all the written ahead instances
@@ -273,7 +276,7 @@ ev_write_ahead_acceptor_init_internal(int id, __unused struct evpaxos_config* c,
 
     // New event to check windows async
     acceptor->instance_window_check_event = event_new(base, -1, EV_TIMEOUT, check_instance_epoch_event, acceptor);
-    acceptor->instance_window_check_timer = (struct timeval) {.tv_sec = 1, .tv_usec = (rand() % 900000)};
+    acceptor->instance_window_check_timer = (struct timeval) {.tv_sec = 1, .tv_usec = (rand() % 400000)};
     acceptor->instance_window_epoch_iteration_event =  event_new(base, -1, EV_TIMEOUT, write_instance_epoch_event, acceptor);
     acceptor->instance_window_epoch_iteration_timer = (struct timeval) {.tv_sec = 0, .tv_usec = 1}; //0.5 seconds = 500000  us
     event_add(acceptor->instance_window_check_event, &acceptor->instance_window_check_timer);
@@ -287,6 +290,7 @@ ev_write_ahead_acceptor_init_internal(int id, __unused struct evpaxos_config* c,
 
     acceptor->promise_timer = get_promise_performance_threshold_timer_new();
     acceptor->acceptance_timer = get_acceptance_performance_threshold_timer_new();
+//    acceptor->chosen_timer = get_chosen_performance_threshold_timer_new();
     //event_set(&acceptor->send_state_event, 0, EV_PERSIST, write_ahead_window_acceptor_check_and_update_write_ahead_windows, acceptor->state);
   //  evtimer_add(&acceptor->send_state_event, &time);
 

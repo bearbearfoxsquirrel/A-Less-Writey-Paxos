@@ -202,9 +202,13 @@ standard_acceptor_receive_accept(struct standard_acceptor *a,
 int standard_acceptor_receive_chosen(struct standard_acceptor* a, struct paxos_chosen *chosen){
     set_instance_chosen(a->paxos_storage, chosen->iid);
     storage_tx_begin(&a->stable_storage);
-    struct paxos_accepted to_store;
-    paxos_accepted_from_paxos_chosen(&to_store, chosen, a->id);
-    storage_store_instance_info(&a->stable_storage, &to_store);
+    struct paxos_accepted instance_info;
+    storage_get_instance_info(&a->stable_storage, chosen->iid, &instance_info);
+
+    if (ballot_greater_than(chosen->ballot, instance_info.value_ballot)) {
+        paxos_accepted_update_instance_info_with_chosen(&instance_info, chosen, a->id);
+        storage_store_instance_info(&a->stable_storage, &instance_info);
+    }
     storage_tx_commit(&a->stable_storage);
     return 0;
 }

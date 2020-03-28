@@ -117,7 +117,7 @@ hash_mapped_memory_store_last_promise(struct hash_mapped_memory *volatile_storag
     memset(& test_prepare, 0, sizeof(test_prepare));
     hash_mapped_memory_get_last_promise(volatile_storage, last_ballot_promised->iid, &test_prepare);
     assert(test_prepare.iid == last_ballot_promised->iid);
-    assert(ballot_equal(&test_prepare.ballot, last_ballot_promised->ballot));
+    assert(ballot_equal(test_prepare.ballot, last_ballot_promised->ballot));
     return error;
 }
 
@@ -219,13 +219,14 @@ static void hash_mapped_memory_store_instance_info(struct hash_mapped_memory* pa
     hash_mapped_memory_store_last_accepted(paxos_storage, &acceptance_duplicate);
 }
 
-static void hash_mapped_memory_get_instance_info(struct hash_mapped_memory* memory, iid_t instance, struct paxos_accepted* instance_info){
+static int hash_mapped_memory_get_instance_info(struct hash_mapped_memory* memory, iid_t instance, struct paxos_accepted* instance_info){
     struct paxos_prepare promise;
     struct paxos_accept accept;
 
     hash_mapped_memory_get_last_promise(memory, instance, &promise);
     hash_mapped_memory_get_last_accepted(memory, instance, &accept);
     paxos_accepted_from_paxos_prepare_and_accept(&promise, &accept, memory->aid, instance_info);
+    return ballot_greater_than(instance_info->promise_ballot, INVALID_BALLOT);
 }
 
 

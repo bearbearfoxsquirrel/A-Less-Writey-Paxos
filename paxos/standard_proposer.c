@@ -27,6 +27,7 @@
 
 
 #include <paxos.h>
+#include "timeout.h"
 #include <paxos_types.h>
 #include "proposer.h"
 #include <instance.h>
@@ -95,24 +96,19 @@ struct proposer
 
     iid_t max_chosen_instance;
 	iid_t trim_instance;
-	iid_t current_proposing_instance;
+	iid_t next_prepare_instance;
     khash_t(instance_info)* prepare_phase_instances; /* Waiting for prepare acks */
 	khash_t(instance_info)* accept_phase_instances;  /* Waiting for accept acks */
 	khash_t(chosen_instances)* chosens;
-    uint32_t max_instance_inited;
+  //  uint32_t max_instance_inited;
 };
 
 struct timeout_iterator{
     khiter_t prepare_instance, accept_instance;
     struct timeval timeout;
-    struct epoch_proposer* proposer;
+    struct proposer* proposer;
 };
-struct timeout_iterator
-{
-	khiter_t pi, ai;
-	struct timeval timeout;
-	struct proposer* proposer;
-};
+
 
 static bool get_instance_info(khash_t(instance_info)* phase_table, iid_t instance, struct standard_proposer_instance_info** instance_info) {
     khiter_t key = kh_get_instance_info(phase_table, instance);
@@ -158,7 +154,7 @@ proposer_new(int id, int acceptors, int q1, int q2)
 	p->q1 = q1;
 	p->q2 = q2;
 	p->trim_instance = 0;
-	p->current_proposing_instance = 1;
+	p->next_prepare_instance = 1;
 	p->client_values_to_propose = carray_new(500);
     p->pending_client_values = pending_client_values_new();//calloc(1, sizeof(struct paxos_value*));
 	//p->number_proposed_values = 0;
@@ -219,12 +215,12 @@ int proposer_acceptance_count(struct proposer* p) {
 }
 
 void proposer_next_instance(struct proposer* p) {
-    p->current_proposing_instance++;
-    paxos_log_debug("Incrementing current Instance. Now at instance %u", p->current_proposing_instance);
+    p->next_prepare_instance++;
+    paxos_log_debug("Incrementing current Instance. Now at instance %u", p->next_prepare_instance);
 }
 
 uint32_t proposer_get_current_instance(struct proposer* p) {
-    return p->current_proposing_instance;
+    return p->next_prepare_instance;
 }
 
 
@@ -297,6 +293,7 @@ bool
 proposer_try_to_start_preparing_instance(struct proposer* p, iid_t instance, paxos_prepare* out) {
     assert(instance != 0);
 
+
     if (proposer_is_instance_chosen(p, instance)) {
         paxos_log_debug("Instance %u already chosen so skipping", instance);
         proposer_next_instance(p);
@@ -312,6 +309,10 @@ proposer_try_to_start_preparing_instance(struct proposer* p, iid_t instance, pax
     unsigned int k = kh_get_instance_info(p->prepare_phase_instances, instance);
 
     if (k == kh_end(p->prepare_phase_instances)) {
+
+        if (instance >= p->next_prepare_instance) {
+            p->next_prepare_instance = instance + 1;
+        }
         // New instance
         struct ballot ballot = (struct ballot) {.number = random_between(1, INITIAL_BALLOT), .proposer_id = p->id};
         assert(ballot.number > 0);
@@ -355,13 +356,11 @@ proposer_receive_promise(struct proposer* p, paxos_promise* ack,
         return 0;
     }
 
-    if (ack->iid > p->max_instance_inited) {
-        p->max_instance_inited = ack->iid;
-    }
+
 
 
     // should never get a promise higher than what the proposer knows of
-	assert(ballot_equal(&inst->common_info.ballot, ack->ballot));
+	assert(ballot_equal(inst->common_info.ballot, ack->ballot));
 
 	if (quorum_add(&inst->quorum, ack->aid) == 0) {
 		paxos_log_debug("Duplicate promise dropped from: %d, iid: %u",
@@ -411,9 +410,10 @@ bool proposer_try_determine_value_to_propose(struct proposer* proposer, struct s
             paxos_log_debug("Proposing client value");
             struct paxos_value* value_to_propose = carray_pop_front(proposer->client_values_to_propose);
             assert(value_to_propose != NULL);
-            inst->common_info.proposing_value = paxos_value_new(value_to_propose->paxos_value_val, value_to_propose->paxos_value_len);
-            client_value_now_pending_at(proposer->pending_client_values, inst->common_info.iid, value_to_propose);
-            paxos_value_free(&value_to_propose);
+            inst->common_info.proposing_value = value_to_propose;
+          //  inst->common_info.proposing_value = paxos_value_new(value_to_propose->paxos_value_val, value_to_propose->paxos_value_len);
+          //  client_value_now_pending_at(proposer->pending_client_values, inst->common_info.iid, value_to_propose);
+          //  paxos_value_free(&value_to_propose);
         } else {
             if (proposer->max_chosen_instance > inst->common_info.iid) {
                 inst->common_info.proposing_value = paxos_value_new("NOP.", 5);
@@ -425,8 +425,9 @@ bool proposer_try_determine_value_to_propose(struct proposer* proposer, struct s
         }
     } else {
         paxos_log_debug("Instance has a previously proposed Value. Proposing it.");
-        inst->common_info.proposing_value = paxos_value_new(inst->common_info.last_promised_value->paxos_value_val, inst->common_info.last_promised_value->paxos_value_len);
-        paxos_value_free(&inst->common_info.last_promised_value);
+  //      inst->common_info.proposing_value = paxos_value_new(inst->common_info.last_promised_value->paxos_value_val, inst->common_info.last_promised_value->paxos_value_len);
+      //  paxos_value_free(&inst->common_info.last_promised_value);
+      inst->common_info.proposing_value = inst->common_info.last_promised_value;
     }
     assert(inst->common_info.proposing_value != NULL);
     return true;
@@ -509,13 +510,10 @@ int
 proposer_receive_accepted(struct proposer* p, paxos_accepted* ack, struct paxos_chosen* chosen)
 {
     assert(ack->iid != 0);
+    assert(ack->value.paxos_value_len > 1);
 
     if (ack->iid <= p->trim_instance) {
         return 0;
-    }
-
-    if (ack->iid > p->max_instance_inited) {
-        p->max_instance_inited = ack->iid;
     }
 
 
@@ -534,7 +532,7 @@ proposer_receive_accepted(struct proposer* p, paxos_accepted* ack, struct paxos_
         return 0;
     }
 
-    if (ballot_equal(&ack->promise_ballot, instance->common_info.ballot)) {
+    if (ballot_equal(ack->promise_ballot, instance->common_info.ballot)) {
         if (quorum_add(&instance->quorum, ack->aid) == 0) {
             paxos_log_debug("Duplicate accept dropped from: %d, iid: %u", ack->aid, instance->common_info.iid);
             return 0;
@@ -543,10 +541,10 @@ proposer_receive_accepted(struct proposer* p, paxos_accepted* ack, struct paxos_
         paxos_log_debug("Recevied new Acceptance from Acceptor %u for Instance %u for ballot %u.%u", ack->aid, ack->iid, ack->value_ballot.number, ack->value_ballot.proposer_id);
 
         if (quorum_reached(&instance->quorum)) {
-            assert(ballot_equal(&ack->promise_ballot, ack->value_ballot));
+            assert(ballot_equal(ack->promise_ballot, ack->value_ballot));
             paxos_chosen_from_paxos_accepted(chosen, ack);
-            assert(ballot_equal(&ack->promise_ballot, chosen->ballot));
-            assert(ballot_equal(&ack->value_ballot, chosen->ballot));
+            assert(ballot_equal(ack->promise_ballot, chosen->ballot));
+            assert(ballot_equal(ack->value_ballot, chosen->ballot));
             assert(is_values_equal(ack->value, chosen->value));
             assert(chosen->iid == ack->iid);
             proposer_receive_chosen(p, chosen);
@@ -559,25 +557,31 @@ proposer_receive_accepted(struct proposer* p, paxos_accepted* ack, struct paxos_
     return 0;
 }
 
-static void check_and_handle_client_value_from_chosen(struct proposer* proposer, struct paxos_chosen* chosen_msg) {
-    struct paxos_value current_proposed_client_value;
-    bool inst_has_pending_client_val = get_value_pending_at(proposer->pending_client_values, chosen_msg->iid,
-                                                            &current_proposed_client_value);
-    if (inst_has_pending_client_val) {
+static void check_and_handle_client_value_from_chosen(struct proposer* proposer, struct paxos_chosen* chosen_msg, struct standard_proposer_instance_info* info) {
+  //  struct paxos_value current_proposed_client_value;
+ //   bool inst_has_pending_client_val = get_value_pending_at(proposer->pending_client_values, chosen_msg->iid,
+  //                                                          &current_proposed_client_value);
+    //if (inst_has_pending_client_val) {
 
-        remove_pending_value(proposer->pending_client_values, chosen_msg->iid, NULL);
-        if (!is_values_equal(chosen_msg->value, current_proposed_client_value)) {
+     //   remove_pending_value(proposer->pending_client_values, chosen_msg->iid, NULL);
+        if (!ballot_equal(info->common_info.last_promised_values_ballot, INVALID_BALLOT) && !is_values_equal(*info->common_info.proposing_value, (struct paxos_value) {5, "NOP."})) {
+            paxos_log_debug("Pending client value was not Chosen for Instance %u, pushing back to queue.", info->common_info.iid);
             // A different value to the one we proposed is here
             // go by value because a higher ballot could have been chosen with the same value
-            carray_push_front(proposer->client_values_to_propose, paxos_value_new(current_proposed_client_value.paxos_value_val, current_proposed_client_value.paxos_value_len));
+            carray_push_back(proposer->client_values_to_propose, info->common_info.proposing_value);
+            info->common_info.proposing_value = NULL;
+        } else {
+            //paxos_value_free(info->common_info.proposing_value)
         }
 
-        free(current_proposed_client_value.paxos_value_val);
-    }
+       // free(current_proposed_client_value.paxos_value_val);
+   // }
 }
 
 int proposer_receive_chosen(struct proposer* p, struct paxos_chosen* ack) {
     assert(ack->iid != 0);
+    assert(ack->value.paxos_value_len > 1);
+
 
     if (ack->iid <= p->trim_instance) {
         return 0;
@@ -589,10 +593,10 @@ int proposer_receive_chosen(struct proposer* p, struct paxos_chosen* ack) {
         return 0;
     }
 
-
-    if (ack->iid > p->max_instance_inited) {
-        p->max_instance_inited = ack->iid;
+    if (ack->iid > p->next_prepare_instance && proposer_get_min_unchosen_instance(p) > ack->iid) {
+        p->next_prepare_instance = ack->iid + 1;
     }
+
 
 
     paxos_log_debug("Received chosen message for Instance %u at Ballot %u.%u", ack->iid, ack->ballot.number, ack->ballot.proposer_id);
@@ -602,7 +606,7 @@ int proposer_receive_chosen(struct proposer* p, struct paxos_chosen* ack) {
     struct standard_proposer_instance_info* inst_accept;
     bool in_accept_phase = get_instance_info(p->accept_phase_instances, ack->iid, &inst_accept);
     if (in_accept_phase) {
-        check_and_handle_client_value_from_chosen(p, ack);
+        check_and_handle_client_value_from_chosen(p, ack, inst_accept);
          remove_instance_from_phase(p->accept_phase_instances, ack->iid);
          standard_proposer_instance_info_free(&inst_accept);
     }
@@ -642,22 +646,24 @@ proposer_timeout_iterator(struct proposer* p)
 {
 	struct timeout_iterator* iter;
 	iter = malloc(sizeof(struct timeout_iterator));
-	iter->pi = kh_begin(p->prepare_phase_instances);
-	iter->ai = kh_begin(p->accept_phase_instances);
+	iter->prepare_instance = kh_begin(p->prepare_phase_instances);
+	iter->accept_instance = kh_begin(p->accept_phase_instances);
 	iter->proposer = p;
 	gettimeofday(&iter->timeout, NULL);
 	return iter;
 }
 
 void check_and_push_front_of_queue_if_client_value_was_proposed(struct proposer* p, struct standard_proposer_instance_info* instance_info) {
-    struct paxos_value proposed_value;
-    bool inst_has_client_value_pending = get_value_pending_at(p->pending_client_values, instance_info->common_info.iid,
-                                                              &proposed_value);
+  //  struct paxos_value proposed_value;
+    bool inst_has_client_value_pending = ballot_equal(instance_info->common_info.last_promised_values_ballot, INVALID_BALLOT ) && !is_values_equal(*instance_info->common_info.proposing_value, (struct paxos_value) {5, "NOP."} );
+//    bool inst_has_client_value_pending = get_value_pending_at(p->pending_client_values, instance_info->common_info.iid,
+ //                                                             &proposed_value);
     if (inst_has_client_value_pending) {
-        carray_push_front(p->client_values_to_propose,
-                         paxos_value_new(proposed_value.paxos_value_val, proposed_value.paxos_value_len));
-        remove_pending_value(p->pending_client_values, instance_info->common_info.iid, NULL);
-        free(proposed_value.paxos_value_val);
+        carray_push_back(p->client_values_to_propose,
+                         instance_info->common_info.proposing_value);
+        instance_info->common_info.proposing_value = NULL;
+        //remove_pending_value(p->pending_client_values, instance_info->common_info.iid, NULL);
+        //free(proposed_value.paxos_value_val);
     }
 }
 
@@ -672,16 +678,14 @@ int proposer_receive_preempted(struct proposer* p, struct paxos_preempted* preem
           return 0;
     }
 
-    if (preempted->iid > p->max_instance_inited) {
-        p->max_instance_inited = preempted->iid;
-    }
+
 
     struct standard_proposer_instance_info* prepare_instance_info;
     bool in_promise_phase = get_instance_info(p->prepare_phase_instances, preempted->iid, &prepare_instance_info);
 
     bool proposed_ballot_preempted = false;
     if (in_promise_phase) {
-        if (ballot_equal(&preempted->attempted_ballot, prepare_instance_info->common_info.ballot)) {
+        if (ballot_equal(preempted->attempted_ballot, prepare_instance_info->common_info.ballot)) {
             paxos_log_debug("Instance %u Preempted in the Promise Phase", preempted->iid);
             proposed_ballot_preempted = true;
             proposer_update_instance_info_from_preemption(p, prepare_instance_info, preempted);
@@ -693,7 +697,7 @@ int proposer_receive_preempted(struct proposer* p, struct paxos_preempted* preem
     bool in_acceptance_phase = get_instance_info(p->accept_phase_instances, preempted->iid, &accept_instance_info);
 
     if (in_acceptance_phase) {
-        if (ballot_equal(&preempted->attempted_ballot, accept_instance_info->common_info.ballot)){
+        if (ballot_equal(preempted->attempted_ballot, accept_instance_info->common_info.ballot)){
 
             proposed_ballot_preempted = true;
             check_and_push_front_of_queue_if_client_value_was_proposed(p, accept_instance_info);
@@ -725,11 +729,12 @@ proposer_update_instance_info_from_preemption(struct proposer *p, struct standar
 
     if (proposer_instance_info_has_promised_value(&inst->common_info)) {
         paxos_value_free(&inst->common_info.last_promised_value);
+        inst->common_info.last_promised_values_ballot = INVALID_BALLOT;
     }
 
-    if (proposer_instance_info_has_value(&inst->common_info)) {
-        paxos_value_free(&inst->common_info.proposing_value);
-    }
+ //   if (proposer_instance_info_has_value(&inst->common_info)) {
+  //      paxos_value_free(&inst->common_info.proposing_value);
+  //  }
 
     inst->common_info.proposing_value = NULL;
     inst->common_info.last_promised_value = NULL;
@@ -779,8 +784,8 @@ proposer_trim_proposer_instance_infos(struct proposer* p, khash_t(instance_info)
 void
 proposer_set_current_instance(struct proposer* p, iid_t iid)
 {
-    if (iid >= p->current_proposing_instance) {
-        p->current_proposing_instance = iid;
+    if (iid >= p->next_prepare_instance) {
+        p->next_prepare_instance = iid;
         // remove proposer_instance_infos older than iid
         if (iid < proposer_get_min_unchosen_instance(p)) {
             proposer_trim_proposer_instance_infos(p, p->prepare_phase_instances, iid);
@@ -794,12 +799,16 @@ proposer_set_current_instance(struct proposer* p, iid_t iid)
 void
 proposer_receive_acceptor_state(struct proposer* p, paxos_standard_acceptor_state* state)
 {
-    if (state->current_instance > p->max_instance_inited) {
+  //  if (state->current_instance > p->max_instance_inited) {
         //   p->max_instance_inited = state->current_instance;
-    }
+ //   }
     if (state->trim_iid > p->trim_instance ) {
         paxos_log_debug("Received new acceptor state, %u trim_iid from %u", state->trim_iid, state->aid);
         p->trim_instance = state->trim_iid;
+
+        if (state->trim_iid >= p->next_prepare_instance) {
+            p->next_prepare_instance = state->trim_iid + 1;
+        }
         proposer_trim_proposer_instance_infos(p, p->prepare_phase_instances, state->trim_iid);
         proposer_trim_proposer_instance_infos(p, p->accept_phase_instances, state->trim_iid);
     }
@@ -811,12 +820,13 @@ void proposer_receive_trim(struct proposer* p,
         paxos_log_debug("Received a new trim message to instance: %u", trim_msg->iid);
         p->trim_instance = trim_msg->iid;
 
+
         proposer_trim_proposer_instance_infos(p, p->accept_phase_instances, trim_msg->iid);
         proposer_trim_proposer_instance_infos(p, p->prepare_phase_instances, trim_msg->iid);
     }
 
-    if (p->current_proposing_instance < trim_msg->iid) {
-        p->current_proposing_instance = trim_msg->iid + 1;
+    if (p->next_prepare_instance <= trim_msg->iid) {
+        p->next_prepare_instance = trim_msg->iid + 1;
     }
 }
 
@@ -824,7 +834,7 @@ int
 timeout_iterator_prepare(struct timeout_iterator* iter, paxos_prepare* out)
 {
 	struct proposer* p = iter->proposer;
-    struct standard_proposer_instance_info *inst = next_timedout(p->prepare_phase_instances, &iter->pi, &iter->timeout);
+    struct standard_proposer_instance_info *inst = next_timedout(p->prepare_phase_instances, &iter->prepare_instance, &iter->timeout);
 	if (inst == NULL)
 		return 0;
 	*out = (struct paxos_prepare){.iid = inst->common_info.iid, (struct ballot) {.number = inst->common_info.ballot.number, .proposer_id = inst->common_info.ballot.proposer_id}};
@@ -836,7 +846,7 @@ int
 timeout_iterator_accept(struct timeout_iterator* iter, paxos_accept* out) {
     struct standard_proposer_instance_info *inst;
     struct proposer *p = iter->proposer;
-    inst = next_timedout(p->accept_phase_instances, &iter->ai, &iter->timeout);
+    inst = next_timedout(p->accept_phase_instances, &iter->accept_instance, &iter->timeout);
     if (inst == NULL)
         return 0;
 

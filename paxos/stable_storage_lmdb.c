@@ -328,8 +328,8 @@ lmdb_storage_store_instance_info(struct lmdb_storage *lmdb_storage, paxos_accept
    // lmdb_storage_get_instance_info(lmdb_storage, acc->iid, &test_accepted);
 
    // assert(acc->iid == test_accepted.iid);
-   // assert(ballot_equal(&acc->promise_ballot, test_accepted.promise_ballot));
-   // assert(ballot_equal(&acc->value_ballot, test_accepted.value_ballot));
+   // assert(ballot_equal(acc->promise_ballot, test_accepted.promise_ballot));
+   // assert(ballot_equal(acc->value_ballot, test_accepted.value_ballot));
 
     iid_t max_inited_instance;
     lmdb_storage_get_max_instance(lmdb_storage, &max_inited_instance);
@@ -393,7 +393,7 @@ lmdb_storage_put_trim_instance(struct lmdb_storage *lmdb_storage, iid_t iid)
 }
 
 // Tells the storage to delete everything before the iid passed
-static int
+__unused static int
 lmdb_storage_trim(struct lmdb_storage *lmdb_storage, iid_t iid) {
     assert(lmdb_storage->txn != NULL);
 
