@@ -81,7 +81,7 @@ struct option options[] =
         {"group-1",                 &paxos_config.group_1,                 option_integer },
         {"group-2",                 &paxos_config.group_2,                 option_integer },
         {"learner-catch-up",        &paxos_config.learner_catch_up,        option_boolean },
-        {"proposer-timeout",        &paxos_config.proposer_timeout,        option_integer },
+        {"proposer-check_timeout",        &paxos_config.proposer_timeout,        option_integer },
         {"proposer-preexec-window", &paxos_config.proposer_preexec_window, option_integer },
         {"stable-storage-backend",  &paxos_config.storage_backend,         option_backend},
         {"acceptor-trash-files",    &paxos_config.trash_files,             option_boolean },

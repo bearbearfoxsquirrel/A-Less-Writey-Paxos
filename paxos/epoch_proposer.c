@@ -48,8 +48,8 @@ struct epoch_proposer {
 };
 
 struct epoch_proposer_timeout_iterator {
-    khiter_t prepare_instance, accept_instance;
-    struct timeval timeout;
+    khiter_t prepare_instance_iter, accept_instance_iter;
+    struct timeval check_timeout;
     struct epoch_proposer* proposer;
 };
 
@@ -795,20 +795,44 @@ static struct epoch_proposer_instance_info* get_next_timedout(khash_t(instance_i
         if (proposer_instance_info_has_timedout(&inst->common_info, time_now))
             return inst;
     }
-    return NULL;}
+    return NULL;
+}
 
 // timeouts
-struct epoch_proposer_timeout_iterator* epoch_proposer_timeout_iterator(struct epoch_proposer* p) {
+struct epoch_proposer_timeout_iterator* epoch_proposer_timeout_iterator_new(struct epoch_proposer* p) {
     struct epoch_proposer_timeout_iterator* iter = malloc(sizeof(struct epoch_proposer_timeout_iterator));
-    iter->prepare_instance = kh_begin(p->prepare_proposer_instance_infos);
-    iter->accept_instance = kh_begin(p->accept_proposer_instance_infos);
+    iter->prepare_instance_iter = kh_begin(p->prepare_proposer_instance_infos);
+    iter->accept_instance_iter = kh_begin(p->accept_proposer_instance_infos);
     iter->proposer = p;
-    gettimeofday(&iter->timeout, NULL);
+    gettimeofday(&iter->check_timeout, NULL);
     return iter;
 }
-int timeout_iterator_prepare(struct epoch_proposer_timeout_iterator* iter, struct epoch_ballot_prepare* out){
+enum timeout_iterator_return_code epoch_proposer_timeout_iterator_prepare(struct epoch_proposer_timeout_iterator* iter, struct epoch_ballot_prepare* out){
     struct epoch_proposer* p = iter->proposer;
-    struct epoch_proposer_intstance_info* inst = next_timedout()
+    struct epoch_proposer_instance_info* inst = get_next_timedout(p->prepare_proposer_instance_infos, &iter->prepare_instance_iter, &iter->check_timeout);
+    if (inst == NULL) {
+        return TIMEOUT_ITERATOR_END;
+    } else {
+        gettimeofday(&inst->common_info.created_at, NULL);
+        out->instance = inst->common_info.iid;
+        out->epoch_ballot_requested = epoch_proposer_instance_info_get_current_epoch_ballot(inst);
+        return TIMEOUT_ITERATOR_CONTINUE;
+
+    }
 }
-int timeout_iterator_accept(struct timeout_iterator* iter, paxos_accept* out);
-void timeout_iterator_free(struct timeout_iterator* iter);
+enum timeout_iterator_return_code epoch_proposer_timeout_iterator_accept(struct epoch_proposer_timeout_iterator* iter, struct epoch_ballot_accept* out){
+    struct epoch_proposer* p = iter->proposer;
+    struct epoch_proposer_instance_info* inst = get_next_timedout(p->accept_proposer_instance_infos, &iter->accept_instance_iter, &iter->check_timeout);
+    if (inst == NULL) {
+        return TIMEOUT_ITERATOR_END;
+    } else {
+        gettimeofday(&inst->common_info.created_at, NULL);
+        out->instance = inst->common_info.iid;
+        out->epoch_ballot_requested = epoch_proposer_instance_info_get_current_epoch_ballot(inst);
+        out->value_to_accept = *inst->common_info.proposing_value;
+        return TIMEOUT_ITERATOR_CONTINUE;
+    }
+}
+void epoch_proposer_timeout_iterator_free(struct epoch_proposer_timeout_iterator* iter){
+    free(iter);
+}

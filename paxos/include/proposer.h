@@ -80,6 +80,19 @@ void proposer_receive_acceptor_state(struct proposer* p,
 void proposer_receive_trim(struct proposer* p,
                                      struct paxos_trim* trim_msg);
 
+
+// timeouts
+struct timeout_iterator;
+struct timeout_iterator* proposer_timeout_iterator(struct proposer* p);
+
+int timeout_iterator_prepare(struct timeout_iterator* iter, paxos_prepare* out);
+
+int timeout_iterator_accept(struct timeout_iterator* iter, paxos_accept* out);
+
+void timeout_iterator_free(struct timeout_iterator* iter);
+
+
+
 #ifdef __cplusplus
 }
 #endif

@@ -441,7 +441,7 @@ evproposer_init_internal(int id, struct evpaxos_config* c, struct peers* peers, 
 	peers_subscribe(peers, PAXOS_CHOSEN, evproposer_handle_chosen, p);
 	peers_subscribe(peers, PAXOS_TRIM, evproposer_handle_trim, p);
 
-	// Setup timeout
+	// Setup check_timeout
 	struct event_base* base = peers_get_event_base(peers);
 	p->tv.tv_sec = paxos_config.proposer_timeout;
 	p->tv.tv_usec = 0;

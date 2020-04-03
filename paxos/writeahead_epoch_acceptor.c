@@ -242,6 +242,7 @@ void writeahead_epoch_acceptor_store_accept(struct writeahead_epoch_acceptor* ac
     assert(acceptor->current_epoch >= accept->epoch_ballot_requested.epoch);
     acceptor->current_epoch = accept->epoch_ballot_requested.epoch;
     epoch_stable_storage_store_epoch_ballot_accept(&acceptor->stable_storage, accept);
+    epoch_paxos_storage_store_accept(&acceptor->volatile_storage, accept);
 }
 
 int writeahead_epoch_acceptor_receive_epoch_ballot_accept(struct writeahead_epoch_acceptor* acceptor, struct epoch_ballot_accept* request, struct writeahead_epoch_paxos_message* response) {

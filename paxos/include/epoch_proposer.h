@@ -55,4 +55,15 @@ int is_epoch_proposer_instance_pending_and_message_return(struct epoch_proposer*
 enum epoch_proposer_received_message_return_codes epoch_proposer_receive_acceptor_state(struct epoch_proposer* p, struct writeahead_epoch_acceptor_state* state);
 
 enum epoch_proposer_received_message_return_codes epoch_proposer_receive_trim(struct epoch_proposer* p, struct paxos_trim* trim_msg);
+
+
+
+struct epoch_proposer_timeout_iterator;
+
+struct epoch_proposer_timeout_iterator* epoch_proposer_timeout_iterator_new(struct epoch_proposer* p);
+
+enum timeout_iterator_return_code epoch_proposer_timeout_iterator_accept(struct epoch_proposer_timeout_iterator* iter, struct epoch_ballot_accept* out);
+
+enum timeout_iterator_return_code epoch_proposer_timeout_iterator_prepare(struct epoch_proposer_timeout_iterator* iter, struct epoch_ballot_prepare* out);
+
 #endif //LIBPAXOS_EPOCH_PROPOSER_H
