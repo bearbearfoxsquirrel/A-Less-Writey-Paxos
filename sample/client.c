@@ -30,11 +30,13 @@
 #include <evpaxos.h>
 #include <errno.h>
 #include <stdlib.h>
+#include "unistd.h"
 #include <time.h>
 #include <string.h>
 #include <signal.h>
 #include <event2/event.h>
 #include <netinet/tcp.h>
+#include <latency_recorder.h>
 
 #define MAX_VALUE_SIZE 8192
 
@@ -45,6 +47,7 @@ struct client_value
     struct timeval t;
     size_t size;
     char value[0];
+    int uid;
 };
 
 struct stats
@@ -58,9 +61,11 @@ struct stats
 
 struct client
 {
+    // todo add in break in time - don't record for this long
     int id;
     int value_size;
-    int outstanding;
+    int max_outstanding;
+    int current_outstanding;
     char* send_buffer;
     struct stats stats;
     struct event_base* base;
@@ -69,14 +74,20 @@ struct client
     struct timeval stats_interval;
     struct event* sig;
     struct evlearner* learner;
+
+    struct latency_recorder* latency_recorder;
+
+    int* outstanding_client_value_ids;
 };
 
 static void
 handle_sigint(int sig, short ev, void* arg)
 {
-    struct event_base* base = arg;
+//    struct event_base* base = arg;
+    struct client* client= arg;
+    latency_recorder_free(&client->latency_recorder);
     printf("Caught signal %d\n", sig);
-    event_base_loopexit(base, NULL);
+    event_base_loopexit(client->base, NULL);
 }
 
 static void
@@ -98,8 +109,13 @@ client_submit_value(struct client* c)
     gettimeofday(&v->t, NULL);
     v->size = c->value_size;
     random_string(v->value, v->size);
+    v->uid = rand();
+    c->outstanding_client_value_ids[c->current_outstanding++] = v->uid;
     size_t size = sizeof(struct client_value) + v->size;
     paxos_submit_client_value(c->bev, c->send_buffer, size);
+    paxos_log_debug("Submitted new client value");
+
+
 }
 
 // Returns t2 - t1 in microseconds.
@@ -114,7 +130,7 @@ timeval_diff(struct timeval* t1, struct timeval* t2)
 }
 
 static void
-update_stats(struct stats* stats, struct client_value* delivered, size_t size)
+update_stats(struct latency_recorder* recorder, struct stats* stats, struct client_value* delivered, size_t size)
 {
     struct timeval tv;
     gettimeofday(&tv, NULL);
@@ -127,19 +143,32 @@ update_stats(struct stats* stats, struct client_value* delivered, size_t size)
         stats->min_latency = lat;
     if (lat > stats->max_latency)
         stats->max_latency = lat;
+
+    latency_recorder_record(recorder, lat);
 }
 
+//todo refactor so there is a struct uid made of a value number and a client id
+static bool is_value_uid_awaiting(int* outstanding_uids, int number_of_awaiting_values, int value_uid) {
+    for (int i = 0; i < number_of_awaiting_values; i++) {
+        if (outstanding_uids[i] == value_uid) {
+            return true;
+        }
+    }
+    return false;
+}
 static void
 on_deliver(unsigned iid, char* value, size_t size, void* arg)
 {
     struct client* c = arg;
     struct client_value* v = (struct client_value*)value;
-    if (v->client_id == c->id) {
-        update_stats(&c->stats, v, size);
+    if (v->client_id == c->id && is_value_uid_awaiting(c->outstanding_client_value_ids, c->max_outstanding, v->uid)) {
+        paxos_log_debug("Client Value delivered.");
+        update_stats(c->latency_recorder, &c->stats, v, size);
+        c->current_outstanding--;
+        client_submit_value(c);
 
     }
 
-    client_submit_value(c);
 }
 
 static void
@@ -161,7 +190,7 @@ on_connect(struct bufferevent* bev, short events, void* arg)
     struct client* c = arg;
     if (events & BEV_EVENT_CONNECTED) {
         printf("Connected to proposer\n");
-        for (i = 0; i < c->outstanding; ++i)
+        for (i = 0; i < c->max_outstanding; ++i)
             client_submit_value(c);
     } else {
         printf("%s\n", evutil_socket_error_to_string(EVUTIL_SOCKET_ERROR()));
@@ -187,12 +216,13 @@ connect_to_proposer(struct client* c, const char* config, int proposer_id)
     return bev;
 }
 
-static struct client*
-make_client(const char* config, int proposer_id, int outstanding, int value_size)
+static struct client *
+make_client(const char *config, int proposer_id, int outstanding, int value_size, const char *latency_record_output_path)
 {
     struct client* c;
     c = malloc(sizeof(struct client));
     c->base = event_base_new();
+    //c->outstanding_values = malloc(max_outstanding * sizeof(int));
 
     memset(&c->stats, 0, sizeof(struct stats));
     c->bev = connect_to_proposer(c, config, proposer_id);
@@ -201,8 +231,12 @@ make_client(const char* config, int proposer_id, int outstanding, int value_size
 
     c->id = rand();
     c->value_size = value_size;
-    c->outstanding = outstanding;
+    c->max_outstanding = outstanding;
     c->send_buffer = malloc(sizeof(struct client_value) + value_size);
+    c->outstanding_client_value_ids = malloc(sizeof(int) * c->max_outstanding);
+    c->current_outstanding = 0;
+
+    c->latency_recorder = latency_recorder_new(latency_record_output_path);
 
     c->stats_interval = (struct timeval){1, 0};
     c->stats_ev = evtimer_new(c->base, on_stats, c);
@@ -211,7 +245,7 @@ make_client(const char* config, int proposer_id, int outstanding, int value_size
     paxos_config.learner_catch_up = 0;
     c->learner = evlearner_init(config, on_deliver, c, c->base);
 
-    c->sig = evsignal_new(c->base, SIGINT, handle_sigint, c->base);
+    c->sig = evsignal_new(c->base, SIGINT, handle_sigint, c);
     evsignal_add(c->sig, NULL);
 
     return c;
@@ -231,10 +265,10 @@ client_free(struct client* c)
 }
 
 static void
-start_client(const char* config, int proposer_id, int outstanding, int value_size)
+start_client(const char *config, int proposer_id, int outstanding, int value_size, const char *latency_record_output_path)
 {
     struct client* client;
-    client = make_client(config, proposer_id, outstanding, value_size);
+    client = make_client(config, proposer_id, outstanding, value_size, latency_record_output_path);
     signal(SIGPIPE, SIG_IGN);
     event_base_dispatch(client->base);
     client_free(client);
@@ -245,7 +279,7 @@ usage(const char* name)
 {
     printf("Usage: %s [path/to/paxos.conf] [-h] [-o] [-v] [-p]\n", name);
     printf("  %-30s%s\n", "-h, --help", "Output this message and exit");
-    printf("  %-30s%s\n", "-o, --outstanding #", "Number of outstanding client values");
+    printf("  %-30s%s\n", "-o, --max_outstanding #", "Number of max_outstanding client values");
     printf("  %-30s%s\n", "-v, --value-size #", "Size of client value (in bytes)");
     printf("  %-30s%s\n", "-p, --proposer-id #", "d of the proposer to connect to");
     exit(1);
@@ -260,6 +294,7 @@ main(int argc, char const *argv[])
     int value_size = 64;
     struct timeval seed;
     const char* config = "../paxos.conf";
+    const char* latency_record_path = "./latencies_recorded.txt";
 
     if (argc > 1 && argv[1][0] != '-') {
         config = argv[1];
@@ -269,20 +304,22 @@ main(int argc, char const *argv[])
     while (i != argc) {
         if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0)
             usage(argv[0]);
-        else if (strcmp(argv[i], "-o") == 0 || strcmp(argv[i], "--outstanding") == 0)
+        else if (strcmp(argv[i], "-o") == 0 || strcmp(argv[i], "--max_outstanding") == 0)
             outstanding = atoi(argv[++i]);
         else if (strcmp(argv[i], "-v") == 0 || strcmp(argv[i], "--value-size") == 0)
             value_size = atoi(argv[++i]);
         else if (strcmp(argv[i], "-p") == 0 || strcmp(argv[i], "--proposer-id") == 0)
             proposer_id = atoi(argv[++i]);
+        else if (strcmp(argv[i], "-lop") == 0 || strcmp(argv[i], "--latency-output-path") == 0)
+            latency_record_path = argv[++i];
         else
             usage(argv[0]);
         i++;
     }
 
     gettimeofday(&seed, NULL);
-    srand(seed.tv_usec);
-    start_client(config, proposer_id, outstanding, value_size);
+    srand(seed.tv_usec ^ getpid());
+    start_client(config, proposer_id, outstanding, value_size, latency_record_path);
 
     return 0;
 }

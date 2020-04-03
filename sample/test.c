@@ -110,7 +110,7 @@ int main(int argc, char const *argv[]){
     proposer_receive_trim(proposer, &trim);
 
 */
-
+/*
     struct proposer* proposer = proposer_new(0, 1, 1, 1);
     proposer_set_current_instance(proposer, proposer_get_next_instance_to_prepare(proposer));
 
@@ -199,7 +199,18 @@ int main(int argc, char const *argv[]){
 
    // learner_receive_chosen(learner, &chosen);
 
+*/
 
+
+    struct writeahead_ballot_acceptor* acceptor = write_ahead_window_acceptor_new(0, 1, 1, 5, 5, 5);
+
+    struct paxos_prepare prep_1 = {.iid = 1, .ballot = {2, 1}};
+    struct standard_paxos_message prom_1;
+    write_ahead_window_acceptor_receive_prepare(acceptor, &prep_1, &prom_1);
+
+    struct paxos_prepare prep_2 = {.iid = 1, .ballot = {1, 2}};
+    struct standard_paxos_message prom_2;
+    write_ahead_window_acceptor_receive_prepare(acceptor, &prep_2, &prom_2);
 
 
 

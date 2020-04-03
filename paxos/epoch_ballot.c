@@ -11,10 +11,8 @@
 #include "epoch_ballot.h"
 #include "ballot.h"
 
-void copy_epoch_epoch_ballot(const struct epoch_ballot *src, struct epoch_ballot *dst){
-    assert(dst != NULL);
-    assert(src != NULL);
-    *dst = *src;
+void copy_epoch_ballot(const struct epoch_ballot *src, struct epoch_ballot *dst) {
+    *dst = (struct epoch_ballot) {.epoch = src->epoch, .ballot = src->ballot};
 }
 
 bool epoch_ballot_equal(const struct epoch_ballot lhs, const struct epoch_ballot rhs){
@@ -27,6 +25,14 @@ bool epoch_ballot_greater_than(const struct epoch_ballot lhs, const struct epoch
     } else {
         return ballot_greater_than(lhs.ballot, rhs.ballot);
     }
+}
+
+bool epoch_greater_than(const struct epoch_ballot lhs, const struct epoch_ballot rhs) {
+    return lhs.epoch > rhs.epoch;
+}
+
+bool epoch_equal(const struct epoch_ballot lhs, const struct epoch_ballot rhs) {
+    return lhs.epoch == rhs.epoch;
 }
 
 bool epoch_ballot_greater_than_or_equal(const struct epoch_ballot lhs, const struct epoch_ballot rhs){

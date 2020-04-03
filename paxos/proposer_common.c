@@ -11,7 +11,7 @@ proposer_instance_info_has_value(struct proposer_common_instance_info *inst)
 int
 proposer_instance_info_has_promised_value(struct proposer_common_instance_info* inst)
 {
-    return inst->last_promised_value != NULL;
+    return inst->last_accepted_value != NULL;
 }
 
 bool
@@ -25,9 +25,9 @@ struct proposer_common_instance_info proposer_common_info_new(iid_t iid, struct 
     struct proposer_common_instance_info common_info;
     common_info.iid = iid;
     common_info.ballot = (struct ballot) {.number = ballot.number, .proposer_id = ballot.proposer_id};
-    common_info.last_promised_values_ballot = (struct ballot) {.number = 0, .proposer_id = 0};
+    common_info.last_accepted_ballot = (struct ballot) {.number = 0, .proposer_id = 0};
     common_info.proposing_value = NULL;
-    common_info.last_promised_value = NULL;
+    common_info.last_accepted_value = NULL;
     gettimeofday(&common_info.created_at, NULL);
     return common_info;
 }
@@ -40,7 +40,7 @@ proposer_common_instance_info_destroy_contents(struct proposer_common_instance_i
         inst->proposing_value = NULL;
     }
     if (proposer_instance_info_has_promised_value(inst)) {
-        paxos_value_free(&inst->last_promised_value);
+        paxos_value_free(&inst->last_accepted_value);
         inst->proposing_value = NULL;
     }
 }

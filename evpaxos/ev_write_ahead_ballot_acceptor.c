@@ -93,6 +93,7 @@ ev_write_ahead_acceptor_handle_prepare(struct peer* p, standard_paxos_message* m
 
     performance_threshold_timer_begin_timing(a->promise_timer);
     if (write_ahead_window_acceptor_receive_prepare(a->state, prepare, &out) != 0) {
+
        send_paxos_message(peer_get_buffer(p), &out);
         paxos_message_destroy_contents(&out);
     }

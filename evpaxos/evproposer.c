@@ -53,9 +53,9 @@
 #include "performance_threshold_timer.h"
 #include "ev_timer_threshold_timer_util.h"
 
-#define MIN_BACKOFF_TIME 30000
+#define MIN_BACKOFF_TIME 3000
 #define MAX_BACKOFF_TIME 1000000
-#define MAX_INITIAL_BACKOFF_TIME 50000
+#define MAX_INITIAL_BACKOFF_TIME 5000
 
 #define MIN(a,b) \
    ({ __typeof__ (a) _a = (a); \
@@ -124,7 +124,7 @@ proposer_preexecute(struct evproposer* p) {
 
     iid_t current_instance = proposer_get_current_instance(p->state);//proposer_get_next_instance_to_prepare(p->state);
     if (count <= 0) {
-        //ev_performance_timer_stop_check_and_clear_timer(p->preexecute_timer, "Preexecuting");
+        //// ev_performance_timer_stop_check_and_clear_timer(p->preexecute_timer, "Preexecuting");
         return;
     }
     for (i = 0; i < count; i++) {
@@ -132,9 +132,9 @@ proposer_preexecute(struct evproposer* p) {
         proposer_set_current_instance(p->state, current_instance);
         paxos_log_debug("current proposing instance: %u", current_instance);
 
-        performance_threshold_timer_begin_timing(p->preexecute_timer);
+        // performance_threshold_timer_begin_timing(p->preexecute_timer);
         bool prepred = proposer_try_to_start_preparing_instance(p->state, proposer_get_current_instance(p->state), &pr);
-        ev_performance_timer_stop_check_and_clear_timer(p->preexecute_timer, "prepaing a new Instace");
+        // ev_performance_timer_stop_check_and_clear_timer(p->preexecute_timer, "prepaing a new Instace");
         if (prepred) {
             peers_for_n_acceptor(p->peers, peer_send_prepare, &pr, paxos_config.group_1);
         }
@@ -189,7 +189,7 @@ try_accept(struct evproposer* p)
 {
 	paxos_accept accept;
 
-	performance_threshold_timer_begin_timing(p->propose_timer);
+	// performance_threshold_timer_begin_timing(p->propose_timer);
     while (proposer_try_accept(p->state, &accept)) {
         assert(&accept.value != NULL);
         assert(accept.value.paxos_value_val != NULL);
@@ -198,7 +198,7 @@ try_accept(struct evproposer* p)
 
     }
 
-    ev_performance_timer_stop_check_and_clear_timer(p->propose_timer, "Proposing Values");
+    // ev_performance_timer_stop_check_and_clear_timer(p->propose_timer, "Proposing Values");
 
     proposer_preexecute(p);
 }
@@ -214,9 +214,9 @@ evproposer_handle_promise(__unused struct peer* p, standard_paxos_message* msg, 
 	if (promise->ballot.proposer_id != proposer->id)
 	    return;
 
-	performance_threshold_timer_begin_timing(proposer->promise_timer);
+	// performance_threshold_timer_begin_timing(proposer->promise_timer);
 	int quorum_reached = proposer_receive_promise(proposer->state, promise, &prepare);
-	ev_performance_timer_stop_check_and_clear_timer(proposer->promise_timer, "Handling a Promise");
+	// ev_performance_timer_stop_check_and_clear_timer(proposer->promise_timer, "Handling a Promise");
 	if (quorum_reached)
 	    try_accept(proposer);
 }
@@ -237,7 +237,7 @@ evproposer_handle_accepted(struct peer* p, standard_paxos_message* msg, void* ar
     assert(acc->value.paxos_value_len > 1);
     assert(acc->value_ballot.number > 0);
 
-    performance_threshold_timer_begin_timing(proposer->acceptance_timer);
+    // performance_threshold_timer_begin_timing(proposer->acceptance_timer);
     if (proposer_receive_accepted(proposer->state, acc, &chosen_msg)){
      //   peers_foreach_acceptor(proposer->peers, peer_send_chosen, &chosen_msg);
         //peers_foreach_client(proposer->peers, peer_send_chosen, &chosen_msg);
@@ -251,7 +251,7 @@ evproposer_handle_accepted(struct peer* p, standard_paxos_message* msg, void* ar
         assert(ballot_equal(chosen_msg.ballot, acc->value_ballot));
         assert(is_values_equal(chosen_msg.value, acc->value));
     }
-    ev_performance_timer_stop_check_and_clear_timer(proposer->acceptance_timer, "Handing an Acceptance");
+    // ev_performance_timer_stop_check_and_clear_timer(proposer->acceptance_timer, "Handing an Acceptance");
     try_accept(proposer);
 }
 

@@ -8,11 +8,16 @@
 
 #include <stdbool.h>
 
-void copy_epoch_epoch_ballot(const struct epoch_ballot *src, struct epoch_ballot *dst);
+
+void copy_epoch_ballot(const struct epoch_ballot *src, struct epoch_ballot *dst);
 
 bool epoch_ballot_equal(const struct epoch_ballot lhs, const struct epoch_ballot rhs);
 
 bool epoch_ballot_greater_than(const struct epoch_ballot lhs, const struct epoch_ballot rhs);
+
+bool epoch_greater_than(const struct epoch_ballot lhs, const struct epoch_ballot rhs);
+
+bool epoch_equal(const struct epoch_ballot lhs, const struct epoch_ballot rhs);
 
 bool epoch_ballot_greater_than_or_equal(const struct epoch_ballot lhs, const struct epoch_ballot rhs);
 

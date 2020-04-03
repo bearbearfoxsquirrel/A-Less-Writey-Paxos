@@ -19,9 +19,6 @@
 #include <assert.h>
 
 
-void copy_epoch_ballot(const struct epoch_ballot *src, struct epoch_ballot *dst) {
-    *dst = (struct epoch_ballot) {.epoch = src->epoch, .ballot = src->ballot};
-}
 
 
 void

@@ -161,7 +161,6 @@ proposer_new(int id, int acceptors, int q1, int q2)
 	p->prepare_phase_instances = kh_init(instance_info);
 	p->accept_phase_instances = kh_init(instance_info);
 	p->chosens = kh_init(chosen_instances);
-	srand(time(NULL));
 	return p;
 }
 
@@ -325,7 +324,6 @@ proposer_try_to_start_preparing_instance(struct proposer* p, iid_t instance, pax
         return 1;
     }
     return 0;
-    assert(out->iid != 0);
 }
 
 
@@ -384,17 +382,17 @@ proposer_receive_promise(struct proposer* p, paxos_promise* ack,
 void check_and_handle_promises_value_for_instance(paxos_promise *ack, struct standard_proposer_instance_info *inst) {
     if (ack->value.paxos_value_len > 0) {
         paxos_log_debug("Promise has value");
-        if (ballot_greater_than_or_equal(ack->value_ballot, inst->common_info.last_promised_values_ballot)) {
-            copy_ballot(&ack->value_ballot , &inst->common_info.last_promised_values_ballot);
+        if (ballot_greater_than_or_equal(ack->value_ballot, inst->common_info.last_accepted_ballot)) {
+            copy_ballot(&ack->value_ballot , &inst->common_info.last_accepted_ballot);
 
             if (proposer_instance_info_has_promised_value(&inst->common_info)) {
-                paxos_value_free(&inst->common_info.last_promised_value);
+                paxos_value_free(&inst->common_info.last_accepted_value);
             }
 
             assert(ack->value.paxos_value_len > 1);
             assert(strcmp(ack->value.paxos_value_val, "") != 0);
 
-            inst->common_info.last_promised_value = paxos_value_new(ack->value.paxos_value_val, ack->value.paxos_value_len);
+            inst->common_info.last_accepted_value = paxos_value_new(ack->value.paxos_value_val, ack->value.paxos_value_len);
             paxos_log_debug("Value in promise saved, removed older value");
         } else {
             paxos_log_debug("Value in promise ignored");
@@ -410,9 +408,9 @@ bool proposer_try_determine_value_to_propose(struct proposer* proposer, struct s
             paxos_log_debug("Proposing client value");
             struct paxos_value* value_to_propose = carray_pop_front(proposer->client_values_to_propose);
             assert(value_to_propose != NULL);
-            inst->common_info.proposing_value = value_to_propose;
+            inst->common_info.proposing_value = value_to_propose;//paxos_value_new(value_to_propose->paxos_value_val, value_to_propose->paxos_value_len);
           //  inst->common_info.proposing_value = paxos_value_new(value_to_propose->paxos_value_val, value_to_propose->paxos_value_len);
-          //  client_value_now_pending_at(proposer->pending_client_values, inst->common_info.iid, value_to_propose);
+            client_value_now_pending_at(proposer->pending_client_values, inst->common_info.iid, value_to_propose);// value_to_propose);
           //  paxos_value_free(&value_to_propose);
         } else {
             if (proposer->max_chosen_instance > inst->common_info.iid) {
@@ -425,9 +423,10 @@ bool proposer_try_determine_value_to_propose(struct proposer* proposer, struct s
         }
     } else {
         paxos_log_debug("Instance has a previously proposed Value. Proposing it.");
-  //      inst->common_info.proposing_value = paxos_value_new(inst->common_info.last_promised_value->paxos_value_val, inst->common_info.last_promised_value->paxos_value_len);
-      //  paxos_value_free(&inst->common_info.last_promised_value);
-      inst->common_info.proposing_value = inst->common_info.last_promised_value;
+  //      inst->common_info.proposing_value = paxos_value_new(inst->common_info.last_accepted_value->paxos_value_val, inst->common_info.last_accepted_value->paxos_value_len);
+      //  paxos_value_free(&inst->common_info.last_accepted_value);
+      inst->common_info.proposing_value = inst->common_info.last_accepted_value;
+      inst->common_info.last_accepted_value = NULL;
     }
     assert(inst->common_info.proposing_value != NULL);
     return true;
@@ -557,25 +556,28 @@ proposer_receive_accepted(struct proposer* p, paxos_accepted* ack, struct paxos_
     return 0;
 }
 
-static void check_and_handle_client_value_from_chosen(struct proposer* proposer, struct paxos_chosen* chosen_msg, struct standard_proposer_instance_info* info) {
-  //  struct paxos_value current_proposed_client_value;
- //   bool inst_has_pending_client_val = get_value_pending_at(proposer->pending_client_values, chosen_msg->iid,
-  //                                                          &current_proposed_client_value);
-    //if (inst_has_pending_client_val) {
 
-     //   remove_pending_value(proposer->pending_client_values, chosen_msg->iid, NULL);
-        if (!ballot_equal(info->common_info.last_promised_values_ballot, INVALID_BALLOT) && !is_values_equal(*info->common_info.proposing_value, (struct paxos_value) {5, "NOP."})) {
+
+static void check_and_handle_client_value_from_chosen(struct proposer* proposer, struct paxos_chosen* chosen_msg, struct standard_proposer_instance_info* info) {
+    struct paxos_value current_proposed_client_value;
+    bool inst_has_pending_client_val = get_value_pending_at(proposer->pending_client_values, chosen_msg->iid,
+                                                            &current_proposed_client_value);
+    if (inst_has_pending_client_val) {
+
+        remove_pending_value(proposer->pending_client_values, chosen_msg->iid, NULL);
+       if (!is_values_equal(*info->common_info.proposing_value, chosen_msg->value) ) {
             paxos_log_debug("Pending client value was not Chosen for Instance %u, pushing back to queue.", info->common_info.iid);
             // A different value to the one we proposed is here
             // go by value because a higher ballot could have been chosen with the same value
             carray_push_back(proposer->client_values_to_propose, info->common_info.proposing_value);
             info->common_info.proposing_value = NULL;
         } else {
+           paxos_log_debug("Pending client value was Chosen in Instance %u", info->common_info.iid);
             //paxos_value_free(info->common_info.proposing_value)
         }
 
        // free(current_proposed_client_value.paxos_value_val);
-   // }
+    }
 }
 
 int proposer_receive_chosen(struct proposer* p, struct paxos_chosen* ack) {
@@ -654,15 +656,15 @@ proposer_timeout_iterator(struct proposer* p)
 }
 
 void check_and_push_front_of_queue_if_client_value_was_proposed(struct proposer* p, struct standard_proposer_instance_info* instance_info) {
-  //  struct paxos_value proposed_value;
-    bool inst_has_client_value_pending = ballot_equal(instance_info->common_info.last_promised_values_ballot, INVALID_BALLOT ) && !is_values_equal(*instance_info->common_info.proposing_value, (struct paxos_value) {5, "NOP."} );
-//    bool inst_has_client_value_pending = get_value_pending_at(p->pending_client_values, instance_info->common_info.iid,
- //                                                             &proposed_value);
+    struct paxos_value proposed_value;
+   // bool inst_has_client_value_pending = ballot_equal(instance_info->common_info.last_accepted_ballot, INVALID_BALLOT ) && !is_values_equal(*instance_info->common_info.proposing_value, (struct paxos_value) {5, "NOP."} );
+    bool inst_has_client_value_pending = get_value_pending_at(p->pending_client_values, instance_info->common_info.iid,
+                                                              &proposed_value);
     if (inst_has_client_value_pending) {
-        carray_push_back(p->client_values_to_propose,
+        carray_push_front(p->client_values_to_propose,
                          instance_info->common_info.proposing_value);
         instance_info->common_info.proposing_value = NULL;
-        //remove_pending_value(p->pending_client_values, instance_info->common_info.iid, NULL);
+        remove_pending_value(p->pending_client_values, instance_info->common_info.iid, NULL);
         //free(proposed_value.paxos_value_val);
     }
 }
@@ -725,11 +727,11 @@ proposer_update_instance_info_from_preemption(struct proposer *p, struct standar
 {
 
 	inst->common_info.ballot = (struct ballot) {.number = random_between(preempted_message->acceptor_current_ballot.number + 1, preempted_message->acceptor_current_ballot.number + BALLOT_INCREMENT + 1), .proposer_id = p->id};
-	inst->common_info.last_promised_values_ballot = (struct ballot) {.number = 0, .proposer_id = 0};
+	inst->common_info.last_accepted_ballot = INVALID_BALLOT;
 
     if (proposer_instance_info_has_promised_value(&inst->common_info)) {
-        paxos_value_free(&inst->common_info.last_promised_value);
-        inst->common_info.last_promised_values_ballot = INVALID_BALLOT;
+        paxos_value_free(&inst->common_info.last_accepted_value);
+        inst->common_info.last_accepted_ballot = INVALID_BALLOT;
     }
 
  //   if (proposer_instance_info_has_value(&inst->common_info)) {
@@ -737,7 +739,7 @@ proposer_update_instance_info_from_preemption(struct proposer *p, struct standar
   //  }
 
     inst->common_info.proposing_value = NULL;
-    inst->common_info.last_promised_value = NULL;
+    inst->common_info.last_accepted_value = NULL;
 	quorum_clear(&inst->quorum);
 	gettimeofday(&inst->common_info.created_at, NULL);
 }

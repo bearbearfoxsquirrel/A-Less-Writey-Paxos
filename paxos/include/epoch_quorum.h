@@ -9,9 +9,8 @@
 
 KHASH_MAP_INIT_INT(epoch_quorum, struct quorum*)
 
-struct epoch_quorum
-{
-    khash_t(epoch_quorum) epoch_quorums;
+struct epoch_quorum {
+    khash_t(epoch_quorum) quorum_on_epoch;
 };
 
 void epoch_quorum_init(struct epoch_quorum *q, int acceptors, int quorum_size);

@@ -231,7 +231,7 @@ int writeahead_epoch_acceptor_receive_epoch_ballot_prepare(struct writeahead_epo
         }
     } else {
         // return trim
-        returned_message->type = PAXOS_TRIM;
+        returned_message->type = WRITEAHEAD_INSTANCE_TRIM;
         returned_message->message_contents.trim = (struct paxos_trim) {.iid = acceptor->trim_instance};
     }
     is_a_message_returned = true;

@@ -598,6 +598,9 @@ static int lmdb_store_accept_epoch(struct lmdb_storage* lmdb_storage, iid_t inst
 
     int accept_epoch_key = EPOCH_PREFIX + instance;
 
+    MDB_stat before_stats;
+    mdb_stat(lmdb_storage->txn, lmdb_storage->dbi, &before_stats);
+
     key.mv_data = (void *) &accept_epoch_key; // mv_data is the pointer to where the key (literal) is held
     key.mv_size = sizeof(int);
 
@@ -608,6 +611,13 @@ static int lmdb_store_accept_epoch(struct lmdb_storage* lmdb_storage, iid_t inst
     if (result != 0)
         paxos_log_error("%s\n", mdb_strerror(result));
     assert(result == 0);
+
+    MDB_stat after_stats;
+    mdb_stat(lmdb_storage->txn, lmdb_storage->dbi, &after_stats);
+
+    if (after_stats.ms_entries > before_stats.ms_entries) {
+        lmdb_storage->num_non_instance_vals++;
+    }
 
     return 0;
 }

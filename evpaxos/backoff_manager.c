@@ -77,16 +77,18 @@ void backoff_manager_close_backoff_if_exists(struct backoff_manager* manager, ii
 
 
 
-static void kh_backoff_free_if_less_than_or_equal(struct backoff_manager* manager, khiter_t key, iid_t cmp){
-    if (kh_exist(manager->backingoff_instances, key)) {
-        if (kh_key(manager->backingoff_instances, key) <= cmp){
-            backoff_manager_close_backoff_if_exists(manager, kh_key(manager->backingoff_instances, key));
+static void kh_backoff_free_if_less_than_or_equal(struct backoff_manager* manager, iid_t key, iid_t cmp){
+  //  if (kh_exist(manager->backingoff_instances, key) == 1) {
+
+    //    iid_t act_key = kh_key(manager->backingoff_instances, key);
+        if (key <= cmp){
+            backoff_manager_close_backoff_if_exists(manager, key);
         }
-    }
+  //  }
 }
 
 void backoff_manager_close_less_than_or_equal(struct backoff_manager* manager, iid_t backoff_from){
-    khiter_t key;
+    iid_t key;
     struct timeval *timeval;
     kh_foreach(manager->backingoff_instances, key, timeval, kh_backoff_free_if_less_than_or_equal(manager, key, backoff_from));
 }

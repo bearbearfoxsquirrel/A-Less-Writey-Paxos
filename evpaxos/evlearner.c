@@ -127,7 +127,6 @@ evlearner_handle_trim(struct peer* p, struct standard_paxos_message* msg, void* 
     struct evlearner* l = arg;
     struct paxos_trim trim_msg= msg->u.trim;
     learner_receive_trim(l->state, &trim_msg);
-    evlearner_deliver_next_closed(l);
 }
 
 static void

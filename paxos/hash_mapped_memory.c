@@ -73,17 +73,17 @@ hash_mapped_memory_get_last_promise(struct hash_mapped_memory *volatile_storage,
                                     paxos_prepare *last_promise_retrieved) {
     memset(last_promise_retrieved, 0, sizeof(struct paxos_prepare));
     khiter_t key = kh_get_last_prepares(volatile_storage->last_prepares, instance_id);//kh_get(PREPARE_MAP_SYMBOL_AND_NAME, volatile_storage->last_prepares, instance_id);
-    if (key == kh_end(volatile_storage->last_prepares)) {
-        last_promise_retrieved->iid = instance_id;
-        last_promise_retrieved->ballot = (struct ballot) {0, 0};
-        return 0;
-    } else {
-
-        // todo see if there is an issue here
-        struct paxos_prepare* prepare =  kh_value(volatile_storage->last_prepares, key);
-        paxos_prepare_copy(last_promise_retrieved, prepare);
-        return 1;
+    if (key != kh_end(volatile_storage->last_prepares)) {
+        if (kh_exist(volatile_storage->last_prepares, key)) {
+            // todo see if there is an issue here
+            struct paxos_prepare *prepare = kh_value(volatile_storage->last_prepares, key);
+            paxos_prepare_copy(last_promise_retrieved, prepare);
+            return 1;
+        }
     }
+    last_promise_retrieved->iid = instance_id;
+    last_promise_retrieved->ballot = (struct ballot) {0, 0};
+    return 0;
 }
 
 
@@ -103,21 +103,24 @@ hash_mapped_memory_store_last_promise(struct hash_mapped_memory *volatile_storag
     if (returned_value == -1) {
         paxos_prepare_free(promise_copy);
         error = -1;
+        return error;
     } else if (returned_value == 0) {
         paxos_prepare_free(kh_value(volatile_storage->last_prepares, iter));
     }
-    kh_value(volatile_storage->last_prepares, iter) = promise_copy;
-    error = 0;
+        kh_value(volatile_storage->last_prepares, iter) = promise_copy;
+        error = 0;
+        if (last_ballot_promised->iid > volatile_storage->max_inited_instance)
+            volatile_storage->max_inited_instance = last_ballot_promised->iid;
+        struct paxos_prepare test_prepare;
+        memset(& test_prepare, 0, sizeof(test_prepare));
+        hash_mapped_memory_get_last_promise(volatile_storage, last_ballot_promised->iid, &test_prepare);
+        assert(test_prepare.iid == last_ballot_promised->iid);
+        assert(ballot_equal(test_prepare.ballot, last_ballot_promised->ballot));
+
 
 //  store_to_hash_map(last_prepares, volatile_storage->last_prepares, struct paxos_prepare, last_ballot_promised->iid, last_ballot_promised, paxos_prepare_free, paxos_prepare_copy, error);
-    if (last_ballot_promised->iid > volatile_storage->max_inited_instance)
-        volatile_storage->max_inited_instance = last_ballot_promised->iid;
 
-    struct paxos_prepare test_prepare;
-    memset(& test_prepare, 0, sizeof(test_prepare));
-    hash_mapped_memory_get_last_promise(volatile_storage, last_ballot_promised->iid, &test_prepare);
-    assert(test_prepare.iid == last_ballot_promised->iid);
-    assert(ballot_equal(test_prepare.ballot, last_ballot_promised->ballot));
+
     return error;
 }
 

@@ -17,8 +17,8 @@ struct proposer_common_instance_info {
     iid_t iid;
     struct ballot ballot;
     struct paxos_value* proposing_value;
-    struct paxos_value* last_promised_value;
-    struct ballot last_promised_values_ballot;
+    struct paxos_value* last_accepted_value;
+    struct ballot last_accepted_ballot;
     struct timeval created_at;
 };
 
@@ -30,8 +30,12 @@ struct standard_proposer_instance_info
 
 struct epoch_proposer_instance_info {
     struct proposer_common_instance_info common_info;
-    struct epoch_quorum epoch_quorum;
+    struct quorum quorum;
+    unsigned int promised_epoch;
+    unsigned int last_accepted_epoch_ballot_epoch;
+   // struct epoch_quorum epoch_quorum;
 };
+
 
 
 #endif //LIBPAXOS_INSTANCE_H
