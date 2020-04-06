@@ -353,7 +353,7 @@ void msgpack_pack_epoch_ballot_prepare(msgpack_packer* packer, struct epoch_ball
 
 void msgpack_pack_epoch_ballot_promise(msgpack_packer* packer, struct epoch_ballot_promise* promise){
     msgpack_pack_array(packer, 8);
-    msgpack_pack_int32(packer, WRITEAHED_EPOCH_BALLOT_PROMISE);
+    msgpack_pack_int32(packer, WRITEAHEAD_EPOCH_BALLOT_PROMISE);
     msgpack_pack_uint32(packer, promise->acceptor_id);
     msgpack_pack_uint32(packer, promise->instance);
     msgpack_pack_epoch_ballot(packer, &promise->promised_epoch_ballot);
@@ -421,7 +421,7 @@ void msgpack_pack_writeahead_epoch_paxos_message(msgpack_packer* packer, struct 
        case WRITEAHEAD_EPOCH_BALLOT_PREPARE:
            msgpack_pack_epoch_ballot_prepare(packer, &message->message_contents.epoch_ballot_prepare);
            break;
-       case WRITEAHED_EPOCH_BALLOT_PROMISE:
+       case WRITEAHEAD_EPOCH_BALLOT_PROMISE:
            msgpack_pack_epoch_ballot_promise(packer, &message->message_contents.epoch_ballot_promise);
            break;
        case WRITEAHEAD_EPOCH_BALLOT_ACCEPT:
@@ -530,7 +530,7 @@ void msgpack_unpack_writeahead_epoch_paxos_message(msgpack_object* msg_object, s
        case WRITEAHEAD_EPOCH_BALLOT_PREPARE:
            msgpack_unpack_epoch_ballot_prepare(msg_object, &unpacked_message->message_contents.epoch_ballot_prepare);
            break;
-       case WRITEAHED_EPOCH_BALLOT_PROMISE:
+       case WRITEAHEAD_EPOCH_BALLOT_PROMISE:
            msgpack_unpack_epoch_ballot_promise(msg_object, &unpacked_message->message_contents.epoch_ballot_promise);
            break;
        case WRITEAHEAD_EPOCH_BALLOT_ACCEPT:

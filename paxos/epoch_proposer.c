@@ -368,7 +368,7 @@ void epoch_proposer_instance_info_update_info_from_epoch_preemption(struct epoch
     gettimeofday(&inst->common_info.created_at, NULL);
 }
 
-enum epoch_proposer_received_message_return_codes epoch_proposer_receive_promise(struct epoch_proposer *p, struct epoch_ballot_promise *ack, struct epoch_ballot_prepare* next_epoch_prepare) {
+enum epoch_paxos_message_return_codes epoch_proposer_receive_promise(struct epoch_proposer *p, struct epoch_ballot_promise *ack, struct epoch_ballot_prepare* next_epoch_prepare) {
     assert(ack->instance > INITIAL_BALLOT);
     assert(epoch_ballot_greater_than(ack->promised_epoch_ballot, INVALID_EPOCH_BALLOT));
 
@@ -539,7 +539,7 @@ int epoch_proposer_try_accept(struct epoch_proposer* p, struct epoch_ballot_acce
     return is_value_to_propose;
 }
 
-enum epoch_proposer_received_message_return_codes epoch_proposer_receive_accepted(struct epoch_proposer* p, struct epoch_ballot_accepted* ack, struct instance_chosen_at_epoch_ballot* chosen){
+enum epoch_paxos_message_return_codes epoch_proposer_receive_accepted(struct epoch_proposer* p, struct epoch_ballot_accepted* ack, struct instance_chosen_at_epoch_ballot* chosen){
     assert(ack->instance > INVALID_INSTANCE);
     assert(epoch_ballot_greater_than(ack->accepted_epoch_ballot, INVALID_EPOCH_BALLOT));
 
@@ -610,7 +610,7 @@ void epoch_proposer_check_and_handle_client_value_from_chosen(struct epoch_propo
         }
     }
 }
-enum epoch_proposer_received_message_return_codes epoch_proposer_receive_chosen(struct epoch_proposer* p, struct instance_chosen_at_epoch_ballot* ack){
+enum epoch_paxos_message_return_codes epoch_proposer_receive_chosen(struct epoch_proposer* p, struct instance_chosen_at_epoch_ballot* ack){
     assert(ack->instance > INVALID_INSTANCE);
     assert(epoch_ballot_greater_than(ack->chosen_epoch_ballot, INVALID_EPOCH_BALLOT));
 
@@ -690,7 +690,7 @@ void epoch_proposer_check_and_requeue_client_value_if_was_proposer(struct epoch_
     }
 }
 
-enum epoch_proposer_received_message_return_codes epoch_proposer_receive_preempted(struct epoch_proposer* p, struct epoch_ballot_preempted* preempted, struct epoch_ballot_prepare* next_prepare){
+enum epoch_paxos_message_return_codes epoch_proposer_receive_preempted(struct epoch_proposer* p, struct epoch_ballot_preempted* preempted, struct epoch_ballot_prepare* next_prepare){
         if (preempted->instance < p->trim_instance) {
             paxos_log_debug("Ignoring Preempted, Instance %u has been trimmed", preempted->instance);
             return MESSAGE_IGNORED;
@@ -701,7 +701,7 @@ enum epoch_proposer_received_message_return_codes epoch_proposer_receive_preempt
             return MESSAGE_IGNORED;
         }
 
-        enum epoch_proposer_received_message_return_codes return_code = MESSAGE_IGNORED;
+        enum epoch_paxos_message_return_codes return_code = MESSAGE_IGNORED;
 
         struct epoch_proposer_instance_info* prepare_instance_info;
         bool in_promise_phase = epoch_proposer_get_instance_info_in_phase(p->prepare_proposer_instance_infos, preempted->instance, &prepare_instance_info);
@@ -765,8 +765,8 @@ enum epoch_proposer_received_message_return_codes epoch_proposer_receive_preempt
 
 
 // periodic acceptor state
-enum epoch_proposer_received_message_return_codes epoch_proposer_receive_acceptor_state(struct epoch_proposer* p,
-                                           struct writeahead_epoch_acceptor_state* state) {
+enum epoch_paxos_message_return_codes epoch_proposer_receive_acceptor_state(struct epoch_proposer* p,
+                                                                            struct writeahead_epoch_acceptor_state* state) {
     bool new_epoch = false;
     if (state->current_epoch > p->known_highest_epoch) {
         p->known_highest_epoch = state->current_epoch;
@@ -778,8 +778,8 @@ enum epoch_proposer_received_message_return_codes epoch_proposer_receive_accepto
     return (new_trim || new_epoch) ? MESSAGE_ACKNOWLEDGED : MESSAGE_IGNORED;
 }
 
-enum epoch_proposer_received_message_return_codes epoch_proposer_receive_trim(struct epoch_proposer* p,
-                                 struct paxos_trim* trim_msg){
+enum epoch_paxos_message_return_codes epoch_proposer_receive_trim(struct epoch_proposer* p,
+                                                                  struct paxos_trim* trim_msg){
     if (trim_msg->iid > p->trim_instance) {
         paxos_log_debug("Received new Trim Message for Instance %u", trim_msg->iid);
     }

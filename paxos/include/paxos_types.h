@@ -37,6 +37,15 @@
 #define INVALID_INSTANCE 0
 #define INVALID_BALLOT (struct ballot) {0, 0}
 #define INVALID_EPOCH_BALLOT (struct epoch_ballot) {0, INVALID_BALLOT}
+#define INVALID_VALUE (struct paxos_value) {0, NULL}
+
+enum epoch_paxos_message_return_codes {
+    MESSAGE_IGNORED,
+    EPOCH_PREEMPTED,
+    BALLOT_PREEMPTED,
+    MESSAGE_ACKNOWLEDGED,
+    QUORUM_REACHED,
+};
 
 struct ballot {
     uint32_t number;
@@ -218,7 +227,7 @@ struct writeahead_epoch_acceptor_state {
 enum writeahead_epoch_message_type {
     WRITEAHEAD_STANDARD_PREPARE,
     WRITEAHEAD_EPOCH_BALLOT_PREPARE,
-    WRITEAHED_EPOCH_BALLOT_PROMISE,
+    WRITEAHEAD_EPOCH_BALLOT_PROMISE,
     WRITEAHEAD_EPOCH_BALLOT_ACCEPT,
     WRITEAHEAD_EPOCH_BALLOT_ACCEPTED,
     WRITEAHEAD_EPOCH_BALLOT_PREEMPTED,

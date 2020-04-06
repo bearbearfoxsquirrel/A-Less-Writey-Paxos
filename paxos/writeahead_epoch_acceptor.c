@@ -11,6 +11,8 @@
 #include <paxos_types.h>
 #include <paxos_message_conversion.h>
 #include <stdbool.h>
+#include <ballot.h>
+#include <epoch_ballot.h>
 
 struct writeahead_epoch_acceptor {
     int id;
@@ -20,23 +22,25 @@ struct writeahead_epoch_acceptor {
     uint32_t current_epoch;
 };
 
-void writeahead_epoch_acceptor_increase_epoch(struct writeahead_epoch_acceptor* acceptor, uint32_t new_epoch){
+int writeahead_epoch_acceptor_increase_epoch(struct writeahead_epoch_acceptor* acceptor, uint32_t new_epoch){
     // stored epochs should only ever increase
     assert(new_epoch >= acceptor->current_epoch);
     acceptor->current_epoch = new_epoch;
-    epoch_stable_storage_store_epoch(&acceptor->stable_storage, new_epoch);
+    return epoch_stable_storage_store_epoch(&acceptor->stable_storage, new_epoch);
 }
 
 void writeahead_epoch_acceptor_store_trim(struct writeahead_epoch_acceptor* acceptor, iid_t trim) {
+    assert(trim > acceptor->trim_instance);
     acceptor->trim_instance = trim;
     epoch_stable_storage_store_trim_instance(&acceptor->stable_storage, trim);
+    epoch_paxos_storage_store_trim_instance(&acceptor->volatile_storage, trim);
 }
-
+/*
 bool writeahead_epoch_acceptor_epoch_ballot_greater_than_or_equal_to(struct epoch_ballot* left, struct epoch_ballot* right) {
     if (left->epoch > right->epoch) return true;
  //   else if (left->epoch == right->epoch && left->ballot >= right->ballot) return true;
     else return false;
-}
+}*/
 
 void create_epoch_notification_message(struct writeahead_epoch_paxos_message *recover_message,
                                        const struct writeahead_epoch_acceptor *acceptor) {
@@ -44,7 +48,7 @@ void create_epoch_notification_message(struct writeahead_epoch_paxos_message *re
     recover_message->message_contents.epoch_notification.new_epoch = acceptor->current_epoch;
 }
 
-struct writeahead_epoch_acceptor* writeahead_epoch_acceptor_init(int id, struct writeahead_epoch_paxos_message* recover_message) {
+struct writeahead_epoch_acceptor* writeahead_epoch_acceptor_init(int id, struct writeahead_epoch_paxos_message* recover_message, bool* has_recovery_message) {
     struct writeahead_epoch_acceptor* acceptor = calloc(1, sizeof(struct writeahead_epoch_acceptor));
     acceptor->id = id;
     epoch_stable_storage_init(&acceptor->stable_storage, id);
@@ -89,11 +93,11 @@ struct writeahead_epoch_acceptor* writeahead_epoch_acceptor_init(int id, struct 
     epoch_stable_storage_tx_begin(&acceptor->stable_storage);
     epoch_stable_storage_get_current_epoch(&acceptor->stable_storage, &incremented_epoch);
 
-    uint32_t max_instance = 0;
-    epoch_stable_storage_get_max_inited_instance(&acceptor->stable_storage, &max_instance);
-    for (unsigned int i =0; i <= max_instance; i++){
+    //uint32_t max_instance = 0;
+  //  epoch_stable_storage_get_max_inited_instance(&acceptor->stable_storage, &max_instance);
+  //  for (unsigned int i =0; i <= max_instance; i++){
         // todo
-    }
+  //  }
 
     epoch_stable_storage_tx_commit(&acceptor->stable_storage);
 
@@ -102,6 +106,9 @@ struct writeahead_epoch_acceptor* writeahead_epoch_acceptor_init(int id, struct 
 
     if (acceptor->current_epoch > 0) {
         create_epoch_notification_message(recover_message, acceptor);
+        *has_recovery_message = true;
+    } else {
+        *has_recovery_message = false;
     }
 
     return acceptor;
@@ -112,200 +119,309 @@ void writeahead_epoch_acceptor_free(struct writeahead_epoch_acceptor* acceptor){
     free(acceptor);
 }
 
+void
+epoch_ballot_promise_check_and_set_last_accepted_ballot(struct writeahead_epoch_paxos_message *returned_message,
+                                                        struct epoch_ballot_accept *last_accept, bool previous_accept) {
+    if (previous_accept) {
+        returned_message->message_contents.epoch_ballot_promise.last_accepted_ballot = (*last_accept).epoch_ballot_requested;
+        returned_message->message_contents.epoch_ballot_promise.last_accepted_value = (*last_accept).value_to_accept;
+    } else {
+        returned_message->message_contents.epoch_ballot_promise.last_accepted_ballot = INVALID_EPOCH_BALLOT;
+        returned_message->message_contents.epoch_ballot_promise.last_accepted_value = INVALID_VALUE;
+    }
+}
+
+void writeahead_epoch_acceptor_set_epoch_promise(const struct writeahead_epoch_acceptor *acceptor,
+                                                 iid_t promised_instance,
+                                                 struct epoch_ballot promised_epoch_ballot,
+                                                 struct writeahead_epoch_paxos_message *returned_message,
+                                                 struct epoch_ballot_accept *last_accept, bool previous_accept) {
+    returned_message->type = WRITEAHEAD_EPOCH_BALLOT_PROMISE;
+    returned_message->message_contents.epoch_ballot_promise.instance = promised_instance;
+    returned_message->message_contents.epoch_ballot_promise.acceptor_id = acceptor->id;
+    returned_message->message_contents.epoch_ballot_promise.promised_epoch_ballot = promised_epoch_ballot;
+    epoch_ballot_promise_check_and_set_last_accepted_ballot(returned_message, last_accept, previous_accept);
+}
+
+
+int handle_making_premepted(const struct writeahead_epoch_acceptor *acceptor, iid_t instance, struct epoch_ballot requested_epoch_ballot,
+                            struct writeahead_epoch_paxos_message *returned_message, struct paxos_prepare *last_prepare, char* phase) {
+    int is_a_message_returned;
+    paxos_log_debug(phase, " Request for Instance %u with Ballot %u.%u Preempted by another Epoch Ballot. Returning Preemption",
+                instance, requested_epoch_ballot.ballot.number, requested_epoch_ballot.ballot.proposer_id);
+
+    struct epoch_ballot last_epoch_ballot = (struct epoch_ballot) {.epoch = acceptor->current_epoch, .ballot =(*last_prepare).ballot};
+
+    returned_message->type = WRITEAHEAD_EPOCH_BALLOT_PREEMPTED;
+    returned_message->message_contents.epoch_ballot_preempted = (struct epoch_ballot_preempted) {
+       .instance = instance,
+       .acceptor_id = acceptor->id,
+       .requested_epoch_ballot = requested_epoch_ballot,
+       .acceptors_current_epoch_ballot = last_epoch_ballot
+    };
+    is_a_message_returned = 1;
+    return is_a_message_returned;
+}
+
 int writeahead_epoch_acceptor_receive_prepare(struct writeahead_epoch_acceptor* acceptor, struct paxos_prepare* request, struct writeahead_epoch_paxos_message* returned_message){
     int is_a_message_returned = 0;
 
+    if (request->iid <= acceptor->trim_instance) {
+        paxos_log_debug("Promise Request for Instance %u by Proposer %u has been Trimmed already",
+                request->iid, request->ballot.proposer_id);
+        returned_message->type = WRITEAHEAD_INSTANCE_TRIM;
+        returned_message->message_contents.trim = (struct paxos_trim) {.iid = acceptor->trim_instance};
+        is_a_message_returned = 1;
+        return is_a_message_returned;
+    }
+
+
+    struct paxos_prepare last_prepare;
+    bool previous_promise = epoch_paxos_storage_get_last_prepare(&acceptor->volatile_storage, request->iid, &last_prepare);
+
+    struct epoch_ballot_accept last_accept;
+    bool previous_accept = epoch_paxos_storage_get_last_accept(&acceptor->volatile_storage, request->iid, &last_accept);
+
     bool instance_chosen = false;
     epoch_paxos_storage_is_instance_chosen(&acceptor->volatile_storage, request->iid, &instance_chosen);
-    if (request->iid > acceptor->trim_instance && instance_chosen) {
-
-        // Compare to instance's last prepare made
-        struct paxos_prepare last_prepare;
-        memset(&last_prepare, 0, sizeof(struct paxos_prepare));
-        epoch_paxos_storage_get_last_prepare(&acceptor->volatile_storage, request->iid, &last_prepare); // todo check if it is better toalso consider the epoch
-
-     //  if (request->ballot >= last_prepare.ballot) {
-
-        //struct epoch_ballot preparing_epoch_ballot =
-//                epoch_stable_storage_get_current_epoch(&acceptor->volatile_storage, )
-           // We are going to return an epoch ballot promise for this instance on the
-           // requested ballot, providing our last (highest) accepted epoch ballot and value
-            paxos_log_debug("New highest ballot (%u) for instance %u", request->ballot, request->iid);
-
-            // Store the prepare (in volatile storage)
-           epoch_paxos_storage_store_last_prepare(&acceptor->volatile_storage, request);
-
-           // get the last accepted ballot from stable storage
-           struct epoch_ballot_accept last_accept;
-           memset(&last_accept, 0, sizeof(last_accept));
-           epoch_paxos_storage_get_last_accept(&acceptor->volatile_storage, request->iid, &last_accept);
-
-           // create the returned promise
-           union_epoch_ballot_promise_from_epoch_ballot_accept_and_paxos_prepare(returned_message, request, &last_accept, acceptor->id, acceptor->current_epoch);
-           is_a_message_returned = 1;
-       } else {
-           // return preempted
-            struct epoch_ballot_preempted preempted;
-
-            //struct epoch_ballot reqested_eb = (struct epoch_ballot) {.epoch = acceptor->current_epoch, .ballot = request->ballot};
-       //     struct epoch_ballot last_eb = (struct epoch_ballot) {.epoch = acceptor->current_epoch, .ballot =last_prepare.ballot};
-
-      //     epoch_ballot_preempted_from_epoch_ballot_requested_and_epoch_ballot_last_responded(acceptor->id, request->iid, &reqested_eb, &last_eb, &preempted);
-           union_epoch_ballot_preempted_from_epoch_ballot_preempted(&preempted, returned_message);
-           is_a_message_returned = 1;
-       }
-   // } else {
-        //return chosen
-        struct epoch_ballot_accept last_accept;
-        epoch_paxos_storage_get_last_accept(&acceptor->volatile_storage, request->iid, &last_accept);
-
+    if (instance_chosen) {
+        paxos_log_debug("Promise Request for Instance %u by Proposer %u has been rejected. It is already Chosen",
+                request->iid, request->ballot.proposer_id);
         union_epoch_ballot_chosen_from_epoch_ballot_accept(returned_message, &last_accept);
         is_a_message_returned = 1;
-//    }
+        return is_a_message_returned;
+    }
+
+        // Compare to instance's last prepare made
+
+    if (ballot_greater_than_or_equal(request->ballot, last_prepare.ballot) || !previous_promise) {
+        paxos_log_debug("New highest ballot (%u.%u) for instance %u. It\'s been Promised on Epoch %u",
+                request->ballot.number,
+                request->ballot.proposer_id,
+                request->iid,
+                acceptor->current_epoch);
+
+        // Store the prepare (in volatile storage)
+        epoch_paxos_storage_store_last_prepare(&acceptor->volatile_storage, request);
+        struct epoch_ballot promised_epoch_ballot = (struct epoch_ballot) {.epoch = acceptor->current_epoch, .ballot = request->ballot};
+        writeahead_epoch_acceptor_set_epoch_promise(acceptor, request->iid, promised_epoch_ballot, returned_message, &last_accept, previous_accept);
+
+        is_a_message_returned = 1;
+   } else {
+       // return preempted
+       struct epoch_ballot requested_epoch_ballot = (struct epoch_ballot) {.epoch = acceptor->current_epoch,
+                                                                           .ballot = request->ballot};
+        is_a_message_returned = handle_making_premepted(acceptor, request->iid, requested_epoch_ballot,
+                                                        returned_message, &last_prepare, "Promise");
+
+    }
     return is_a_message_returned;
+}
+
+int write_ahead_epoch_acceptor_transaction_to_increment_epoch(struct writeahead_epoch_acceptor *acceptor,
+                                                              const struct epoch_ballot *cmp_epoch_ballot) {
+    if (epoch_stable_storage_tx_begin(&acceptor->stable_storage) != 0){
+        return 1;
+    }
+    if (writeahead_epoch_acceptor_increase_epoch(acceptor, cmp_epoch_ballot->epoch) != 0) {
+        return 1;
+    }
+    if (epoch_stable_storage_tx_commit(&acceptor->stable_storage) != 0)
+    {
+        return 1;
+    }
+    return 0;
 }
 
 int writeahead_epoch_acceptor_receive_epoch_ballot_prepare(struct writeahead_epoch_acceptor* acceptor, struct epoch_ballot_prepare* request, struct writeahead_epoch_paxos_message* returned_message){
-    // Check if instance has been trimmed
     int is_a_message_returned = 0;
 
-    bool instance_chosen = false;
-    epoch_paxos_storage_is_instance_chosen(&acceptor->volatile_storage, request->instance, &instance_chosen);
-    if (request->instance > acceptor->trim_instance) {
-        if (instance_chosen) {
-
-            // Compare to instance's last prepare made
-            struct paxos_prepare last_prepare;
-            memset(&last_prepare, 0, sizeof(struct paxos_prepare));
-            epoch_paxos_storage_get_last_prepare(&acceptor->volatile_storage, request->instance, &last_prepare);
-
-            struct epoch_ballot current_epoch_ballot = (struct epoch_ballot) {.epoch = acceptor->current_epoch, .ballot = last_prepare.ballot}; // todo check if it is better to include the actual promised epoch ballot - shouldn't cause if it were the current ballot on a new epoch then it will get promised still and we don't really wanna worry about promising old ballots on new epochs
-            if (writeahead_epoch_acceptor_epoch_ballot_greater_than_or_equal_to(&request->epoch_ballot_requested,
-                                                                                &current_epoch_ballot)) {
-
-                if (request->epoch_ballot_requested.epoch > acceptor->current_epoch) {
-                    epoch_stable_storage_tx_begin(&acceptor->stable_storage);
-                    writeahead_epoch_acceptor_increase_epoch(acceptor, request->epoch_ballot_requested.epoch);
-                    epoch_stable_storage_tx_commit(&acceptor->stable_storage);
-                }
-                // We are going to return an epoch ballot promise for this instance on the
-                // requested ballot, providing our last (highest) accepted epoch ballot and value
-                paxos_log_debug("New highest ballot (%u, %u) for instance %u", request->epoch_ballot_requested.epoch,
-                                request->epoch_ballot_requested.ballot, request->instance);
-
-                // Store the prepare (in volatile storage)
-                struct paxos_prepare stored_prepare;
-                //struct paxos_prepare stored_prepare = {.ballot = request->epoch_ballot_requested.ballot, .iid = request->instance};
-                paxos_prepare_from_epoch_ballot_prepare(request, &stored_prepare);
-                epoch_paxos_storage_store_last_prepare(&acceptor->volatile_storage, &stored_prepare);
-
-                // get the last accepted ballot from stable storage
-                struct epoch_ballot_accept last_accept;
-                memset(&last_accept, 0, sizeof(last_accept));
-                epoch_paxos_storage_get_last_accept(&acceptor->volatile_storage, request->instance, &last_accept);
-
-                // create the returned promise
-                union_epoch_ballot_promise_from_epoch_ballot_accept_and_epoch_ballot_prepare(returned_message, request,
-                                                                                             &last_accept,
-                                                                                             acceptor->id);
-            } else {
-                // return preempted
-                struct epoch_ballot_preempted preempted;
-
-                struct epoch_ballot reqested_eb = (struct epoch_ballot) {.epoch = request->epoch_ballot_requested.epoch, .ballot = request->epoch_ballot_requested.ballot};
-                struct epoch_ballot last_eb = (struct epoch_ballot) {.epoch = acceptor->current_epoch, .ballot =last_prepare.ballot};
-
-                epoch_ballot_preempted_from_epoch_ballot_requested_and_epoch_ballot_last_responded(acceptor->id,
-                                                                                                   request->instance,
-                                                                                                   &reqested_eb,
-                                                                                                   &last_eb,
-                                                                                                   &preempted);
-                union_epoch_ballot_preempted_from_epoch_ballot_preempted(&preempted, returned_message);
-            }
-        } else {
-            // return chosen
-            struct epoch_ballot_accept last_accept;
-            epoch_paxos_storage_get_last_accept(&acceptor->volatile_storage, request->instance, &last_accept);
-
-            union_epoch_ballot_chosen_from_epoch_ballot_accept(returned_message, &last_accept);
-        }
-    } else {
-        // return trim
+    if (request->instance <= acceptor->trim_instance) {
+        paxos_log_debug("Promise Request for Instance %u by Proposer %u has been Trimmed already",
+                        request->instance, request->epoch_ballot_requested.ballot.proposer_id);
         returned_message->type = WRITEAHEAD_INSTANCE_TRIM;
         returned_message->message_contents.trim = (struct paxos_trim) {.iid = acceptor->trim_instance};
+        is_a_message_returned = 1;
+        return is_a_message_returned;
     }
-    is_a_message_returned = true;
+
+
+    struct paxos_prepare last_prepare;
+    bool was_previous_promise = epoch_paxos_storage_get_last_prepare(&acceptor->volatile_storage, request->instance, &last_prepare);
+
+    struct epoch_ballot_accept last_accept;
+    bool previous_accept = epoch_paxos_storage_get_last_accept(&acceptor->volatile_storage, request->instance, &last_accept);
+
+    bool was_instance_chosen = false;
+    epoch_paxos_storage_is_instance_chosen(&acceptor->volatile_storage, request->instance, &was_instance_chosen);
+    if (was_instance_chosen) {
+        paxos_log_debug("Promise Request for Instance %u by Proposer %u has been rejected. It is already Chosen",
+                        request->instance, request->epoch_ballot_requested.ballot.proposer_id);
+        union_epoch_ballot_chosen_from_epoch_ballot_accept(returned_message, &last_accept);
+        is_a_message_returned = 1;
+        return is_a_message_returned;
+    }
+
+    // Compare to instance's last prepare made
+
+    struct epoch_ballot min_epoch_ballot_to_give_promise_on = (struct epoch_ballot) {.epoch = acceptor->current_epoch,
+                                                                                     .ballot = last_prepare.ballot};
+    // Don't want to give promises on anything less than the current epoch or the current ballot
+    // (even though might have given a promise on a lesser epoch ballot)
+    if (epoch_ballot_greater_than_or_equal(request->epoch_ballot_requested, min_epoch_ballot_to_give_promise_on) || !was_previous_promise) {
+        paxos_log_debug("New highest Epoch Ballot Promised (%u.%u.%u) for Instance %u",
+                        request->epoch_ballot_requested.epoch,
+                        request->epoch_ballot_requested.ballot.number,
+                        request->epoch_ballot_requested.ballot.proposer_id,
+                        request->instance);
+
+        if (request->epoch_ballot_requested.epoch > acceptor->current_epoch){
+            if (write_ahead_epoch_acceptor_transaction_to_increment_epoch(acceptor, &request->epoch_ballot_requested) != 0) {
+                return 0;
+            }
+        }
+
+        epoch_paxos_storage_store_last_prepare(&acceptor->volatile_storage, &last_prepare);
+        writeahead_epoch_acceptor_set_epoch_promise(acceptor, request->instance, request->epoch_ballot_requested, returned_message, &last_accept, previous_accept);
+        is_a_message_returned = 1;
+    } else {
+        is_a_message_returned = handle_making_premepted(acceptor, request->instance, request->epoch_ballot_requested,
+                                                        returned_message, &last_prepare, "Promise");
+    }
     return is_a_message_returned;
 }
 
-void writeahead_epoch_acceptor_store_accept(struct writeahead_epoch_acceptor* acceptor, struct epoch_ballot_accept* accept) {
-    assert(acceptor->current_epoch >= accept->epoch_ballot_requested.epoch);
-    acceptor->current_epoch = accept->epoch_ballot_requested.epoch;
+void writeahead_epoch_acceptor_transaction_to_store_accept(struct writeahead_epoch_acceptor* acceptor, struct epoch_ballot_accept* accept) {
+    struct paxos_prepare prepare_to_store = (struct paxos_prepare) {
+            .iid = accept->instance,
+            .ballot = accept->epoch_ballot_requested.ballot
+    };
+
+    epoch_stable_storage_tx_begin(&acceptor->stable_storage);
+    if (accept->epoch_ballot_requested.epoch > acceptor->current_epoch){
+        writeahead_epoch_acceptor_increase_epoch(acceptor, accept->epoch_ballot_requested.epoch);
+    }
+
+    assert(accept->epoch_ballot_requested.epoch == acceptor->current_epoch);
+    epoch_paxos_storage_store_last_prepare(&acceptor->volatile_storage, &prepare_to_store);
     epoch_stable_storage_store_epoch_ballot_accept(&acceptor->stable_storage, accept);
     epoch_paxos_storage_store_accept(&acceptor->volatile_storage, accept);
 }
 
+
 int writeahead_epoch_acceptor_receive_epoch_ballot_accept(struct writeahead_epoch_acceptor* acceptor, struct epoch_ballot_accept* request, struct writeahead_epoch_paxos_message* response) {
-    // Check if instance has been trimmed
     int is_a_message_returned = 0;
 
-    bool instance_chosen = false;
-    epoch_paxos_storage_is_instance_chosen(&acceptor->volatile_storage, request->instance, &instance_chosen);
-    if (request->instance > acceptor->trim_instance && instance_chosen) {
-
-        // Compare to instance's last prepare made
-        struct paxos_prepare last_prepare;
-        memset(&last_prepare, 0, sizeof(struct paxos_prepare));
-        epoch_paxos_storage_get_last_prepare(&acceptor->volatile_storage, request->instance, &last_prepare);
-
-        struct epoch_ballot current_epoch_ballot = (struct epoch_ballot) {.epoch = acceptor->current_epoch, .ballot = last_prepare.ballot};
-        // todo check if it is better to include the actual promised epoch ballot - shouldn't cause if it were the current ballot on a new epoch then it will get promised still and we don't really wanna worry about promising old ballots on new epochs
-        if (writeahead_epoch_acceptor_epoch_ballot_greater_than_or_equal_to(&request->epoch_ballot_requested, &current_epoch_ballot)) {
+    if (request->instance <= acceptor->trim_instance) {
+        paxos_log_debug("Acceptance Request for Instance %u by Proposer %u has been Trimmed already",
+                        request->instance, request->epoch_ballot_requested.ballot.proposer_id);
+        response->type = WRITEAHEAD_INSTANCE_TRIM;
+        response->message_contents.trim = (struct paxos_trim) {.iid = acceptor->trim_instance};
+        is_a_message_returned = 1;
+        return is_a_message_returned;
+    }
 
 
-            // We are going to return an epoch ballot promise for this instance on the
-            // requested ballot, providing our last (highest) accepted epoch ballot and value
-            paxos_log_debug("Accepted highest ballot (%u, %u) for instance %u", request->epoch_ballot_requested.epoch, request->epoch_ballot_requested.ballot, request->instance);
+    struct paxos_prepare last_prepare;
+    bool was_previous_promise = epoch_paxos_storage_get_last_prepare(&acceptor->volatile_storage, request->instance,
+                                                                     &last_prepare);
 
-            // Store the accept (in stable!!!!! storage)
-            epoch_stable_storage_tx_begin(&acceptor->stable_storage);
-            writeahead_epoch_acceptor_store_accept(acceptor, request); // don't need to store epoch
-            epoch_stable_storage_tx_commit(&acceptor->stable_storage);
+    struct epoch_ballot_accept last_accept;
+    bool previous_accept = epoch_paxos_storage_get_last_accept(&acceptor->volatile_storage, request->instance,
+                                                               &last_accept);
 
-            // get the last accepted ballot from stable storage
-            struct epoch_ballot_accept last_accept;
-            memset(&last_accept, 0, sizeof(last_accept));
-            epoch_paxos_storage_get_last_accept(&acceptor->volatile_storage, request->instance, &last_accept);
-
-            // create the returned accepted
-
-            //todo accepted
-            union_epoch_ballot_accepted_from_epoch_ballot_accept(response, request, acceptor->id);
-            is_a_message_returned = 1;
-        } else {
-            // return preempted
-            struct epoch_ballot_preempted preempted;
-
-            struct epoch_ballot reqested_eb = (struct epoch_ballot) {.epoch = request->epoch_ballot_requested.epoch, .ballot = request->epoch_ballot_requested.ballot};
-            struct epoch_ballot last_eb = (struct epoch_ballot) {.epoch = acceptor->current_epoch, .ballot =last_prepare.ballot};
-
-            epoch_ballot_preempted_from_epoch_ballot_requested_and_epoch_ballot_last_responded(acceptor->id, request->instance, &reqested_eb, &last_eb, &preempted);
-            union_epoch_ballot_preempted_from_epoch_ballot_preempted(&preempted, response);
-            is_a_message_returned = 1;
-        }
-    } else {
-        struct epoch_ballot_accept last_accept;
-        epoch_paxos_storage_get_last_accept(&acceptor->volatile_storage, request->instance, &last_accept);
-
+    bool was_instance_chosen = false;
+    epoch_paxos_storage_is_instance_chosen(&acceptor->volatile_storage, request->instance, &was_instance_chosen);
+    if (was_instance_chosen) {
+        paxos_log_debug("Promise Request for Instance %u by Proposer %u has been rejected. It is already Chosen",
+                        request->instance, request->epoch_ballot_requested.ballot.proposer_id);
         union_epoch_ballot_chosen_from_epoch_ballot_accept(response, &last_accept);
         is_a_message_returned = 1;
+        return is_a_message_returned;
     }
-    return is_a_message_returned;
+
+    // Compare to instance's last prepare made
+
+    struct epoch_ballot min_epoch_ballot_to_give_promise_on = (struct epoch_ballot) {.epoch = acceptor->current_epoch,
+            .ballot = last_prepare.ballot};
+    // Don't want to give promises on anything less than the current epoch or the current ballot
+    // (even though might have given a promise on a lesser epoch ballot)
+
+    if (epoch_ballot_greater_than_or_equal(request->epoch_ballot_requested, min_epoch_ballot_to_give_promise_on) ||
+        !was_previous_promise) {
+        paxos_log_debug("New highest Epoch Ballot Promised (%u.%u.%u) for Instance %u",
+                        request->epoch_ballot_requested.epoch,
+                        request->epoch_ballot_requested.ballot.number,
+                        request->epoch_ballot_requested.ballot.proposer_id,
+                        request->instance);
+
+        writeahead_epoch_acceptor_transaction_to_store_accept(acceptor, request);
+
+        bool was_last_accept = epoch_paxos_storage_get_last_accept(&acceptor->volatile_storage, request->instance,
+                                                                   &last_accept);
+        assert(was_last_accept);
+
+        response->type = WRITEAHEAD_EPOCH_BALLOT_ACCEPTED;
+        response->message_contents.epoch_ballot_accepted = (struct epoch_ballot_accepted) {
+                .instance = request->instance,
+                .acceptor_id = acceptor->id,
+                .accepted_epoch_ballot = last_accept.epoch_ballot_requested,
+                .accepted_value = last_accept.value_to_accept
+        };
+        is_a_message_returned = 1;
+    } else {
+        is_a_message_returned = handle_making_premepted(acceptor, request->instance, request->epoch_ballot_requested,
+                                                        response, &last_prepare, "Acceptance");
+    }
 }
 
-int  writeahead_epoch_acceptor_receive_repeat(struct writeahead_epoch_acceptor* acceptor, iid_t iid, struct writeahead_epoch_paxos_message* response); //todo
 
-int  writeahead_epoch_acceptor_receive_trim(struct writeahead_epoch_acceptor* acceptor, struct paxos_trim* trim); //todo
+int  writeahead_epoch_acceptor_receive_repeat(struct writeahead_epoch_acceptor* acceptor, iid_t iid, struct writeahead_epoch_paxos_message* response){
+    bool chosen = false;
+    epoch_paxos_storage_is_instance_chosen(&acceptor->volatile_storage, iid, &chosen);
+
+    struct epoch_ballot_accept last_accept;
+    bool was_accept =epoch_paxos_storage_get_last_accept(&acceptor->volatile_storage, iid, &last_accept);
+
+
+    if (chosen) {
+        assert(was_accept);
+        response->type = WRITEAHEAD_INSTANCE_CHOSEN_AT_EPOCH_BALLOT;
+        response->message_contents.instance_chosen_at_epoch_ballot = (struct instance_chosen_at_epoch_ballot) {
+            .instance = last_accept.instance,
+            .chosen_epoch_ballot = last_accept.epoch_ballot_requested,
+            .chosen_value = last_accept.value_to_accept
+        };
+        return 1;
+    } else {
+        response->type = WRITEAHEAD_EPOCH_BALLOT_ACCEPTED;
+        response->message_contents.epoch_ballot_accepted = (struct epoch_ballot_accepted) {
+            .acceptor_id = acceptor->id,
+            .instance = last_accept.instance,
+            .accepted_epoch_ballot = last_accept.epoch_ballot_requested,
+            .accepted_value = last_accept.value_to_accept
+        };
+        return was_accept;
+    }
+}
+
+int  writeahead_epoch_acceptor_receive_trim(struct writeahead_epoch_acceptor* acceptor, struct paxos_trim* trim){
+    iid_t  min_unchosen_instance;
+    epoch_paxos_storage_get_min_unchosen_instance(&acceptor->volatile_storage, &min_unchosen_instance);
+    bool new_trim = trim->iid > acceptor->trim_instance;
+    bool able_to_trim = min_unchosen_instance > trim->iid;
+    if (new_trim && able_to_trim) {
+        paxos_log_debug("Storing new Trim to Instance %u", trim->iid);
+        writeahead_epoch_acceptor_store_trim(acceptor, trim->iid);
+    } else {
+        if (!new_trim) {
+            paxos_log_debug("Disregarding Trim request to Instance %u, it is old", trim->iid);
+        } else if (!able_to_trim) { // I know, I know. Always true. But I think it reads better
+            paxos_log_debug("Disregarding Trim request to Instance %u, not yet caught up to this point", trim->iid);
+        }
+        return 1;
+    }
+}
 
 int  writeahead_epoch_acceptor_receive_epoch_notification(struct writeahead_epoch_acceptor* acceptor, struct epoch_notification* epoch_notification){
    if (epoch_notification->new_epoch > acceptor->current_epoch) {
@@ -315,7 +431,23 @@ int  writeahead_epoch_acceptor_receive_epoch_notification(struct writeahead_epoc
 }
 
 int writeahead_epoch_acceptor_receive_instance_chosen(struct writeahead_epoch_acceptor* acceptor, struct instance_chosen_at_epoch_ballot chosen_message){
-    epoch_paxos_storage_set_instance_chosen(&acceptor->volatile_storage, chosen_message.instance);
+    struct epoch_ballot_accept last_accept;
+    epoch_paxos_storage_get_last_accept(&acceptor->volatile_storage, chosen_message.instance, &last_accept);
+
+    epoch_paxos_storage_set_instance_chosen(&acceptor->volatile_storage, chosen_message.instance); // set to chosen always as this could have been forgotten
+
+    if (epoch_ballot_greater_than(chosen_message.chosen_epoch_ballot, last_accept.epoch_ballot_requested)) {
+        paxos_log_debug("Storing new Chosen for Instance %u");
+
+        struct epoch_ballot_accept new_accept = (struct epoch_ballot_accept) {
+            .instance = chosen_message.instance,
+            .epoch_ballot_requested = chosen_message.chosen_epoch_ballot,
+            .value_to_accept = chosen_message.chosen_value
+        };
+        writeahead_epoch_acceptor_transaction_to_store_accept(acceptor, &new_accept);
+    } else {
+        paxos_log_debug("Ignoring Chosen as it is an old Chosen message");
+    }
     return 1;
 }
 

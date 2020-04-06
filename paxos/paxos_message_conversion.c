@@ -163,7 +163,7 @@ void paxos_prepare_from_epoch_ballot_prepare(const struct epoch_ballot_prepare* 
 
 void union_epoch_ballot_promise_from_epoch_ballot_accept_and_paxos_prepare(struct writeahead_epoch_paxos_message* message_to_be_promise, const struct paxos_prepare* prepare, const struct epoch_ballot_accept* accept, int aid, uint32_t promised_epoch){
     assert(prepare->iid == accept->instance);
-    message_to_be_promise->type = WRITEAHED_EPOCH_BALLOT_PROMISE;
+    message_to_be_promise->type = WRITEAHEAD_EPOCH_BALLOT_PROMISE;
     message_to_be_promise->message_contents.epoch_ballot_promise.acceptor_id = aid;
     message_to_be_promise->message_contents.epoch_ballot_promise.instance = prepare->iid;
     message_to_be_promise->message_contents.epoch_ballot_promise.promised_epoch_ballot = (struct epoch_ballot){.epoch = promised_epoch, .ballot = prepare->ballot};
@@ -175,7 +175,7 @@ void union_epoch_ballot_promise_from_epoch_ballot_accept_and_paxos_prepare(struc
 
 void union_epoch_ballot_promise_from_epoch_ballot_accept_and_epoch_ballot_prepare(struct writeahead_epoch_paxos_message* message_to_be_promise, const struct epoch_ballot_prepare* prepare, const struct epoch_ballot_accept* accept, int aid){
     assert(prepare->instance == accept->instance);
-    message_to_be_promise->type = WRITEAHED_EPOCH_BALLOT_PROMISE;
+    message_to_be_promise->type = WRITEAHEAD_EPOCH_BALLOT_PROMISE;
     message_to_be_promise->message_contents.epoch_ballot_promise.acceptor_id = aid;
     message_to_be_promise->message_contents.epoch_ballot_promise.instance = prepare->instance;
     message_to_be_promise->message_contents.epoch_ballot_promise.promised_epoch_ballot = (struct epoch_ballot){.epoch = prepare->epoch_ballot_requested.epoch, .ballot = prepare->epoch_ballot_requested.ballot};

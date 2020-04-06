@@ -51,6 +51,11 @@ int epoch_paxos_storage_get_last_prepare(struct epoch_paxos_storage* paxos_stora
     return paxos_storage->paxos_storage.api.get_last_promise(paxos_storage->paxos_storage.handle, instance_id, last_promise_retrieved);
 }
 
+void epoch_paxos_storage_get_min_unchosen_instance(struct epoch_paxos_storage* ep_storage, iid_t* min_unchosen_instane){
+    ep_storage->paxos_storage.api.get_min_unchosen_instance(ep_storage->paxos_storage.handle, min_unchosen_instane);
+}
+
+
 int epoch_paxos_storage_store_last_prepares(struct epoch_paxos_storage* paxos_storage, paxos_prepare **last_promises, int number_of_instances){
     return paxos_storage->paxos_storage.api.store_last_promises(paxos_storage, last_promises, number_of_instances);
 }

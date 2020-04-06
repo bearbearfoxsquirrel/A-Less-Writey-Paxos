@@ -77,7 +77,7 @@ paxos_value_free(struct paxos_value** v)
     }
 }
 
-static void
+void
 paxos_value_destroy(struct paxos_value* v)
 {
     if (v != NULL) {
