@@ -96,7 +96,11 @@ void paxos_value_destroy(struct paxos_value* v);
 void paxos_promise_destroy(paxos_promise* p);
 void paxos_accept_destroy(paxos_accept* a);
 void paxos_accepted_destroy(paxos_accepted* a);
+void paxos_chosen_destroy(struct paxos_chosen* chosen);
 void paxos_message_destroy_contents(standard_paxos_message* m);
+
+void writeahead_epoch_paxos_message_destroy_contents(struct writeahead_epoch_paxos_message* m);
+
 void paxos_accepted_free(paxos_accepted* a);
 void paxos_prepare_free(struct paxos_prepare* prepare);
 void paxos_accept_free(struct paxos_accept* accept);

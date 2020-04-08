@@ -38,26 +38,26 @@ extern "C" {
 #include "paxos_types.h"
 #include <event2/bufferevent.h>
 
-struct peer;
-struct peers;
+struct standard_paxos_peer;
+struct standard_paxos_peers;
 
-typedef void (*peer_cb)(struct peer* p, standard_paxos_message* m, void* arg);
-typedef void (*peer_iter_cb)(struct peer* p, void* arg);
+typedef void (*peer_cb)(struct standard_paxos_peer* p, standard_paxos_message* m, void* arg);
+typedef void (*peer_iter_cb)(struct standard_paxos_peer* p, void* arg);
 
-struct peers* peers_new(struct event_base* base, struct evpaxos_config* config);
-void peers_free(struct peers* p);
-int peers_count(struct peers* p);
-void peers_connect_to_acceptors(struct peers* p);
-int peers_listen(struct peers* p, int port);
-void peers_subscribe(struct peers* p, paxos_message_type t, peer_cb cb, void*);
-void peers_foreach_acceptor(struct peers* p, peer_iter_cb cb, void* arg);
-void peers_for_n_acceptor(struct peers* p, peer_iter_cb cb, void* arg, int n);
-void peers_foreach_client(struct peers* p, peer_iter_cb cb, void* arg);
-struct peer* peers_get_acceptor(struct peers* p, int id);
-struct event_base* peers_get_event_base(struct peers* p);
-int peer_get_id(struct peer* p);
-struct bufferevent* peer_get_buffer(struct peer* p);
-int peer_connected(struct peer* p);
+struct standard_paxos_peers* peers_new(struct event_base* base, struct evpaxos_config* config);
+void peers_free(struct standard_paxos_peers* p);
+int peers_count(struct standard_paxos_peers* p);
+void peers_connect_to_acceptors(struct standard_paxos_peers* p);
+int peers_listen(struct standard_paxos_peers* p, int port);
+void peers_subscribe(struct standard_paxos_peers* p, paxos_message_type t, peer_cb cb, void*);
+void peers_foreach_acceptor(struct standard_paxos_peers* p, peer_iter_cb cb, void* arg);
+void peers_for_n_acceptor(struct standard_paxos_peers* p, peer_iter_cb cb, void* arg, int n);
+void peers_foreach_client(struct standard_paxos_peers* p, peer_iter_cb cb, void* arg);
+struct standard_paxos_peer* peers_get_acceptor(struct standard_paxos_peers* p, int id);
+struct event_base* peers_get_event_base(struct standard_paxos_peers* p);
+int peer_get_id(struct standard_paxos_peer* p);
+struct bufferevent* peer_get_buffer(struct standard_paxos_peer* p);
+int peer_connected(struct standard_paxos_peer* p);
 
 /*
 void peers_connect_to_proposers(struct peers* p);

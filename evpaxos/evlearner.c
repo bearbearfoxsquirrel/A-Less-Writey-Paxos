@@ -28,10 +28,9 @@
 
 #include "evpaxos.h"
 #include "learner.h"
-#include "peers.h"
-#include "message.h"
+#include "standard_paxos_peers.h"
+#include "standard_paxos_message.h"
 #include <stdlib.h>
-#include <stdio.h>
 #include <event2/event.h>
 #include <paxos_types.h>
 
@@ -42,28 +41,28 @@ struct evlearner
 	void* delarg;               /* The argument to the delivery callback */
 	struct event* hole_timer;   /* Timer to check for holes */
 	struct timeval tv;          /* Check for holes every tv units of time */
-	struct peers* peers;    /* Connections to acceptors */
+	struct standard_paxos_peers* peers;    /* Connections to acceptors */
 };
 
 static void
-peer_send_trim(struct peer* p, void* arg)
+peer_send_trim(struct standard_paxos_peer* p, void* arg)
 {
     send_paxos_trim(peer_get_buffer(p), arg);
 }
 
 static void
-peer_send_repeat(struct peer* p, void* arg)
+peer_send_repeat(struct standard_paxos_peer* p, void* arg)
 {
 	send_paxos_repeat(peer_get_buffer(p), arg);
 }
 static void
 
-peer_send_chosen(struct peer* p, void* arg){
+peer_send_chosen(struct standard_paxos_peer* p, void* arg){
     send_paxos_chosen(peer_get_buffer(p), arg);
 }
 
 static void
-evlearner_check_holes(evutil_socket_t fd, short event, void *arg)
+evlearner_check_holes(__unused evutil_socket_t fd, __unused short event, void *arg)
 {
 	struct paxos_repeat msg;
 	unsigned int chunks = 10;
@@ -107,7 +106,7 @@ evlearner_deliver_next_closed(struct evlearner* l)
     for that instance and afterwards check if the instance is closed
 */
 static void
-evlearner_handle_accepted(struct peer* p, standard_paxos_message* msg, void* arg)
+evlearner_handle_accepted(__unused struct standard_paxos_peer* p, standard_paxos_message* msg, void* arg)
 {
 	struct evlearner* l = arg;
 	struct paxos_chosen chosen_msg;
@@ -116,13 +115,14 @@ evlearner_handle_accepted(struct peer* p, standard_paxos_message* msg, void* arg
 	if (chosen) {
      //   peers_foreach_proposer(l->peers, peer_send_chosen, &chosen_msg);
         peers_foreach_acceptor(l->peers, peer_send_chosen, &chosen_msg);
+        paxos_chosen_destroy(&chosen_msg);
 	}
 
 	evlearner_deliver_next_closed(l);
 }
 
 static void
-evlearner_handle_trim(struct peer* p, struct standard_paxos_message* msg, void* arg) {
+evlearner_handle_trim(__unused struct standard_paxos_peer* p, struct standard_paxos_message* msg, void* arg) {
     // not recevied at the moment
     struct evlearner* l = arg;
     struct paxos_trim trim_msg= msg->u.trim;
@@ -130,14 +130,14 @@ evlearner_handle_trim(struct peer* p, struct standard_paxos_message* msg, void* 
 }
 
 static void
-evlearner_handle_chosen(struct peer* p, struct standard_paxos_message* msg, void* arg){
+evlearner_handle_chosen(__unused struct standard_paxos_peer* p, struct standard_paxos_message* msg, void* arg){
     struct evlearner* l = arg;
     learner_receive_chosen(l->state, &msg->u.chosen);
     evlearner_deliver_next_closed(l);
 }
 
 struct evlearner*
-evlearner_init_internal(struct evpaxos_config* config, struct peers* peers,
+evlearner_init_internal(struct evpaxos_config* config, struct standard_paxos_peers* peers,
 	deliver_function f, void* arg)
 {
     struct evlearner* learner = malloc(sizeof(struct evlearner));
@@ -170,7 +170,7 @@ evlearner_init(const char* config_file, deliver_function f, void* arg,
 	struct evpaxos_config* c = evpaxos_config_read(config_file);
 	if (c == NULL) return NULL;
 
-	struct peers* peers = peers_new(b, c);
+	struct standard_paxos_peers* peers = peers_new(b, c);
 	peers_connect_to_acceptors(peers);
 	//peers_connect_to_proposers(peers);
 
@@ -202,10 +202,11 @@ evlearner_set_instance_id(struct evlearner* l, unsigned iid)
 }
 
 
-
+/*
 void
 evlearner_send_trim(struct evlearner* l, unsigned iid)
 {
 	paxos_trim trim = {iid};
 	peers_foreach_acceptor(l->peers, peer_send_trim, &trim);
-}
+}*/
+

@@ -27,9 +27,9 @@
 
 
 #include "evpaxos.h"
-#include "peers.h"
+#include "standard_paxos_peers.h"
 #include "writeahead_ballot_acceptor.h"
-#include "message.h"
+#include "standard_paxos_message.h"
 #include <stdlib.h>
 #include <assert.h>
 #include <event2/event.h>
@@ -43,7 +43,7 @@
 
 struct ev_write_ahead_acceptor
 {
-    struct peers* peers_proposers;
+    struct standard_paxos_peers* peers_proposers;
    // struct peers* peers_acceptors;
 
     struct writeahead_ballot_acceptor* state;
@@ -68,12 +68,12 @@ struct ev_write_ahead_acceptor
 };
 
 
-__unused static void peer_send_paxos_accepted(struct peer* p, void* arg) {
+__unused static void peer_send_paxos_accepted(struct standard_paxos_peer* p, void* arg) {
     send_paxos_accepted(peer_get_buffer(p), (struct paxos_accepted*) arg);
 }
 
 static void
-peer_send_paxos_message(struct peer* p, void* arg)
+peer_send_paxos_message(struct standard_paxos_peer* p, void* arg)
 {
     send_paxos_message(peer_get_buffer(p), arg);
 }
@@ -83,7 +83,7 @@ peer_send_paxos_message(struct peer* p, void* arg)
 	Received a prepare request (phase 1a).
 */
 static void
-ev_write_ahead_acceptor_handle_prepare(struct peer* p, standard_paxos_message* msg, void* arg)
+ev_write_ahead_acceptor_handle_prepare(struct standard_paxos_peer* p, standard_paxos_message* msg, void* arg)
 {
     standard_paxos_message out;
     paxos_prepare* prepare = &msg->u.prepare;
@@ -105,7 +105,7 @@ ev_write_ahead_acceptor_handle_prepare(struct peer* p, standard_paxos_message* m
 	Received a accept request (phase 2a).
 */
 static void
-ev_write_ahead_acceptor_handle_accept(struct peer* p, standard_paxos_message* msg, void* arg)
+ev_write_ahead_acceptor_handle_accept(struct standard_paxos_peer* p, standard_paxos_message* msg, void* arg)
 {
     standard_paxos_message out;
     paxos_accept* accept = &msg->u.accept;
@@ -121,7 +121,7 @@ ev_write_ahead_acceptor_handle_accept(struct peer* p, standard_paxos_message* ms
             assert(ballot_equal(out.u.accepted.value_ballot, accept->ballot));
             assert(out.u.accepted.value.paxos_value_len > 0);
             peers_foreach_client(a->peers_proposers,  peer_send_paxos_message, &out);
-        //   peers_foreach_proposer(a->peers_proposers, peer_send_paxos_message, &out);
+        //   peers_foreach_proposer(a->peers_proposers, peer_send_epoch_paxos_message, &out);
         } else if (out.type == PAXOS_PREEMPTED) {
             send_paxos_preempted(peer_get_buffer(p), &out.u.preempted);
         } else if (out.type == PAXOS_CHOSEN) {
@@ -138,7 +138,7 @@ ev_write_ahead_acceptor_handle_accept(struct peer* p, standard_paxos_message* ms
 }
 
 static void
-ev_write_ahead_acceptor_handle_repeat(struct peer* p, standard_paxos_message* msg, void* arg)
+ev_write_ahead_acceptor_handle_repeat(struct standard_paxos_peer* p, standard_paxos_message* msg, void* arg)
 {
     iid_t iid;
     struct standard_paxos_message out_msg;
@@ -163,7 +163,7 @@ ev_write_ahead_acceptor_handle_repeat(struct peer* p, standard_paxos_message* ms
 
 
 static void
-ev_write_ahead_acceptor_handle_chosen(__unused struct peer* p, struct standard_paxos_message* msg, void* arg){
+ev_write_ahead_acceptor_handle_chosen(__unused struct standard_paxos_peer* p, struct standard_paxos_message* msg, void* arg){
     struct ev_write_ahead_acceptor* a = (struct ev_write_ahead_acceptor*)arg;
     struct paxos_chosen* chosen_msg = &msg->u.chosen;
     //paxos_log_debug("Recieved chosen message for instace %u", chosen_msg->iid);
@@ -172,7 +172,7 @@ ev_write_ahead_acceptor_handle_chosen(__unused struct peer* p, struct standard_p
 }
 
 static void
-ev_write_ahead_acceptor_handle_trim(__unused struct peer* p, standard_paxos_message* msg, void* arg)
+ev_write_ahead_acceptor_handle_trim(__unused struct standard_paxos_peer* p, standard_paxos_message* msg, void* arg)
 {
     paxos_trim* trim = &msg->u.trim;
     struct ev_write_ahead_acceptor* a = (struct ev_write_ahead_acceptor*)arg;
@@ -236,7 +236,7 @@ check_instance_epoch_event(__unused int fd, __unused short ev, void* arg) {
 }
 
 struct ev_write_ahead_acceptor*
-ev_write_ahead_acceptor_init_internal(int id, __unused struct evpaxos_config* c, struct peers* peers_proposers)
+ev_write_ahead_acceptor_init_internal(int id, __unused struct evpaxos_config* c, struct standard_paxos_peers* peers_proposers)
 {
     struct ev_write_ahead_acceptor* acceptor = calloc(1, sizeof(struct ev_write_ahead_acceptor));
     // volatile storage
@@ -314,7 +314,7 @@ ev_write_ahead_window_acceptor_init(int id, const char* config_file, struct even
         return NULL;
     }
 
-    struct peers* peers_proposers = peers_new(b, config);
+    struct standard_paxos_peers* peers_proposers = peers_new(b, config);
 //    struct peers* peers_acceptors = peers_new(b, config);
 
     int port = evpaxos_acceptor_listen_port(config, id);

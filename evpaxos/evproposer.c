@@ -25,13 +25,10 @@
  * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include <sys/syscall.h>
-#include <sys/types.h>
 #include <unistd.h>
 
 #include "evpaxos.h"
-#include "peers.h"
-#include "message.h"
+#include "standard_paxos_peers.h"
 #include "proposer.h"
 #include <string.h>
 #include "khash.h"
@@ -42,22 +39,24 @@
 #include "paxos_value.h"
 #include <paxos_types.h>
 #include <assert.h>
-#include <fcntl.h>
+#include <standard_paxos_message.h>
+#include <random.h>
 #include "time.h"
 #include "backoff_implementations.h"
 #include "backoff_manager.h"
-#include "stdlib.h"
-#include "random.h"
 #include "stdio.h"
-#include "timeout.h"
 #include "performance_threshold_timer.h"
-#include "ev_timer_threshold_timer_util.h"
 
 #define MIN_BACKOFF_TIME 3000
 #define MAX_BACKOFF_TIME 1000000
 #define MAX_INITIAL_BACKOFF_TIME 5000
 
+#define MIN(a,b) \
+   ({ __typeof__ (a) _a = (a); \
+       __typeof__ (b) _b = (b); \
+     _a < _b ? _a : _b; })
 
+KHASH_MAP_INIT_INT(backoffs, struct timeval*)
 KHASH_MAP_INIT_INT(retries, iid_t*)
 
 
@@ -65,7 +64,7 @@ struct evproposer {
 	uint32_t id;
 	int preexec_window;
 	struct proposer* state;
-	struct peers* peers;
+	struct standard_paxos_peers* peers;
 	struct timeval tv;
 	struct event* timeout_ev;
 
@@ -87,25 +86,25 @@ struct evproposer {
 };
 
 static void
-peer_send_chosen(struct peer* p, void* arg){
+peer_send_chosen(struct standard_paxos_peer* p, void* arg){
     send_paxos_chosen(peer_get_buffer(p), arg);
 }
 
 static void
-peer_send_prepare(struct peer* p, void* arg)
+peer_send_prepare(struct standard_paxos_peer* p, void* arg)
 {
 	send_paxos_prepare(peer_get_buffer(p), arg);
 }
 
 
 static void
-peer_send_accept(struct peer* p, void* arg)
+peer_send_accept(struct standard_paxos_peer* p, void* arg)
 {
 	send_paxos_accept(peer_get_buffer(p), arg);
 }
 
 static void
-peer_send_trim(struct peer* p, void* arg) {
+peer_send_trim(struct standard_paxos_peer* p, void* arg) {
     send_paxos_trim(peer_get_buffer(p), arg);
 }
 
@@ -200,7 +199,7 @@ try_accept(struct evproposer* p)
 
 
 static void
-evproposer_handle_promise(__unused struct peer* p, standard_paxos_message* msg, void* arg)
+evproposer_handle_promise(__unused struct standard_paxos_peer* p, standard_paxos_message* msg, void* arg)
 {
 	struct evproposer* proposer = arg;
 	struct paxos_prepare prepare;
@@ -217,7 +216,7 @@ evproposer_handle_promise(__unused struct peer* p, standard_paxos_message* msg, 
 }
 
 static void
-evproposer_handle_accepted(struct peer* p, standard_paxos_message* msg, void* arg)
+evproposer_handle_accepted(__unused struct standard_paxos_peer* p, standard_paxos_message* msg, void* arg)
 {
 	struct evproposer* proposer = arg;
 	paxos_accepted* acc = &msg->u.accepted;
@@ -252,7 +251,7 @@ evproposer_handle_accepted(struct peer* p, standard_paxos_message* msg, void* ar
 
 
 static void
-evproposer_handle_chosen(__unused struct peer* p, struct standard_paxos_message* msg, void* arg) {
+evproposer_handle_chosen(__unused struct standard_paxos_peer* p, struct standard_paxos_message* msg, void* arg) {
     struct evproposer* proposer = arg;
     struct paxos_chosen* chosen_msg = &msg->u.chosen;
 
@@ -269,7 +268,7 @@ struct retry {
 };
 
 static void
-evproposer_try_higher_ballot(evutil_socket_t fd, short event, void* arg) {
+evproposer_try_higher_ballot(__unused evutil_socket_t fd, __unused short event, void* arg) {
     struct retry* args =  arg;
     struct evproposer* proposer = args->proposer;
 
@@ -282,7 +281,7 @@ evproposer_try_higher_ballot(evutil_socket_t fd, short event, void* arg) {
 
 
 static void
-evproposer_handle_preempted(struct peer* p, standard_paxos_message* msg, void* arg)
+evproposer_handle_preempted(__unused struct standard_paxos_peer* p, standard_paxos_message* msg, void* arg)
 {
     struct evproposer* proposer = arg;
     struct paxos_preempted preempted_msg = msg->u.preempted;
@@ -311,20 +310,20 @@ evproposer_handle_preempted(struct peer* p, standard_paxos_message* msg, void* a
 
 
 static void
-evproposer_handle_trim(__unused struct peer* p, standard_paxos_message* msg, void* arg) {
+evproposer_handle_trim(__unused struct standard_paxos_peer* p, standard_paxos_message* msg, void* arg) {
 
     struct evproposer* proposer = arg;
     struct paxos_trim* trim_msg = &msg->u.trim;
 
 
     proposer_receive_trim(proposer->state, trim_msg);
-    proposer_preexecute(proposer);
 
     backoff_manager_close_less_than_or_equal(proposer->backoff_manager, trim_msg->iid);
+    proposer_preexecute(proposer);
 }
 
 static void
-evproposer_handle_client_value(__unused struct peer* p, standard_paxos_message* msg, void* arg)
+evproposer_handle_client_value(__unused struct standard_paxos_peer* p, standard_paxos_message* msg, void* arg)
 {
     struct evproposer* proposer = arg;
 	struct paxos_value* v = &msg->u.client_value;
@@ -337,7 +336,7 @@ evproposer_handle_client_value(__unused struct peer* p, standard_paxos_message* 
 }
 
 static void
-evproposer_handle_acceptor_state(__unused struct peer* p, standard_paxos_message* msg, void* arg)
+evproposer_handle_acceptor_state(__unused struct standard_paxos_peer* p, standard_paxos_message* msg, void* arg)
 {
 	struct evproposer* proposer = arg;
 	struct paxos_standard_acceptor_state* acc_state = &msg->u.state;
@@ -404,7 +403,7 @@ static void random_seed_from_dev_rand() {
     fclose(randomData);
 }
 
-static void evproposer_gen_random_seed(evutil_socket_t fd, short event, void* arg)  {
+static void evproposer_gen_random_seed(__unused evutil_socket_t fd, __unused short event, void* arg)  {
     struct evproposer* p = arg;
     random_seed_from_dev_rand();
     event_add(p->random_seed_event, &p->random_seed_timer);
@@ -412,7 +411,7 @@ static void evproposer_gen_random_seed(evutil_socket_t fd, short event, void* ar
 
 
 struct evproposer*
-evproposer_init_internal(int id, struct evpaxos_config* c, struct peers* peers, struct backoff_manager* backoff_manager)
+evproposer_init_internal(int id, struct evpaxos_config* c, struct standard_paxos_peers* peers, struct backoff_manager* backoff_manager)
 {
 	struct evproposer* p;
 	int acceptor_count = evpaxos_acceptor_count(c);
@@ -443,7 +442,7 @@ evproposer_init_internal(int id, struct evpaxos_config* c, struct peers* peers, 
 	p->timeout_ev = evtimer_new(base, evproposer_check_timeouts, p);
 	event_add(p->timeout_ev, &p->tv);
 
-	p->random_seed_timer = (struct timeval) {.tv_sec = 30 + (rand() % 30), .tv_usec = 0};
+	p->random_seed_timer = (struct timeval) {.tv_sec = random_between(30, 60), .tv_usec = 0};
 	p->random_seed_event = evtimer_new(base, evproposer_gen_random_seed, p);
 
     event_add(p->random_seed_event, &p->random_seed_timer);
@@ -477,7 +476,7 @@ evproposer_init(int id, const char* config_file, struct event_base* base)
 		return NULL;
 	}
 
-	struct peers* peers = peers_new(base, config);
+	struct standard_paxos_peers* peers = peers_new(base, config);
 	peers_connect_to_acceptors(peers);
 	int port = evpaxos_proposer_listen_port(config, id);
 	int rv = peers_listen(peers, port);

@@ -10,15 +10,18 @@
 #include <paxos_message_conversion.h>
 #include <string.h>
 #include <paxos_storage.h>
+#include <assert.h>
 
 int epoch_paxos_storage_init(struct epoch_paxos_storage* store, int aid){
     epoch_hash_mapped_memory_init(store, aid);
     return 0;
 }
 
-void epoch_paxos_storage_init_with_prepares_and_accepts(struct epoch_paxos_storage *epoch_paxos_storage , struct paxos_prepare** prepares, int number_of_prepares, struct epoch_ballot_accept** accepts, int number_of_accepts){
-    epoch_hash_mapped_memory_init(epoch_paxos_storage, NULL);
-
+void epoch_paxos_storage_init_with_prepares_and_accepts(struct epoch_paxos_storage *epoch_paxos_storage,
+                                                        struct paxos_prepare **prepares, int number_of_prepares,
+                                                        struct epoch_ballot_accept **accepts, int number_of_accepts,
+                                                        unsigned int aid) {
+    epoch_hash_mapped_memory_init(epoch_paxos_storage, aid);
     // store all the prepares
     epoch_paxos_storage_store_last_prepares(epoch_paxos_storage, prepares, number_of_prepares);
 
@@ -27,9 +30,9 @@ void epoch_paxos_storage_init_with_prepares_and_accepts(struct epoch_paxos_stora
         struct paxos_accept current_instance_as_accept;
         memset(&current_instance_as_accept, 0, sizeof(struct paxos_accept));
         // store all the accepts
-        paxos_accept_from_epoch_ballot_accept(accepts[i], &current_instance_as_accept);
+        paxos_accept_from_epoch_ballot_accept(&(*accepts)[i], &current_instance_as_accept);
         // store all the epochs of accepts
-        epoch_paxos_storage->extended_api.store_accept_epoch(epoch_paxos_storage->paxos_storage.handle, accepts[i]->instance, accepts[i]->epoch_ballot_requested.epoch);
+        epoch_paxos_storage->extended_api.store_accept_epoch(epoch_paxos_storage->paxos_storage.handle, (*accepts)[i].instance, (*accepts)[i].epoch_ballot_requested.epoch);
     }
 }
 
@@ -79,13 +82,14 @@ void lazy_store_of_epoch_ballot_accept(const struct epoch_paxos_storage *paxos_s
 int lazy_get_of_epoch_ballot_accept(const struct epoch_paxos_storage *epoch_paxos_storage, iid_t instance_id,
                                      struct epoch_ballot_accept *last_accepted_retrieved) {
     struct paxos_accept retrieved_paxos_accept;
-    epoch_paxos_storage->paxos_storage.api.get_last_accepted(epoch_paxos_storage->paxos_storage.handle, instance_id, &retrieved_paxos_accept);
+    int found_accept = epoch_paxos_storage->paxos_storage.api.get_last_accepted(epoch_paxos_storage->paxos_storage.handle, instance_id, &retrieved_paxos_accept);
     // then get the epoch of that accept
     uint32_t epoch;
-    int found = epoch_paxos_storage->extended_api.get_accept_epoch(epoch_paxos_storage->extended_handle, instance_id, &epoch);
+    int found_epoch = epoch_paxos_storage->extended_api.get_accept_epoch(epoch_paxos_storage->extended_handle, instance_id, &epoch);
     // then convert to an epoch_ballot_accept
     epoch_ballot_accept_from_paxos_accept(&retrieved_paxos_accept, epoch, last_accepted_retrieved);
-    return found;
+    assert(found_accept == found_epoch);
+    return found_accept;
 }
 
 
@@ -97,8 +101,7 @@ int epoch_paxos_storage_store_accept(struct epoch_paxos_storage *paxos_storage, 
 
 int epoch_paxos_storage_get_last_accept(struct epoch_paxos_storage *epoch_paxos_storage, iid_t instance_id, struct epoch_ballot_accept *last_accepted_retrieved){
     // need to get the paxos_accept
-    lazy_get_of_epoch_ballot_accept(epoch_paxos_storage, instance_id, last_accepted_retrieved);
-    return 1;// lazy again ;)
+    return lazy_get_of_epoch_ballot_accept(epoch_paxos_storage, instance_id, last_accepted_retrieved);
 }
 
 

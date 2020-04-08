@@ -15,7 +15,6 @@ struct exponential_randomised_backoff {
     unsigned long max_backoff;
     unsigned long min_backoff;
     unsigned long max_initial_backoff;
-
 };
 
 
@@ -30,8 +29,8 @@ static unsigned long exponential_randomised_backoff_initial(struct exponential_r
     return random_between(handle->min_backoff, handle->max_initial_backoff);
 }
 
-static unsigned long exponential_randomised_backoff_next(struct exponential_randomised_backoff* handle, unsigned long previous_backoff_time){
-    unsigned  int new_time = (previous_backoff_time << (unsigned int) 1) % handle->min_backoff;
+static unsigned long exponential_randomised_backoff_next(struct exponential_randomised_backoff* handle, int attempt_number){
+    unsigned  int new_time = (exponential_randomised_backoff_initial(handle) << (unsigned int) attempt_number) % handle->max_backoff;
     if (new_time < handle->min_backoff) {
         new_time = exponential_randomised_backoff_initial(handle);
         assert(new_time >= handle->min_backoff && new_time <= handle->max_initial_backoff);
@@ -94,8 +93,9 @@ static unsigned long full_jitter_backoff_get_min_backoff(struct full_jitter_back
     return backoff_get_min_backoff(handle->base_backoff);
 }
 
-static unsigned long full_jitter_backoff_next(struct full_jitter_backoff* handle, unsigned long previous_backoff_time) {
-    return random_between(full_jitter_backoff_get_min_backoff(handle), backoff_next(handle->base_backoff, previous_backoff_time));
+static unsigned long full_jitter_backoff_next(struct full_jitter_backoff* handle, int attempt_number) {
+    return random_between(full_jitter_backoff_get_min_backoff(handle), backoff_next(handle->base_backoff,
+                                                                                    attempt_number));
 }
 
 static unsigned long full_jitter_backoff_get_max_backoff(struct full_jitter_backoff* handle) {
@@ -117,10 +117,10 @@ static struct full_jitter_backoff* full_jitter_backoff_new_handle(unsigned long 
 }
 
 struct backoff_api full_jitter_backoff_api []= {{
-                                                        .backoff_max = &full_jitter_backoff_get_max_backoff,
-                                                        .backoff_min =&full_jitter_backoff_get_min_backoff,
-                                                        .backoff_next = &full_jitter_backoff_next,
-                                                        .backoff_free = &full_jitter_backoff_free
+                                                        .backoff_max = full_jitter_backoff_get_max_backoff,
+                                                        .backoff_min =full_jitter_backoff_get_min_backoff,
+                                                        .backoff_next = full_jitter_backoff_next,
+                                                        .backoff_free = full_jitter_backoff_free
                                                 }
 };
 

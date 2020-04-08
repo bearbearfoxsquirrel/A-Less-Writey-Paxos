@@ -213,7 +213,7 @@ struct epoch_notification {
     uint32_t new_epoch;
 };
 
-struct instance_chosen_at_epoch_ballot {
+struct epoch_ballot_chosen {
     uint32_t instance;
     struct epoch_ballot chosen_epoch_ballot;
     struct paxos_value chosen_value;
@@ -262,7 +262,7 @@ struct writeahead_epoch_paxos_message {
         struct epoch_ballot_accept epoch_ballot_accept;
         struct epoch_ballot_accepted epoch_ballot_accepted;
         struct epoch_ballot_preempted epoch_ballot_preempted;
-        struct instance_chosen_at_epoch_ballot instance_chosen_at_epoch_ballot;
+        struct epoch_ballot_chosen instance_chosen_at_epoch_ballot;
         struct epoch_notification epoch_notification;
 
         struct paxos_repeat repeat;

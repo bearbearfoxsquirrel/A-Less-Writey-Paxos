@@ -2,8 +2,11 @@ include_directories(${CMAKE_SOURCE_DIR}/paxos/include)
 include_directories(${CMAKE_SOURCE_DIR}/evpaxos/include)
 include_directories(${LIBEVENT_INCLUDE_DIRS} ${MSGPACK_INCLUDE_DIRS})
 
-set(LOCAL_SOURCES config.c message.c paxos_types_pack.c peers.c ev_write_ahead_ballot_acceptor.c
-		ev_standard_acceptor.c evlearner.c evproposer.c evreplica.c ev_timer_threshold_timer_util.c include/backoff_manager.h backoff.c include/backoff.h backoff_manager.c include/backoff_implementations.h include/ev_epoch_paxos_internal.h include/evpaxos/epoch_paxos.h include/ev_epoch_paxos.h ev_epoch_proposer.cpp)
+set(LOCAL_SOURCES config.c standard_paxos_message.c paxos_types_pack.c standard_paxos_peers.c ev_write_ahead_ballot_acceptor.c
+		ev_standard_acceptor.c evlearner.c evproposer.c evreplica.c ev_timer_threshold_timer_util.c include/backoff_manager.h backoff.c
+		include/backoff.h backoff_manager.c include/backoff_implementations.h include/ev_epoch_paxos_internal.h include/evpaxos/epoch_paxos.h
+		include/ev_epoch_paxos.h ev_epoch_proposer.c include/epoch_paxos_message.h epoch_paxos_message.c include/writeahead_epoch_paxos_peers.h
+		writeahead_epoch_paxos_peers.c ev_epoch_acceptor.c ev_epoch_learner.c)
 
 add_library(evpaxos SHARED ${LOCAL_SOURCES})
 
@@ -16,5 +19,5 @@ set_target_properties(evpaxos PROPERTIES
 
 
 INSTALL(TARGETS evpaxos DESTINATION lib)
-INSTALL(FILES include/evpaxos.h DESTINATION include)
-INSTALL(DIRECTORY include/evpaxos DESTINATION include)
+INSTALL(FILES include/ev_epoch_paxos.h include/evpaxos.h DESTINATION include)
+INSTALL(DIRECTORY  include/evpaxos DESTINATION include)

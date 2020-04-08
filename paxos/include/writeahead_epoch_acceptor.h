@@ -11,7 +11,7 @@
 
 struct writeahead_epoch_acceptor;
 
-struct writeahead_epoch_acceptor* writeahead_epoch_acceptor_init(int id);
+struct writeahead_epoch_acceptor* writeahead_epoch_acceptor_new(int id, struct epoch_notification *recover_message, bool* has_recovery_message);
 
 void writeahead_epoch_acceptor_free(struct writeahead_epoch_acceptor* acceptor);
 
@@ -27,6 +27,8 @@ int  writeahead_epoch_acceptor_receive_trim(struct writeahead_epoch_acceptor* ac
 
 int  writeahead_epoch_acceptor_receive_epoch_notification(struct writeahead_epoch_acceptor* acceptor, struct epoch_notification* epoch_notification);
 
-int writeahead_epoch_acceptor_receive_instance_chosen(struct writeahead_epoch_acceptor* acceptor, struct instance_chosen_at_epoch_ballot); // todo
+int writeahead_epoch_acceptor_get_current_state(struct writeahead_epoch_acceptor* acceptor, struct writeahead_epoch_acceptor_state* state);
+
+int writeahead_epoch_acceptor_receive_instance_chosen(struct writeahead_epoch_acceptor* acceptor, struct epoch_ballot_chosen *chosen_message); // todo
 
 #endif //LIBPAXOS_WRITEAHEAD_EPOCH_ACCEPTOR_H

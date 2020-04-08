@@ -19,6 +19,9 @@ void epoch_proposer_add_paxos_value_to_queue(struct epoch_proposer* p, struct pa
 int epoch_proposer_prepare_count(struct epoch_proposer* p);
 int epoch_proposer_acceptance_count(struct epoch_proposer* p);
 void epoch_proposer_set_current_instance(struct epoch_proposer* p, iid_t iid);
+unsigned int epoch_proposer_get_id(struct epoch_proposer* p);
+
+unsigned int epoch_proposer_get_current_known_epoch(struct epoch_proposer* p);
 
 
 void epoch_proposer_next_instance(struct epoch_proposer* p);
@@ -36,8 +39,8 @@ enum epoch_paxos_message_return_codes epoch_proposer_receive_promise(struct epoc
 
 // phase 2
 int epoch_proposer_try_accept(struct epoch_proposer* p, struct epoch_ballot_accept* out);
-enum epoch_paxos_message_return_codes epoch_proposer_receive_accepted(struct epoch_proposer* p, struct epoch_ballot_accepted* ack, struct instance_chosen_at_epoch_ballot* chosen);
-enum epoch_paxos_message_return_codes epoch_proposer_receive_chosen(struct epoch_proposer* p, struct instance_chosen_at_epoch_ballot* ack);
+enum epoch_paxos_message_return_codes epoch_proposer_receive_accepted(struct epoch_proposer* p, struct epoch_ballot_accepted* ack, struct epoch_ballot_chosen* chosen);
+enum epoch_paxos_message_return_codes epoch_proposer_receive_chosen(struct epoch_proposer* p, struct epoch_ballot_chosen* ack);
 
 //void epoch_proposer_preempt(struct epoch_proposer* p, struct standard_epoch_proposer_instance_info* inst, paxos_prepare* out);
 enum epoch_paxos_message_return_codes epoch_proposer_receive_preempted(struct epoch_proposer* p, struct epoch_ballot_preempted* preempted, struct epoch_ballot_prepare* next_prepare);
@@ -59,5 +62,7 @@ struct epoch_proposer_timeout_iterator* epoch_proposer_timeout_iterator_new(stru
 enum timeout_iterator_return_code epoch_proposer_timeout_iterator_accept(struct epoch_proposer_timeout_iterator* iter, struct epoch_ballot_accept* out);
 
 enum timeout_iterator_return_code epoch_proposer_timeout_iterator_prepare(struct epoch_proposer_timeout_iterator* iter, struct epoch_ballot_prepare* out);
+
+void epoch_proposer_timeout_iterator_free(struct epoch_proposer_timeout_iterator** iter);
 
 #endif //LIBPAXOS_EPOCH_PROPOSER_H

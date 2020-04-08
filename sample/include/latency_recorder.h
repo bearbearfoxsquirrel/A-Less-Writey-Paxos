@@ -7,7 +7,7 @@
 
 struct latency_recorder;
 
-struct latency_recorder * latency_recorder_new(const char* output_file_path);
+struct latency_recorder *latency_recorder_new(const char *output_file_path, struct timeval settle_in_time);
 
 void latency_recorder_record(struct latency_recorder* recorder, unsigned long latency);
 

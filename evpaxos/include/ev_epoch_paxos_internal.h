@@ -6,24 +6,21 @@
 #define A_LESS_WRITEY_PAXOS_EV_EPOCH_PAXOS_INTERNAL_H
 
 
-#include "peers.h"
+#include "standard_paxos_peers.h"
 #include "evpaxos.h"
+#include "backoff_manager.h"
+struct ev_epoch_learner* ev_epoch_learner_init_internal(struct evpaxos_config* config, struct writeahead_epoch_paxos_peers* peers, epoch_client_deliver_function f, void* arg);
 
-struct ev_epoch_learner* ev_epoch_learner_init_internal(struct evpaxos_config* config,
-                                          struct peers* peers, deliver_function f, void* arg);
-
-void ev_epoch_learner_free_internal(struct ev_epoch_learner* l);
+void ev_epoch_learner_free_internal(struct ev_epoch_learner** l);
 
 struct ev_epoch_acceptor* ev_epoch_acceptor_init_internal(int id,
-                                                      struct evpaxos_config* config, struct peers* peers);
+                                                      struct evpaxos_config* config, struct writeahead_epoch_paxos_peers* peers);
 
-void ev_epoch_acceptor_free_internal(struct ev_epoch_acceptor* a);
+void ev_epoch_acceptor_free_internal(struct ev_epoch_acceptor** a);
 
+struct ev_epoch_proposer* ev_epoch_proposer_init_internal(int id, struct evpaxos_config* c, struct writeahead_epoch_paxos_peers* peers, struct backoff_manager* backoff_manager);
 
-struct ev_epoch_proposer* ev_epoch_proposer_init_internal(int id,
-                                            struct evpaxos_config* config, struct peers* peers);
-
-void ev_epoch_proposer_free_internal(struct ev_epoch_proposer* p);
+void ev_epoch_proposer_free_internal(struct ev_epoch_proposer** p);
 
 
 

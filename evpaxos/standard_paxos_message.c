@@ -27,7 +27,7 @@
 
 
 #include "paxos.h"
-#include "message.h"
+#include "standard_paxos_message.h"
 #include "paxos_types_pack.h"
 #include <string.h>
 #include <paxos_types.h>
@@ -49,6 +49,7 @@ send_paxos_message(struct bufferevent* bev, standard_paxos_message* msg)
 	msgpack_pack_paxos_message(packer, msg);
 	msgpack_packer_free(packer);
 }
+
 
 void
 send_paxos_prepare(struct bufferevent* bev, paxos_prepare* p)

@@ -313,6 +313,7 @@ __unused static void int_copy(int* dst, int* src) {
 
 static int hash_mapped_memory_get_min_unchosen_instace(struct hash_mapped_memory* memory, iid_t* min_unchosen_instance){
     *min_unchosen_instance = memory->min_chosen_instance + 1;
+    return 0;
 }
 
 

@@ -267,7 +267,7 @@ void standard_acceptor_store_trim_instance(struct standard_acceptor *a, iid_t tr
 }
 
 void
-standard_acceptor_set_current_state(struct standard_acceptor *a, paxos_standard_acceptor_state *state)
+standard_acceptor_get_current_state(struct standard_acceptor *a, paxos_standard_acceptor_state *state)
 {
 	state->aid = a->id;
 	state->trim_iid = a->trim_iid;

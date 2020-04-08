@@ -17,8 +17,7 @@
 #include <paxos_storage.h>
 #include <paxos_types.h>
 #include <assert.h>
-
-
+#include <epoch_ballot.h>
 
 
 void

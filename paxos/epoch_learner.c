@@ -13,8 +13,8 @@
 struct instance {
     iid_t instance;
     struct epoch_ballot most_recent_epoch_ballot;
-    struct quorum quorum; // should it be this instead?
-    struct paxos_value current_ballots_value; // bad as it can be worked out from most_recent_acks
+    struct quorum quorum;
+    struct paxos_value current_ballots_value;
     bool chosen;
 };
 
@@ -37,6 +37,7 @@ static struct instance* epoch_learner_instance_new(iid_t instance, int number_of
     inst->most_recent_epoch_ballot = INVALID_EPOCH_BALLOT;
     inst->current_ballots_value = INVALID_VALUE;
     inst->chosen = false;
+    return inst;
 }
 
 static void epoch_learner_instance_free(struct instance** inst) {
@@ -81,7 +82,7 @@ struct epoch_learner* epoch_learner_new(int acceptors){
     learner->acceptors = acceptors;
     learner->acceptance_quorum_size = paxos_config.quorum_2;
     learner->highest_instance_chosen = INVALID_INSTANCE;
-    learner->current_min_instance_to_execute = INVALID_INSTANCE;
+    learner->current_min_instance_to_execute = 1;
     learner->trim_instance = INVALID_INSTANCE;
     learner->late_start = !paxos_config.learner_catch_up;
     learner->instances_waiting_to_execute = kh_init_instance();
@@ -96,6 +97,14 @@ void epoch_learner_free(struct epoch_learner** l){
     *l = NULL;
 }
 
+void epoch_learner_set_trim_instance(struct epoch_learner* l, iid_t trim){
+    assert(trim > l->trim_instance);
+    l->trim_instance = trim;
+}
+
+iid_t epoch_learner_get_trim_instance(struct epoch_learner* l) {
+    return l->trim_instance;
+}
 
 void epoch_learner_set_instance_id(struct epoch_learner* l, iid_t iid){
     if (l->current_min_instance_to_execute > INVALID_INSTANCE) {
@@ -119,7 +128,7 @@ void check_and_handle_late_start(struct epoch_learner* l, iid_t instance) {
 
 bool epoch_learner_is_instance_outdated(struct epoch_learner* l, iid_t instance, char* message_type) {
     if (instance < l->current_min_instance_to_execute) {
-        paxos_log_debug("Dropped ", message_type, "for Instance %u", instance);
+        paxos_log_debug("Dropped %s for Instance %u. Instance has already been closed and executed", message_type, instance);
         return true;
     } else {
         return false;
@@ -128,7 +137,7 @@ bool epoch_learner_is_instance_outdated(struct epoch_learner* l, iid_t instance,
 
 bool epoch_learner_is_instance_chosen(struct instance* inst, char* message_type){
     if (inst->chosen) {
-        paxos_log_debug("Dropping ", message_type, " Message for Instance. It is already Chosen.", inst->instance);
+        paxos_log_debug("Dropping %s Message for Instance. It is already Chosen.", message_type, inst->instance);
         return true;
     } else {
         return false;
@@ -137,7 +146,7 @@ bool epoch_learner_is_instance_chosen(struct instance* inst, char* message_type)
 
 bool epoch_learner_is_epoch_ballot_outdated(const struct instance* inst, struct epoch_ballot cmp, char* message_type) {
     if (epoch_ballot_greater_than_or_equal(cmp, inst->most_recent_epoch_ballot)){
-        paxos_log_debug("Received ", message_type, " Message for Instance %u at Epoch Ballot %u.%u.%u",
+        paxos_log_debug("Received %s Message for Instance %u at Epoch Ballot %u.%u.%u", message_type,
                         inst->instance,
                         cmp.epoch,
                         cmp.ballot.number, cmp.ballot.proposer_id);
@@ -165,7 +174,7 @@ void epoch_learner_check_and_set_highest_instance_closed(struct epoch_learner* l
     }
 }
 
-enum epoch_paxos_message_return_codes epoch_learner_receive_accepted(struct epoch_learner* l, struct epoch_ballot_accepted* ack, struct instance_chosen_at_epoch_ballot* returned_message) {
+enum epoch_paxos_message_return_codes epoch_learner_receive_accepted(struct epoch_learner* l, struct epoch_ballot_accepted* ack, struct epoch_ballot_chosen* returned_message) {
     char phase_name[] = "Acceptance";
     check_and_handle_late_start(l, ack->instance);
 
@@ -184,16 +193,20 @@ enum epoch_paxos_message_return_codes epoch_learner_receive_accepted(struct epoc
 
     check_and_handle_new_ballot(inst, ack->accepted_epoch_ballot, ack->accepted_value);
 
-    bool acceptance_duplicate = quorum_add(&inst->quorum, ack->acceptor_id);
+    bool acceptance_duplicate = !quorum_add(&inst->quorum, ack->acceptor_id);
     if(acceptance_duplicate) {
-        paxos_log_debug("Duplicate ", phase_name, " ignored.");
+        paxos_log_debug("Duplicate %s ignored.", phase_name);
         return MESSAGE_IGNORED;
     }
+
+    paxos_log_debug("Received new Epoch Ballot Accept from Acceptor %u for Instance %u for Epoch Ballot %u.%u.%u",
+                    ack->acceptor_id, ack->instance, ack->accepted_epoch_ballot.epoch,
+                    ack->accepted_epoch_ballot.ballot.number, ack->accepted_epoch_ballot.ballot.proposer_id);
 
     if (quorum_reached(&inst->quorum)) {
         inst->chosen = true;
         epoch_learner_check_and_set_highest_instance_closed(l, ack->instance);
-        *returned_message = (struct instance_chosen_at_epoch_ballot) {
+        *returned_message = (struct epoch_ballot_chosen) {
             .instance = ack->instance,
             .chosen_epoch_ballot = ack->accepted_epoch_ballot,
             .chosen_value = ack->accepted_value
@@ -205,7 +218,7 @@ enum epoch_paxos_message_return_codes epoch_learner_receive_accepted(struct epoc
 }
 
 
-enum epoch_paxos_message_return_codes epoch_learner_receive_epoch_ballot_chosen(struct epoch_learner* l, struct instance_chosen_at_epoch_ballot* chosen_msg){
+enum epoch_paxos_message_return_codes epoch_learner_receive_epoch_ballot_chosen(struct epoch_learner* l, struct epoch_ballot_chosen* chosen_msg){
     char message_name[] = "Chosen";
     check_and_handle_late_start(l, chosen_msg->instance);
 
@@ -231,6 +244,9 @@ enum epoch_paxos_message_return_codes epoch_learner_receive_trim(struct epoch_le
         l->trim_instance = trim->iid;
         l->current_min_instance_to_execute = trim->iid + 1;
         l->highest_instance_chosen = trim->iid;
+        return MESSAGE_ACKNOWLEDGED;
+    } else {
+        return MESSAGE_IGNORED;
     }
 }
 
@@ -260,6 +276,6 @@ bool epoch_learner_has_holes(struct epoch_learner* l, iid_t* from, iid_t* to){
 
 iid_t epoch_learner_get_instance_to_trim(struct epoch_learner* l) {
     assert(l->highest_instance_chosen <= l->current_min_instance_to_execute);
-    return l->current_min_instance_to_execute - 1;
+    iid_t prev_instance = l->current_min_instance_to_execute - 1;
+    return prev_instance;
 }
-

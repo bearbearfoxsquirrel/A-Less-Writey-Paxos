@@ -98,12 +98,12 @@ int epoch_stable_storage_get_all_untrimmed_epoch_ballot_accepts(struct epoch_sta
     struct paxos_accepted* retrieved_paxos_accepteds;
     store->standard_storage.api.get_all_untrimmed_instances_info(store->standard_storage.handle, &retrieved_paxos_accepteds, number_of_instances_retrieved);
 
-    retrieved_epoch_ballot_accepts = calloc(*number_of_instances_retrieved, sizeof(struct epoch_ballot_accept));
+    (*retrieved_epoch_ballot_accepts) = malloc(*number_of_instances_retrieved * sizeof(struct epoch_ballot_accept));
     uint32_t current_accept_epoch;
     for (int i = 0; i < *number_of_instances_retrieved; i++){
         // get the epoch of the accept
         store->extended_api.get_accept_epoch(store->extended_handle, retrieved_paxos_accepteds[i].iid, &current_accept_epoch);
-        epoch_ballot_accept_from_paxos_accepted(&retrieved_paxos_accepteds[i], current_accept_epoch, retrieved_epoch_ballot_accepts[i]);
+        epoch_ballot_accept_from_paxos_accepted(&retrieved_paxos_accepteds[i], current_accept_epoch, &(*retrieved_epoch_ballot_accepts)[i]);
         // convert to a thing
     }
     return 1;

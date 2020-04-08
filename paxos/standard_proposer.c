@@ -569,7 +569,7 @@ static void check_and_handle_client_value_from_chosen(struct proposer* proposer,
             paxos_log_debug("Pending client value was not Chosen for Instance %u, pushing back to queue.", info->common_info.iid);
             // A different value to the one we proposed is here
             // go by value because a higher ballot could have been chosen with the same value
-            carray_push_back(proposer->client_values_to_propose, info->common_info.proposing_value);
+            carray_push_front(proposer->client_values_to_propose, info->common_info.proposing_value);
             info->common_info.proposing_value = NULL;
         } else {
            paxos_log_debug("Pending client value was Chosen in Instance %u", info->common_info.iid);
@@ -776,7 +776,6 @@ proposer_trim_proposer_instance_infos(struct proposer* p, khash_t(instance_info)
 			}
 			kh_del_instance_info(h, k);
             standard_proposer_instance_info_free(&inst);
-            inst = NULL;
 		}
 	}
 }

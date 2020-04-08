@@ -27,15 +27,16 @@
 
 
 #include "evpaxos_internal.h"
-#include "message.h"
+#include "standard_paxos_message.h"
 #include <stdlib.h>
+#include <backoff_implementations.h>
 
 struct evpaxos_replica
 {
-	struct peers* peers;
+	struct standard_paxos_peers* peers;
 	struct evlearner* learner;
 	struct evproposer* proposer;
-	struct ev_write_ahead_acceptor* acceptor;
+	struct ev_standard_acceptor* acceptor;
 	deliver_function deliver;
 	void* arg;
 };
@@ -62,8 +63,8 @@ evpaxos_replica_init(int id, const char* config_file, deliver_function f,
 	r->peers = peers_new(base, config);
 	peers_connect_to_acceptors(r->peers);
 	
-	r->acceptor = ev_write_ahead_acceptor_init_internal(id, config, r->peers);
-	r->proposer = evproposer_init_internal(id, config, r->peers);
+	r->acceptor = evacceptor_init_internal(id, config, r->peers);
+	r->proposer = evproposer_init_internal(id, config, r->peers, backoff_manager_new(full_jitter_backoff_new(1000000, 10, 100)));
 	r->learner  = evlearner_init_internal(config, r->peers,
 		evpaxos_replica_deliver, r);
 	r->deliver = f;
@@ -100,7 +101,7 @@ evpaxos_replica_set_instance_id(struct evpaxos_replica* r, unsigned iid)
 }
 
 static void
-peer_send_trim(struct peer* p, void* arg)
+peer_send_trim(struct standard_paxos_peer* p, void* arg)
 {
 	send_paxos_trim(peer_get_buffer(p), arg);
 }
@@ -116,7 +117,7 @@ void
 evpaxos_replica_submit(struct evpaxos_replica* r, char* value, int size)
 {
 	int i;
-	struct peer* p;
+	struct standard_paxos_peer* p;
 	for (i = 0; i < peers_count(r->peers); ++i) {
 		p = peers_get_acceptor(r->peers, i);
 		if (peer_connected(p)) {

@@ -33,8 +33,8 @@ static inline unsigned long backoff_get_max_backoff(struct backoff* backoff){
 }
 
 
-static inline unsigned long backoff_next(struct backoff* backoff, unsigned long previous_time){
-    return backoff->api->backoff_next(backoff->handle, previous_time);
+static inline unsigned long backoff_next(struct backoff *backoff, int attempt_number) {
+    return backoff->api->backoff_next(backoff->handle, attempt_number);
 }
 
 static inline void backoff_free(struct backoff** backoff){

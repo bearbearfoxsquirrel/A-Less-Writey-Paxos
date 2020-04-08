@@ -20,12 +20,18 @@ struct epoch_paxos_storage {
 
 int epoch_paxos_storage_init(struct epoch_paxos_storage* store, int aid);
 
-void epoch_paxos_storage_init_with_prepares_and_accepts(struct epoch_paxos_storage *epoch_paxos_storage , struct paxos_prepare** prepares, int number_of_prepares, struct epoch_ballot_accept** accepts, int number_of_accepts);
+void epoch_paxos_storage_init_with_prepares_and_accepts(struct epoch_paxos_storage *epoch_paxos_storage,
+                                                        struct paxos_prepare **prepares, int number_of_prepares,
+                                                        struct epoch_ballot_accept **accepts, int number_of_accepts,
+                                                        unsigned int aid);
 
 // FOR HASH_MAPPED_MEMORY
 void epoch_hash_mapped_memory_init(struct epoch_paxos_storage* store, int aid);
 
-void epoch_paxos_storage_init_with_prepares_and_accepts(struct epoch_paxos_storage *epoch_paxos_storage , struct paxos_prepare** prepares, int number_of_prepares, struct epoch_ballot_accept** accepts, int number_of_accepts);
+void epoch_paxos_storage_init_with_prepares_and_accepts(struct epoch_paxos_storage *epoch_paxos_storage,
+                                                        struct paxos_prepare **prepares, int number_of_prepares,
+                                                        struct epoch_ballot_accept **accepts, int number_of_accepts,
+                                                        unsigned int aid);
 
 void epoch_paxos_storage_get_min_unchosen_instance(struct epoch_paxos_storage* ep_storage, iid_t* min_unchosen_instane);
 

@@ -19,8 +19,7 @@ struct ev_epoch_paxos_replica;
  * When starting a learner you must pass a callback to be invoked whenev_epoch_er
  * a value has been learned.
  */
-typedef void (*deliver_function)(
-        unsigned int,
+typedef void (*epoch_client_deliver_function)(
         char* value,
         size_t size,
         void* arg);
@@ -41,7 +40,7 @@ typedef void (*deliver_function)(
  * @see ev_epoch_paxos_replica_free()
  */
 struct ev_epoch_paxos_replica* ev_epoch_paxos_replica_init(int id, const char* config,
-                                             deliver_function cb, void* arg, struct event_base* base);
+                                                           epoch_client_deliver_function cb, void* arg, struct event_base* base);
 
 /**
  * Destroy a Paxos replica and free all its memory.
@@ -84,13 +83,13 @@ int ev_epoch_paxos_replica_count(struct ev_epoch_paxos_replica* replica);
  * an optional argument to that is passed to the callback, and
  * a libev_epoch_ent event_base.
  */
-struct ev_epoch_learner* ev_epoch_learner_init(const char* config, deliver_function f,
+struct ev_epoch_learner* ev_epoch_learner_init(const char* config, epoch_client_deliver_function f,
                                  void* arg, struct event_base* base);
 
 /**
  * Release the memory allocated by the learner
  */
-void ev_epoch_learner_free(struct ev_epoch_learner* l);
+void ev_epoch_learner_free(struct ev_epoch_learner** l);
 
 /**
  * Set the starting instance id of the given learner.
@@ -120,7 +119,7 @@ struct ev_epoch_acceptor* ev_epoch_acceptor_init(int id, const char* config,
  * Frees the memory allocated by the acceptor.
  * This will also cleanly close the  * underlying storage.
  */
-void ev_epoch_acceptor_free(struct ev_epoch_acceptor* a);
+void ev_epoch_acceptor_free(struct ev_epoch_acceptor** a);
 
 
 /**
@@ -135,7 +134,7 @@ struct ev_epoch_proposer* ev_epoch_proposer_init(int id, const char* config,
 /**
  * Release the memory allocated by the proposer
  */
-void ev_epoch_proposer_free(struct ev_epoch_proposer* p);
+void ev_epoch_proposer_free(struct ev_epoch_proposer** p) ;
 
 /**
  * This is a hint to the proposer to start from the given instance id.

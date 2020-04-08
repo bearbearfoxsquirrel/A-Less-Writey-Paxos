@@ -29,27 +29,27 @@
 #ifndef _EVPAXOS_INTERNAL_H_
 #define _EVPAXOS_INTERNAL_H_
 
-#include "peers.h"
+#include "standard_paxos_peers.h"
 #include "evpaxos.h"
+#include "backoff_manager.h"
 
 struct evlearner* evlearner_init_internal(struct evpaxos_config* config,
-	struct peers* peers, deliver_function f, void* arg);
+                                          struct standard_paxos_peers* peers, deliver_function f, void* arg);
 
 void evlearner_free_internal(struct evlearner* l);
 		
 struct ev_standard_acceptor* evacceptor_init_internal(int id,
-                                                      struct evpaxos_config* config, struct peers* peers);
+                                                      struct evpaxos_config* config, struct standard_paxos_peers* peers);
 
 void evacceptor_free_internal(struct ev_standard_acceptor* a);
 
 // ADDED
-struct ev_write_ahead_acceptor* ev_write_ahead_acceptor_init_internal(int id, struct evpaxos_config* config, struct peers* peers_proposers);
+struct ev_write_ahead_acceptor* ev_write_ahead_acceptor_init_internal(int id, struct evpaxos_config* config, struct standard_paxos_peers* peers_proposers);
 
 void ev_write_ahead_acceptor_free_internal(struct ev_write_ahead_acceptor* acceptor);
 //
+struct evproposer* evproposer_init_internal(int id, struct evpaxos_config* c, struct standard_paxos_peers* peers, struct backoff_manager* backoff_manager);
 
-struct evproposer* evproposer_init_internal(int id,
-	struct evpaxos_config* config, struct peers* peers);
 
 void evproposer_free_internal(struct evproposer* p);
 

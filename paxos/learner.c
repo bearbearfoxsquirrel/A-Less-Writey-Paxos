@@ -151,7 +151,9 @@ learner_receive_accepted(struct learner* l, paxos_accepted* ack, struct paxos_ch
 
 	instance_update(inst, ack, l->acceptors, l->quorum_size);
 
-	if (instance_has_quorum(inst, l->acceptors, l->quorum_size)) {
+
+
+    if (instance_has_quorum(inst, l->acceptors, l->quorum_size)) {
 		if  (inst->iid > l->highest_iid_closed){
             l->highest_iid_closed = inst->iid;
         }

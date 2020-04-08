@@ -38,12 +38,14 @@
 #include <assert.h>
 #include <paxos_types.h>
 #include <epoch_stable_storage.h>
+#include <standard_stable_storage.h>
 #include "paxos_message_conversion.h"
 
 const int TRIM_ID_KEY = -1;
 const int MAX_INSTANCE_KEY = -2;
 const int EPOCH_PREFIX = INT_MIN;
 const int CURRENT_EPOCH_KEY = -3;
+const int NUMBER_OF_NON_INSTANCE_KEYS_KEY = -4;
 
 
 struct lmdb_storage
@@ -159,6 +161,8 @@ lmdb_storage_init(struct lmdb_storage* s, char* db_env_path)
 			"environment at %s. %s", db_env_path, mdb_strerror(result));
 		goto error;
 	}
+
+
 	if ((result = mdb_txn_commit(txn)) != 0) {
 		paxos_log_error("Could not commit txn on lmdb environment at %s. %s",
 		db_env_path, mdb_strerror(result));
@@ -512,6 +516,7 @@ lmdb_storage_new_write_ahead_epochs(int acceptor_id) {
 }
 
 
+
 void initialise_standard_lmdb_function_pointers(struct standard_stable_storage *s) {
     s->api.open = (int (*)(void *)) lmdb_storage_open;
     s->api.close = (void (*)(void *)) lmdb_storage_close;
@@ -617,6 +622,26 @@ static int lmdb_store_accept_epoch(struct lmdb_storage* lmdb_storage, iid_t inst
 
     if (after_stats.ms_entries > before_stats.ms_entries) {
         lmdb_storage->num_non_instance_vals++;
+
+
+        assert(lmdb_storage->txn != NULL);
+
+        int rv;
+
+        MDB_val non_instances_key, non_instances_data;
+
+        key.mv_data = (void *) &NUMBER_OF_NON_INSTANCE_KEYS_KEY;
+        key.mv_size = sizeof(NUMBER_OF_NON_INSTANCE_KEYS_KEY);
+
+        data.mv_data = &lmdb_storage->num_non_instance_vals;
+        data.mv_size = sizeof(lmdb_storage->num_non_instance_vals);
+
+        result = mdb_put(lmdb_storage->txn, lmdb_storage->dbi, &key, &data, 0);
+        if (result != 0)
+            paxos_log_error("%s\n", mdb_strerror(result));
+        assert(result == 0);
+
+
     }
 
     return 0;
@@ -646,12 +671,87 @@ static int lmdb_get_accept_epoch(struct lmdb_storage* lmdb_storage, iid_t instan
     return 0;
 }
 
+
+static int
+lmdb_epoch_storage_open(struct lmdb_storage *lmdb_storage)
+{
+    char* lmdb_env_path = NULL;
+    struct stat sb;
+    int dir_exists, result;
+    size_t lmdb_env_path_length = strlen(paxos_config.lmdb_env_path) + 16;
+
+    lmdb_env_path = malloc(lmdb_env_path_length);
+    snprintf(lmdb_env_path, lmdb_env_path_length, "%s_%d",
+             paxos_config.lmdb_env_path, lmdb_storage->acceptor_id);
+
+    // Trash files -- testing only
+    if (paxos_config.trash_files) {
+        char rm_command[600];
+        sprintf(rm_command, "rm -r %s", lmdb_env_path);
+        system(rm_command);
+    }
+
+    dir_exists = (stat(lmdb_env_path, &sb) == 0);
+
+    if (!dir_exists){
+        paxos_log_info("%s does not exist");
+    }
+
+    if (!dir_exists && (mkdir(lmdb_env_path, S_IRWXU) != 0)) {
+        paxos_log_error("Failed to create env dir %s: %s",
+                        lmdb_env_path, strerror(errno));
+        result = -1;
+        goto error;
+    }
+
+    if ((result = lmdb_storage_init(lmdb_storage, lmdb_env_path) != 0)) {
+        paxos_log_error("Failed to open DB handle");
+    } else {
+        paxos_log_info("lmdb storage opened successfully");
+        goto cleanup_exit;
+    }
+
+    //number of extra keys we have in the DB
+    int rv;
+    MDB_val key, data;
+    memset(&data, 0, sizeof(data));
+
+    key.mv_data = (void *) &NUMBER_OF_NON_INSTANCE_KEYS_KEY; // mv_data is the pointer to where the key (literal) is held
+    key.mv_size = sizeof(NUMBER_OF_NON_INSTANCE_KEYS_KEY);
+
+    if ((result = mdb_get(lmdb_storage->txn, lmdb_storage->dbi, &key, &data)) != 0) {
+        if (result != MDB_NOTFOUND) { // something else went wrong so freak out
+            paxos_log_error("mdb_get failed: %s", mdb_strerror(result));
+            return -100;//assert(result == 0); // return an error code
+        } else {
+            lmdb_storage->num_non_instance_vals = 4; // the trim instance has not been found so return 0
+        }
+    } else {
+        lmdb_storage->num_non_instance_vals = *(uint32_t *) data.mv_data; // return the found trim instance
+    }
+
+    error:
+    if (lmdb_storage) {
+        lmdb_storage_close(lmdb_storage);
+    }
+
+    cleanup_exit:
+    free(lmdb_env_path);
+
+
+    return result;
+}
+
 void epoch_stable_storage_lmdb_init(struct epoch_stable_storage* storage, int acceptor_id){
+    storage->standard_storage.handle = lmdb_storage_new_write_ahead_epochs(acceptor_id);
+    initialise_standard_lmdb_function_pointers(&storage->standard_storage);
+
 
     // BETTER SOLUTION NEEDED IF WANT TO DO RETURNING OF CHOSEN INSTANCES
     // SHould make a storage union - so anything could be given (union of prepares, accept, and epoch_accept)
   // need to add in method for this  storage_init_lmdb_write_ahead_epochs&storage->standard_storage, acceptor_id);
     storage->extended_handle = storage->standard_storage.handle; // same handle ;)
+    storage->standard_storage.api.open = (int (*) (void*)) lmdb_epoch_storage_open;
     storage->extended_api.store_current_epoch = (int (*) (void *, uint32_t)) lmdb_store_current_epoch;
     storage->extended_api.get_current_epoch = (int (*) (void *, uint32_t*)) lmdb_get_current_epoch;
 

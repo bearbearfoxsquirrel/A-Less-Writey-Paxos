@@ -27,10 +27,9 @@
 
 
 #include "evpaxos.h"
-#include "peers.h"
+#include "standard_paxos_peers.h"
 #include "standard_acceptor.h"
-#include "message.h"
-#include <stdio.h>
+#include "standard_paxos_message.h"
 #include <stdlib.h>
 #include <assert.h>
 #include "string.h"
@@ -43,7 +42,7 @@
 
 struct ev_standard_acceptor
 {
-	struct peers* peers;
+	struct standard_paxos_peers* peers;
 	struct standard_acceptor* state;
 	struct event* timer_ev;
 	struct timeval timer_tv;
@@ -52,7 +51,7 @@ struct ev_standard_acceptor
 };
 
 static void
-peer_send_paxos_message(struct peer* p, void* arg)
+peer_send_paxos_message(struct standard_paxos_peer* p, void* arg)
 {
 	send_paxos_message(peer_get_buffer(p), arg);
 }
@@ -61,7 +60,7 @@ peer_send_paxos_message(struct peer* p, void* arg)
 	Received a prepare request (phase 1a).
 */
 static void 
-evacceptor_handle_prepare(struct peer* p, standard_paxos_message* msg, void* arg)
+evacceptor_handle_prepare(struct standard_paxos_peer* p, standard_paxos_message* msg, void* arg)
 {
 	standard_paxos_message out;
 	paxos_prepare* prepare = &msg->u.prepare;
@@ -82,7 +81,7 @@ evacceptor_handle_prepare(struct peer* p, standard_paxos_message* msg, void* arg
 	Received a accept request (phase 2a).
 */
 static void 
-evacceptor_handle_accept(struct peer* p, standard_paxos_message* msg, void* arg)
+evacceptor_handle_accept(struct standard_paxos_peer* p, standard_paxos_message* msg, void* arg)
 {	
 	standard_paxos_message out;
 	paxos_accept* accept = &msg->u.accept;
@@ -107,7 +106,7 @@ evacceptor_handle_accept(struct peer* p, standard_paxos_message* msg, void* arg)
 }
 
 static void
-evacceptor_handle_repeat(struct peer* p, standard_paxos_message* msg, void* arg)
+evacceptor_handle_repeat(struct standard_paxos_peer* p, standard_paxos_message* msg, void* arg)
 {
 	iid_t iid;
 	struct standard_paxos_message out_msg;
@@ -124,7 +123,7 @@ evacceptor_handle_repeat(struct peer* p, standard_paxos_message* msg, void* arg)
 }
 
 static void
-evacceptor_handle_chosen(struct peer* p, struct standard_paxos_message* msg, void* arg){
+evacceptor_handle_chosen(__unused struct standard_paxos_peer* p, struct standard_paxos_message* msg, void* arg){
     struct ev_standard_acceptor* a = (struct ev_standard_acceptor*)arg;
     struct paxos_chosen chosen_msg = msg->u.chosen;
 
@@ -133,7 +132,7 @@ evacceptor_handle_chosen(struct peer* p, struct standard_paxos_message* msg, voi
 }
 
 static void
-evacceptor_handle_trim(struct peer* p, standard_paxos_message* msg, void* arg)
+evacceptor_handle_trim(__unused struct standard_paxos_peer* p, standard_paxos_message* msg, void* arg)
 {
 	paxos_trim* trim = &msg->u.trim;
 	struct ev_standard_acceptor* a = (struct ev_standard_acceptor*)arg;
@@ -141,17 +140,17 @@ evacceptor_handle_trim(struct peer* p, standard_paxos_message* msg, void* arg)
 }
 
 static void
-send_acceptor_state(int fd, short ev, void* arg)
+send_acceptor_state(__unused int fd, __unused short ev, void* arg)
 {
 	struct ev_standard_acceptor* a = (struct ev_standard_acceptor*)arg;
 	standard_paxos_message msg = {.type = PAXOS_ACCEPTOR_STATE};
-    standard_acceptor_set_current_state(a->state, &msg.u.state);
+    standard_acceptor_get_current_state(a->state, &msg.u.state);
 	peers_foreach_client(a->peers, peer_send_paxos_message, &msg);
 	event_add(a->timer_ev, &a->timer_tv);
 }
 
 struct ev_standard_acceptor*
-evacceptor_init_internal(int id, struct evpaxos_config* c, struct peers* p)
+evacceptor_init_internal(int id, __unused struct evpaxos_config* c, struct standard_paxos_peers* p)
 {
 	struct ev_standard_acceptor* acceptor = calloc(1, sizeof(struct ev_standard_acceptor));
     acceptor->state = standard_acceptor_new(id);
@@ -190,7 +189,7 @@ evacceptor_init(int id, const char* config_file, struct event_base* base)
 		return NULL;
 	}
 
-	struct peers* peers = peers_new(base, config);
+	struct standard_paxos_peers* peers = peers_new(base, config);
 	int port = evpaxos_acceptor_listen_port(config, id);
 	if (peers_listen(peers, port) == 0)
 		return NULL;

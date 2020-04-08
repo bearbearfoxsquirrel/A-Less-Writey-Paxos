@@ -59,7 +59,7 @@ int standard_acceptor_receive_repeat(struct standard_acceptor *a,
 
 int standard_acceptor_receive_trim(struct standard_acceptor *a, paxos_trim *trim);
 
-void standard_acceptor_set_current_state(struct standard_acceptor *a, paxos_standard_acceptor_state *state);
+void standard_acceptor_get_current_state(struct standard_acceptor *a, paxos_standard_acceptor_state *state);
 
 #ifdef __cplusplus
 }

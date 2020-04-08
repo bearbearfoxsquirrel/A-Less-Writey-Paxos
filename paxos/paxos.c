@@ -33,6 +33,7 @@
 #include <stdio.h>
 #include <time.h>
 #include <sys/time.h>
+#include <paxos_types.h>
 
 struct paxos_config paxos_config =
 {
@@ -84,7 +85,7 @@ paxos_value_destroy(struct paxos_value* v)
         if (v->paxos_value_val != NULL)
             free(v->paxos_value_val);
         v->paxos_value_val = NULL;
-        v->paxos_value_len = 0; // todo might be an issue here
+        v->paxos_value_len = 0;
     }
 
 }
@@ -132,6 +133,9 @@ paxos_client_value_destroy(struct paxos_value* p)
 	paxos_value_destroy(p);
 }
 
+void paxos_chosen_destroy(struct paxos_chosen* chosen) {
+    paxos_value_destroy(&chosen->value);
+}
 void
 paxos_message_destroy_contents(standard_paxos_message* m)
 {
@@ -148,8 +152,62 @@ paxos_message_destroy_contents(standard_paxos_message* m)
 	case PAXOS_CLIENT_VALUE:
 		paxos_client_value_destroy(&m->u.client_value);
 		break;
+    case PAXOS_CHOSEN:
+        paxos_chosen_destroy(&m->u.chosen);
+        break;
 	default: break;
 	}
+}
+
+void epoch_ballot_promise_destroy(struct epoch_ballot_promise* promise) {
+    paxos_value_destroy(&promise->last_accepted_value);
+}
+
+void epoch_ballot_accept_destroy(struct epoch_ballot_accept* accept) {
+    paxos_value_destroy(&accept->value_to_accept);
+}
+
+void epoch_ballot_accepted_destroy(struct epoch_ballot_accepted* accepted) {
+    paxos_value_destroy(&accepted->accepted_value);
+}
+
+void epoch_ballot_chosen_in_instance_destroy(struct epoch_ballot_chosen* chosen) {
+    paxos_value_destroy(&chosen->chosen_value);
+}
+
+void writeahead_epoch_paxos_message_destroy_contents(struct writeahead_epoch_paxos_message* m) {
+    switch (m->type) {
+
+        case WRITEAHEAD_STANDARD_PREPARE:
+            break;
+        case WRITEAHEAD_EPOCH_BALLOT_PREPARE:
+            break;
+        case WRITEAHEAD_EPOCH_BALLOT_PROMISE:
+            epoch_ballot_promise_destroy(&m->message_contents.epoch_ballot_promise);
+            break;
+        case WRITEAHEAD_EPOCH_BALLOT_ACCEPT:
+            epoch_ballot_accept_destroy(&m->message_contents.epoch_ballot_accept);
+            break;
+        case WRITEAHEAD_EPOCH_BALLOT_ACCEPTED:
+            epoch_ballot_accepted_destroy(&m->message_contents.epoch_ballot_accepted);
+            break;
+        case WRITEAHEAD_EPOCH_BALLOT_PREEMPTED:
+            break;
+        case WRITEAHEAD_EPOCH_NOTIFICATION:
+            break;
+        case WRITEAHEAD_INSTANCE_CHOSEN_AT_EPOCH_BALLOT:
+            epoch_ballot_chosen_in_instance_destroy(&m->message_contents.instance_chosen_at_epoch_ballot);
+            break;
+        case WRITEAHEAD_REPEAT:
+            break;
+        case WRITEAHEAD_INSTANCE_TRIM:
+            break;
+        case WRITEAHEAD_ACCEPTOR_STATE:
+            break;
+        case WRITEAHEAD_CLIENT_VALUE:
+            paxos_client_value_destroy(&m->message_contents.client_value);
+            break;
+    }
 }
 
 void

@@ -3,9 +3,9 @@ include_directories(${CMAKE_SOURCE_DIR}/evpaxos/include)
 include_directories(${CMAKE_SOURCE_DIR}/paxos/include)
 include_directories(${LIBEVENT_INCLUDE_DIRS})
 
-SET(SRCS latency_recorder.c)
+SET(SRCS latency_recorder.c )
 
-set(TEST_SOURCES learner.c  standard_acceptor.c proposer.c client.c replica.c counter.c test.c write_ahead_window_acceptor.c)
+set(TEST_SOURCES epoch_acceptor.c epoch_client.c epoch_proposer.c learner.c  standard_acceptor.c proposer.c client.c replica.c counter.c test.c write_ahead_window_acceptor.c)
 
 #set(HEADER_FILES ${CMAKE_SOURCE_DIR}/sample/include/client_value.h)
 
@@ -24,4 +24,6 @@ INSTALL(PROGRAMS
 	${CMAKE_CURRENT_BINARY_DIR}/replica
 		${CMAKE_CURRENT_BINARY_DIR}/test
 	${CMAKE_CURRENT_BINARY_DIR}/client
+		${CMAKE_CURRENT_BINARY_DIR}/epoch_proposer
+		${CMAKE_CURRENT_BINARY_DIR}/epoch_client
 	DESTINATION bin)
