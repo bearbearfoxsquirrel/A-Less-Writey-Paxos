@@ -1,5 +1,9 @@
+//
+// Created by Michael Davis on 13/04/2020.
+//
+
 /*
- * Copyright (c) 2014, University of Lugano
+ * Copyright (c) 2013-2015, University of Lugano
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -26,28 +30,59 @@
  */
 
 
-#ifndef _STORAGE_UTILS_H_
-#define _STORAGE_UTILS_H_
+#include <stdlib.h>
+#include <stdio.h>
+#include <evpaxos.h>
+#include <signal.h>
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-#include "paxos.h"
-
-char* paxos_accepted_to_buffer(paxos_accepted* acc);
-void paxos_accepted_from_buffer(char* buffer, paxos_accepted* out);
-
-
-void ballot_from_buffer(char* buffer, struct ballot* out);
-char* ballot_to_buffer(struct ballot* ballot);
-
-
-char* epoch_ballot_accept_to_buffer(struct epoch_ballot_accept* acc);
-void epoch_ballot_accept_from_buffer(char* buffer, struct epoch_ballot_accept* out);
-
-#ifdef __cplusplus
+static void
+handle_sigint(int sig, __unused short ev, void* arg)
+{
+    struct event_base* base = arg;
+    printf("Caught signal %d\n", sig);
+    event_base_loopexit(base, NULL);
 }
-#endif
 
-#endif
+static void
+start_acceptor(int id, const char* config)
+{
+    struct event_base* base;
+    struct event* sig;
+
+    base = event_base_new();
+    sig = evsignal_new(base, SIGINT, handle_sigint, base);
+    evsignal_add(sig, NULL);
+
+    struct ev_optimised_less_writey_ballot_acceptor* acc = ev_optimised_less_writey_ballot_acceptor_init(id, config, base);
+    if (acc == NULL) {
+        printf("Could not start the acceptor\n");
+        return;
+    }
+
+    signal(SIGPIPE, SIG_IGN);
+    event_base_dispatch(base);
+
+    event_free(sig);
+    ev_optimised_less_writey_ballot_acceptor_free(acc);
+    event_base_free(base);
+}
+
+int
+main(int argc, char const *argv[])
+{
+    int id;
+    const char* config = "../paxos.conf";
+
+    if (argc != 2 && argc != 3) {
+        printf("Usage: %s id [path/to/paxos.conf]\n", argv[0]);
+        exit(0);
+    }
+
+    id = atoi(argv[1]);
+    if (argc >= 3)
+        config = argv[2];
+
+    start_acceptor(id, config);
+
+    return 1;
+}

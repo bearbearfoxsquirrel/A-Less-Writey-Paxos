@@ -56,6 +56,16 @@ paxos_accepted_from_buffer(char* buffer, paxos_accepted* out)
 	}
 }
 
+void ballot_from_buffer(char* buffer, struct ballot* out) {
+    memcpy(out, buffer, sizeof(struct ballot));
+}
+
+char* ballot_to_buffer(struct ballot* ballot) {
+    char* buffer = malloc(sizeof(struct ballot));
+    memcpy(buffer, ballot, sizeof(struct ballot));
+    return buffer;
+}
+
 
 
 char* epoch_ballot_accept_to_buffer(struct epoch_ballot_accept* acc)

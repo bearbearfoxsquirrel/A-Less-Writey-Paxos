@@ -47,6 +47,10 @@ void evacceptor_free_internal(struct ev_standard_acceptor* a);
 struct ev_write_ahead_acceptor* ev_write_ahead_acceptor_init_internal(int id, struct evpaxos_config* config, struct standard_paxos_peers* peers_proposers);
 
 void ev_write_ahead_acceptor_free_internal(struct ev_write_ahead_acceptor* acceptor);
+
+struct ev_less_writey_ballot_acceptor* ev_optimised_less_writey_ballot_acceptor_init_internal(int id, struct evpaxos_config* config, struct standard_paxos_peers* peers_proposers);
+
+void ev_optimised_less_writey_ballot_acceptor_free_internal(struct ev_less_writey_ballot_acceptor* acceptor);
 //
 struct evproposer* evproposer_init_internal(int id, struct evpaxos_config* c, struct standard_paxos_peers* peers, struct backoff_manager* backoff_manager);
 

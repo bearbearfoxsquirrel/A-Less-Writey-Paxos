@@ -41,6 +41,8 @@ struct evlearner;
 struct evproposer;
 struct ev_standard_acceptor;
 struct evpaxos_replica;
+struct ev_write_ahead_acceptor;
+struct ev_optimised_less_writey_ballot_acceptor;
 
 /**
  * When starting a learner you must pass a callback to be invoked whenever
@@ -162,6 +164,21 @@ struct ev_write_ahead_acceptor* ev_write_ahead_window_acceptor_init(int id, cons
  * This will also cleanly close the  * underlying storage.
  */
 void ev_write_ahead_window_acceptor_free(struct ev_write_ahead_acceptor* a);
+
+
+/**
+ * Initializes a acceptor with a given id (which MUST be unique),
+ * a config file and a libevent event_base.
+ */
+struct ev_optimised_less_writey_ballot_acceptor* ev_optimised_less_writey_ballot_acceptor_init(int id, const char* config,
+                                                                    struct event_base* b);
+
+/**
+ * Frees the memory allocated by the acceptor.
+ * This will also cleanly close the  * underlying storage.
+ */
+void ev_optimised_less_writey_ballot_acceptor_free(struct ev_optimised_less_writey_ballot_acceptor* a);
+
 
 /**
  * Initializes a proposer with a given ID (which MUST be unique),

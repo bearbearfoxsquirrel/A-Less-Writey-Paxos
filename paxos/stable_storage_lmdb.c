@@ -28,6 +28,7 @@
 
 
 #include "standard_stable_storage.h"
+#include "optimsed_less_writey_ballot_stable_storage.h"
 #include "storage_utils.h"
 #include <lmdb.h>
 #include <stdio.h>
@@ -39,11 +40,13 @@
 #include <paxos_types.h>
 #include <epoch_stable_storage.h>
 #include <standard_stable_storage.h>
+#include <optimsed_less_writey_ballot_stable_storage.h>
 #include "paxos_message_conversion.h"
 
 const int TRIM_ID_KEY = -1;
 const int MAX_INSTANCE_KEY = -2;
 const int CURRENT_EPOCH_KEY = -3;
+const int LAST_STABLE_PROMISE_KEY = -4;
 
 
 struct lmdb_storage
@@ -714,3 +717,77 @@ void epoch_stable_storage_lmdb_init(struct epoch_stable_storage* storage, int ac
    // storage->extended_api.get_accept_epoch = (int (*) (void*, iid_t, uint32_t*)) lmdb_get_accept_epoch;
    // storage->extended_api.store_accept_epoch = (int (*) (void*, iid_t, const uint32_t)) lmdb_store_accept_epoch;
 }
+
+
+
+
+
+static int lmdb_get_last_stable_promise_ballot(struct lmdb_storage* lmdb_storage, struct ballot *retreived_last_stable_promise_ballot) {
+    assert(lmdb_storage->txn != NULL);
+
+    int result;
+    MDB_val key, data;
+    memset(&data, 0, sizeof(data));
+
+    key.mv_data = (void *) &CURRENT_EPOCH_KEY; // mv_data is the pointer to where the key (literal) is held
+    key.mv_size = sizeof(CURRENT_EPOCH_KEY);
+
+    if ((result = mdb_get(lmdb_storage->txn, lmdb_storage->dbi, &key, &data)) != 0) {
+        if (result != MDB_NOTFOUND) { // something else went wrong so freak out
+            paxos_log_error("mdb_get failed: %s", mdb_strerror(result));
+            return -100;//assert(result == 0); // return an error code
+        } else {
+            *retreived_last_stable_promise_ballot = (struct ballot) {0, 0}; // the trim instance has not been found so return 0
+        }
+    } else {
+        ballot_from_buffer(data.mv_data, retreived_last_stable_promise_ballot);
+    }
+    return 1;
+}
+
+static int lmdb_store_last_stable_promise_ballot(struct lmdb_storage* lmdb_storage, struct ballot last_stable_promise_ballot) {
+    assert(lmdb_storage->txn != NULL);
+
+    int result;
+
+    MDB_val key, data;
+
+    key.mv_data = (void *) &CURRENT_EPOCH_KEY;
+    key.mv_size = sizeof(CURRENT_EPOCH_KEY);
+
+    char* to_store = ballot_to_buffer(&last_stable_promise_ballot);
+
+    data.mv_data = to_store;
+    data.mv_size = sizeof(struct ballot);
+
+    result = mdb_put(lmdb_storage->txn, lmdb_storage->dbi, &key, &data, 0);
+    if (result != 0)
+        paxos_log_error("%s\n", mdb_strerror(result));
+    assert(result == 0);
+
+    return 0;
+}
+
+
+
+
+static struct lmdb_storage *
+lmdb_storage_new_optimsed_less_writey_ballots_storage(int acceptor_id) {
+    struct lmdb_storage *s = calloc(1, sizeof(struct lmdb_storage));
+    s->acceptor_id = acceptor_id;
+    s->num_non_instance_vals = 3;
+    return s;
+}
+
+
+
+void optimised_less_writey_ballot_stable_storage_lmdb_init(struct optimised_less_writey_ballot_stable_storage* storage, int acceptor_id){
+    storage->standard_storage.handle = lmdb_storage_new_optimsed_less_writey_ballots_storage(acceptor_id);
+    initialise_standard_lmdb_function_pointers(&storage->standard_storage);
+
+    storage->extended_api.get_last_stable_promise = (int (*) (void *, struct ballot*)) lmdb_get_last_stable_promise_ballot;
+    storage->extended_api.store_last_stable_promise = (int (*) (void *, struct ballot)) lmdb_store_last_stable_promise_ballot;
+}
+
+
+

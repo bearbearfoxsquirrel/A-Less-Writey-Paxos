@@ -5,7 +5,7 @@ include_directories(${LIBEVENT_INCLUDE_DIRS})
 
 SET(SRCS latency_recorder.c )
 
-set(TEST_SOURCES epoch_acceptor.c epoch_client.c epoch_proposer.c learner.c  standard_acceptor.c proposer.c client.c replica.c counter.c test.c write_ahead_window_acceptor.c)
+set(TEST_SOURCES optimised_less_writey_ballot_acceptor.c epoch_acceptor.c epoch_client.c epoch_proposer.c learner.c  standard_acceptor.c proposer.c client.c replica.c counter.c test.c write_ahead_window_acceptor.c)
 
 #set(HEADER_FILES ${CMAKE_SOURCE_DIR}/sample/include/client_value.h)
 
