@@ -63,6 +63,8 @@ void paxos_accepted_from_paxos_prepare_and_accept(struct paxos_prepare* prepare,
 
 void paxos_accepted_copy(paxos_accepted* dst, paxos_accepted* src);
 
+void epoch_ballot_accept_copy(struct epoch_ballot_accept* dst, struct epoch_ballot_accept* src);
+
 void paxos_prepare_copy(struct paxos_prepare* dst, struct paxos_prepare* src);
 
 void paxos_accept_copy(struct paxos_accept* dst, struct paxos_accept* src);

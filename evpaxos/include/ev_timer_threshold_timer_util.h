@@ -9,6 +9,11 @@
 
 struct performance_threshold_timer* get_promise_performance_threshold_timer_new();
 struct performance_threshold_timer* get_acceptance_performance_threshold_timer_new();
+struct performance_threshold_timer * get_chosen_acceptor_performance_threshold_timer_new();
+struct performance_threshold_timer * get_accepted_proposer_threshold_timer_new();
+struct performance_threshold_timer * get_prepare_threshold_timer_new();
+struct performance_threshold_timer * get_preempt_threshold_timer_new();
+struct performance_threshold_timer * get_accept_threshold_timer_new();
 
 void ev_performance_timer_and_log_threshold_timer(struct performance_threshold_timer *timer, char* timer_name);
 void ev_performance_timer_stop_check_and_clear_timer(struct performance_threshold_timer *timer, char* timer_name);

@@ -81,9 +81,10 @@ static void ev_epoch_learner_handle_accepted(__unused struct writeahead_epoch_pa
 
     if (return_code == QUORUM_REACHED) {
         writeahead_epoch_paxos_peers_foreach_acceptor(l->peers, peer_send_epoch_paxos_message, &chosen);
-     //   writeahead_epoch_paxos_message_destroy_contents(&chosen);
+
+        ev_epoch_learner_deliver_next_closed(l);
+    //    writeahead_epoch_paxos_message_destroy_contents(&chosen);
     }
-    ev_epoch_learner_deliver_next_closed(l);
 }
 
 static void ev_epoch_learner_handle_chosen(__unused struct writeahead_epoch_paxos_peer* p, struct writeahead_epoch_paxos_message* msg, void* arg) {

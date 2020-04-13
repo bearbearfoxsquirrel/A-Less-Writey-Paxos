@@ -55,3 +55,30 @@ paxos_accepted_from_buffer(char* buffer, paxos_accepted* out)
 			out->value.paxos_value_len);
 	}
 }
+
+
+
+char* epoch_ballot_accept_to_buffer(struct epoch_ballot_accept* acc)
+{
+    size_t len = acc->value_to_accept.paxos_value_len;
+    char* buffer = calloc(1, sizeof(struct epoch_ballot_accept) + len);
+    if (buffer == NULL)
+        return NULL;
+    memcpy(buffer, acc, sizeof(struct epoch_ballot_accept));
+    if (len > 0) {
+        memcpy(&buffer[sizeof(struct epoch_ballot_accept)], acc->value_to_accept.paxos_value_val, len);
+    }
+    return buffer;
+}
+
+void
+epoch_ballot_accept_from_buffer(char* buffer, struct epoch_ballot_accept* out)
+{
+    memcpy(out, buffer, sizeof(struct epoch_ballot_accept));
+    if (out->value_to_accept.paxos_value_len > 0) {
+        out->value_to_accept.paxos_value_val = malloc(out->value_to_accept.paxos_value_len);
+        memcpy(out->value_to_accept.paxos_value_val,
+               &buffer[sizeof(struct epoch_ballot_accept)],
+               out->value_to_accept.paxos_value_len);
+    }
+}

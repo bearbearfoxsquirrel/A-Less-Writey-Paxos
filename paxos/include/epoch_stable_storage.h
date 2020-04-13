@@ -11,10 +11,13 @@
 struct epoch_stable_storage {
     void* extended_handle;
     struct {
+        int (*get_epoch_ballot_accept) (void* handle, const iid_t instance, struct epoch_ballot_accept* accept);
+        int (*store_epoch_ballot_accept) (void* handle, const struct epoch_ballot_accept* accept);
+        int (*get_all_untrimmed_epoch_ballots) (void* handle, struct epoch_ballot_accept** retrieved_epoch_balot_accepts, int* number_of_inst_retrieved);
         int (*store_current_epoch)(void *handle, const uint32_t epoch);
         int (*get_current_epoch)(void *handle, uint32_t* retrieved_epoch);
-        int (*store_accept_epoch)(void* handle, const iid_t instance, const uint32_t accept_epoch);
-        int (*get_accept_epoch)(void* handle, const iid_t instance, uint32_t* retrieved_accept_epoch);
+       // int (*store_accept_epoch)(void* handle, const iid_t instance, const uint32_t accept_epoch);
+      //  int (*get_accept_epoch)(void* handle, const iid_t instance, uint32_t* retrieved_accept_epoch);
     } extended_api ;
     struct standard_stable_storage standard_storage;
 };

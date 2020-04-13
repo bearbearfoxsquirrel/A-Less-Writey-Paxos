@@ -53,33 +53,11 @@ int epoch_stable_storage_get_trim_instance(struct epoch_stable_storage *store, i
 }
 
 int epoch_stable_storage_get_epoch_ballot_accept(struct epoch_stable_storage *store, const iid_t instance_id, struct epoch_ballot_accept *retrieved_epoch_ballot){
-    // get accepted and then convert to epoch ballot accept
-    int error_1 = 0;
-    struct paxos_accepted standard_instance_info;
-    error_1 = store->standard_storage.api.get_instance_info(store->standard_storage.handle, instance_id, &standard_instance_info);
-
-    int error_2 = 0;
-    uint32_t accepted_epoch;
-    error_2 = store->extended_api.get_accept_epoch(store->extended_handle, instance_id, &accepted_epoch);
-
-    epoch_ballot_accept_from_paxos_accepted(&standard_instance_info, accepted_epoch, retrieved_epoch_ballot);
-    return error_1 && error_2;
+    return store->extended_api.get_epoch_ballot_accept(store->extended_handle, instance_id, retrieved_epoch_ballot);
 }
 
 int epoch_stable_storage_store_epoch_ballot_accept(struct epoch_stable_storage *store, struct epoch_ballot_accept* epoch_ballot_accept){
-    // WANT TO ENSURE THAT MAX EPOCH IS ALWAYS KNOWN!!
-    uint32_t current_epoch = 0;
-    epoch_stable_storage_get_current_epoch(store, &current_epoch);
-    if (epoch_ballot_accept->epoch_ballot_requested.epoch > current_epoch)
-        epoch_stable_storage_store_epoch(store, current_epoch);
-
-    struct paxos_accepted standard_instance_info_to_store;
-    paxos_accepted_from_epoch_ballot_accept(epoch_ballot_accept, (int) NULL, &standard_instance_info_to_store);
-    int error_1 = store->standard_storage.api.store_instance_info(store->standard_storage.handle, &standard_instance_info_to_store);
-
-    int error_2 = store->extended_api.store_accept_epoch(store->extended_handle, epoch_ballot_accept->instance, epoch_ballot_accept->epoch_ballot_requested.epoch);
-
-    return error_1 && error_2;
+    return store->extended_api.store_epoch_ballot_accept(store->extended_handle, epoch_ballot_accept);
 }
 
 // add the store method too
@@ -94,18 +72,7 @@ int epoch_stable_storage_get_all_untrimmed_instances_info(struct epoch_stable_st
 
 int epoch_stable_storage_get_all_untrimmed_epoch_ballot_accepts(struct epoch_stable_storage *store, struct epoch_ballot_accept **retrieved_epoch_ballot_accepts,
                                                                 int *number_of_instances_retrieved){
-
-    struct paxos_accepted* retrieved_paxos_accepteds;
-    store->standard_storage.api.get_all_untrimmed_instances_info(store->standard_storage.handle, &retrieved_paxos_accepteds, number_of_instances_retrieved);
-
-    (*retrieved_epoch_ballot_accepts) = malloc(*number_of_instances_retrieved * sizeof(struct epoch_ballot_accept));
-    uint32_t current_accept_epoch;
-    for (int i = 0; i < *number_of_instances_retrieved; i++){
-        // get the epoch of the accept
-        store->extended_api.get_accept_epoch(store->extended_handle, retrieved_paxos_accepteds[i].iid, &current_accept_epoch);
-        epoch_ballot_accept_from_paxos_accepted(&retrieved_paxos_accepteds[i], current_accept_epoch, &(*retrieved_epoch_ballot_accepts)[i]);
-        // convert to a thing
-    }
+    return store->extended_api.get_all_untrimmed_epoch_ballots(store->extended_handle, retrieved_epoch_ballot_accepts, number_of_instances_retrieved);
     return 1;
 }
 

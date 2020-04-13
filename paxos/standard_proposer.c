@@ -309,9 +309,9 @@ proposer_try_to_start_preparing_instance(struct proposer* p, iid_t instance, pax
 
     if (k == kh_end(p->prepare_phase_instances)) {
 
-        if (instance >= p->next_prepare_instance) {
-            p->next_prepare_instance = instance + 1;
-        }
+     //   if (instance >= p->next_prepare_instance) {
+       //     p->next_prepare_instance = instance + 1;
+        //}
         // New instance
         struct ballot ballot = (struct ballot) {.number = random_between(1, INITIAL_BALLOT), .proposer_id = p->id};
         assert(ballot.number > 0);

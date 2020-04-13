@@ -43,9 +43,7 @@
 
 const int TRIM_ID_KEY = -1;
 const int MAX_INSTANCE_KEY = -2;
-const int EPOCH_PREFIX = INT_MIN;
 const int CURRENT_EPOCH_KEY = -3;
-const int NUMBER_OF_NON_INSTANCE_KEYS_KEY = -4;
 
 
 struct lmdb_storage
@@ -594,153 +592,108 @@ static int lmdb_store_current_epoch(struct lmdb_storage* lmdb_storage, uint32_t 
     return 0;
 }
 
-static int lmdb_store_accept_epoch(struct lmdb_storage* lmdb_storage, iid_t instance, uint32_t epoch) {
+
+// 0 means not found, 1 means found
+static int
+epoch_lmdb_storage_get_epoch_ballot_accept(struct lmdb_storage *lmdb_storage, const iid_t instance, struct epoch_ballot_accept* out)
+{
     assert(lmdb_storage->txn != NULL);
 
     int result;
-
     MDB_val key, data;
 
-    int accept_epoch_key = EPOCH_PREFIX + instance;
-
-    MDB_stat before_stats;
-    mdb_stat(lmdb_storage->txn, lmdb_storage->dbi, &before_stats);
-
-    key.mv_data = (void *) &accept_epoch_key; // mv_data is the pointer to where the key (literal) is held
-    key.mv_size = sizeof(int);
-
-    data.mv_data = &epoch;
-    data.mv_size = sizeof(iid_t);
-
-    result = mdb_put(lmdb_storage->txn, lmdb_storage->dbi, &key, &data, 0);
-    if (result != 0)
-        paxos_log_error("%s\n", mdb_strerror(result));
-    assert(result == 0);
-
-    MDB_stat after_stats;
-    mdb_stat(lmdb_storage->txn, lmdb_storage->dbi, &after_stats);
-
-    if (after_stats.ms_entries > before_stats.ms_entries) {
-        lmdb_storage->num_non_instance_vals++;
-
-
-        assert(lmdb_storage->txn != NULL);
-
-        int rv;
-
-        MDB_val non_instances_key, non_instances_data;
-
-        key.mv_data = (void *) &NUMBER_OF_NON_INSTANCE_KEYS_KEY;
-        key.mv_size = sizeof(NUMBER_OF_NON_INSTANCE_KEYS_KEY);
-
-        data.mv_data = &lmdb_storage->num_non_instance_vals;
-        data.mv_size = sizeof(lmdb_storage->num_non_instance_vals);
-
-        result = mdb_put(lmdb_storage->txn, lmdb_storage->dbi, &key, &data, 0);
-        if (result != 0)
-            paxos_log_error("%s\n", mdb_strerror(result));
-        assert(result == 0);
-
-
-    }
-
-    return 0;
-}
-
-static int lmdb_get_accept_epoch(struct lmdb_storage* lmdb_storage, iid_t instance, uint32_t* retrieved_epoch) {
-    assert(lmdb_storage->txn != NULL);
-    int result;
-    MDB_val key, data;
     memset(&data, 0, sizeof(data));
 
-    int accept_epoch_key = EPOCH_PREFIX + instance;
-
-    key.mv_data = (void *) &accept_epoch_key; // mv_data is the pointer to where the key (literal) is held
-    key.mv_size = sizeof(int);
+    key.mv_data = &instance;
+    key.mv_size = sizeof(instance);
 
     if ((result = mdb_get(lmdb_storage->txn, lmdb_storage->dbi, &key, &data)) != 0) {
-        if (result != MDB_NOTFOUND) { // something else went wrong so freak out
-            paxos_log_error("mdb_get failed: %s", mdb_strerror(result));
-            return 1;//assert(result == 0); // return an error code
+        if (result == MDB_NOTFOUND) {
+            paxos_log_debug("There is no record for iid: %d", instance);
         } else {
-            *retrieved_epoch = 0; // the trim instance has not been found so return 0
+            paxos_log_error("Could not find record for iid: %d : %s",
+                            instance, mdb_strerror(result));
         }
-    } else {
-        *retrieved_epoch = *(iid_t *) data.mv_data; // return the found trim instance
+        return 0;
     }
-    return 0;
-}
 
+    epoch_ballot_accept_from_buffer(data.mv_data, out);
+
+    assert(&out->epoch_ballot_requested != NULL);
+    assert(instance == out->instance);
+
+    return 1;
+}
 
 static int
-lmdb_epoch_storage_open(struct lmdb_storage *lmdb_storage)
+epoch_lmdb_storage_store_epoch_ballot_accept(struct lmdb_storage *lmdb_storage, const struct epoch_ballot_accept *accept)
 {
-    char* lmdb_env_path = NULL;
-    struct stat sb;
-    int dir_exists, result;
-    size_t lmdb_env_path_length = strlen(paxos_config.lmdb_env_path) + 16;
+    assert(lmdb_storage->txn != NULL);
 
-    lmdb_env_path = malloc(lmdb_env_path_length);
-    snprintf(lmdb_env_path, lmdb_env_path_length, "%s_%d",
-             paxos_config.lmdb_env_path, lmdb_storage->acceptor_id);
-
-    // Trash files -- testing only
-    if (paxos_config.trash_files) {
-        char rm_command[600];
-        sprintf(rm_command, "rm -r %s", lmdb_env_path);
-        system(rm_command);
-    }
-
-    dir_exists = (stat(lmdb_env_path, &sb) == 0);
-
-    if (!dir_exists){
-        paxos_log_info("%s does not exist");
-    }
-
-    if (!dir_exists && (mkdir(lmdb_env_path, S_IRWXU) != 0)) {
-        paxos_log_error("Failed to create env dir %s: %s",
-                        lmdb_env_path, strerror(errno));
-        result = -1;
-        goto error;
-    }
-
-    if ((result = lmdb_storage_init(lmdb_storage, lmdb_env_path) != 0)) {
-        paxos_log_error("Failed to open DB handle");
-    } else {
-        paxos_log_info("lmdb storage opened successfully");
-        goto cleanup_exit;
-    }
-
-    //number of extra keys we have in the DB
-    int rv;
+    int result;
     MDB_val key, data;
-    memset(&data, 0, sizeof(data));
+    char* buffer = epoch_ballot_accept_to_buffer(accept);
 
-    key.mv_data = (void *) &NUMBER_OF_NON_INSTANCE_KEYS_KEY; // mv_data is the pointer to where the key (literal) is held
-    key.mv_size = sizeof(NUMBER_OF_NON_INSTANCE_KEYS_KEY);
+    key.mv_data = &accept->instance;
+    key.mv_size = sizeof(iid_t);
 
-    if ((result = mdb_get(lmdb_storage->txn, lmdb_storage->dbi, &key, &data)) != 0) {
-        if (result != MDB_NOTFOUND) { // something else went wrong so freak out
-            paxos_log_error("mdb_get failed: %s", mdb_strerror(result));
-            return -100;//assert(result == 0); // return an error code
-        } else {
-            lmdb_storage->num_non_instance_vals = 4; // the trim instance has not been found so return 0
-        }
-    } else {
-        lmdb_storage->num_non_instance_vals = *(uint32_t *) data.mv_data; // return the found trim instance
+    data.mv_data = buffer;
+    data.mv_size = sizeof(struct epoch_ballot_accept) + accept->value_to_accept.paxos_value_len;
+
+    result = mdb_put(lmdb_storage->txn, lmdb_storage->dbi, &key, &data, 0);
+    iid_t max_inited_instance;
+    lmdb_storage_get_max_instance(lmdb_storage, &max_inited_instance);
+
+    if (accept->instance > max_inited_instance) {
+        lmdb_storage_put_max_instance(lmdb_storage, accept->instance);
     }
 
-    error:
-    if (lmdb_storage) {
-        lmdb_storage_close(lmdb_storage);
-    }
-
-    cleanup_exit:
-    free(lmdb_env_path);
-
-
+    free(buffer);
     return result;
 }
+
+static int epoch_lmdb_storage_get_all_untrimmed_instances(struct lmdb_storage* lmdb_storage, struct epoch_ballot_accept** retrieved_accepts, int* number_of_inst_retrieved){
+    assert(lmdb_storage->txn != NULL);
+
+    iid_t trim_instance = 0;
+    lmdb_storage_get_trim_instance(lmdb_storage, &trim_instance);
+
+    if (number_of_inst_retrieved == NULL) {
+        number_of_inst_retrieved = calloc(1, sizeof(int));
+    }
+
+    if (retrieved_accepts == NULL) {
+        retrieved_accepts = calloc(1, sizeof(struct epoch_ballot_accept*));
+    }
+
+    *number_of_inst_retrieved = 0;
+
+    iid_t max_inited_instance;
+    lmdb_storage_get_max_instance(lmdb_storage, &max_inited_instance);
+
+    iid_t max_possible_instances = max_inited_instance - trim_instance;
+
+    (*retrieved_accepts) = calloc(max_possible_instances, sizeof(struct epoch_ballot_accept));
+    int index = 0;
+    for(unsigned int current_iid = trim_instance + 1; current_iid <= max_inited_instance; current_iid++) {
+        struct epoch_ballot_accept *current_instance = calloc(1, sizeof(struct epoch_ballot_accept));
+        int found = epoch_lmdb_storage_get_epoch_ballot_accept(lmdb_storage, current_iid, current_instance);
+        if (found) {
+            (*number_of_inst_retrieved) = (*number_of_inst_retrieved) + 1;
+            epoch_ballot_accept_copy(&(*retrieved_accepts)[(*number_of_inst_retrieved) - 1], current_instance);
+            index++;
+            paxos_log_debug("Retrieved instance %u from stable storage", current_instance->instance);
+        }
+        free(current_instance);
+    }
+
+    // cleanup
+    if (*number_of_inst_retrieved < max_inited_instance) {
+        (*retrieved_accepts) = realloc((*retrieved_accepts), sizeof(struct epoch_ballot_accept) * (*number_of_inst_retrieved));
+    }
+    return 1;
+}
+
 
 void epoch_stable_storage_lmdb_init(struct epoch_stable_storage* storage, int acceptor_id){
     storage->standard_storage.handle = lmdb_storage_new_write_ahead_epochs(acceptor_id);
@@ -751,10 +704,13 @@ void epoch_stable_storage_lmdb_init(struct epoch_stable_storage* storage, int ac
     // SHould make a storage union - so anything could be given (union of prepares, accept, and epoch_accept)
   // need to add in method for this  storage_init_lmdb_write_ahead_epochs&storage->standard_storage, acceptor_id);
     storage->extended_handle = storage->standard_storage.handle; // same handle ;)
-    storage->standard_storage.api.open = (int (*) (void*)) lmdb_epoch_storage_open;
+   // storage->standard_storage.api.open = (int (*) (void*)) lmdb_epoch_storage_open;
     storage->extended_api.store_current_epoch = (int (*) (void *, uint32_t)) lmdb_store_current_epoch;
     storage->extended_api.get_current_epoch = (int (*) (void *, uint32_t*)) lmdb_get_current_epoch;
+    storage->extended_api.store_epoch_ballot_accept = (int (*) (void *, const struct epoch_ballot_accept*)) epoch_lmdb_storage_store_epoch_ballot_accept;
+    storage->extended_api.get_epoch_ballot_accept = (int (*) (void*, const iid_t, struct epoch_ballot_accept*)) epoch_lmdb_storage_get_epoch_ballot_accept;
+    storage->extended_api.get_all_untrimmed_epoch_ballots = (int (*) (void*, struct epoch_ballot_accept**, int*)) epoch_lmdb_storage_get_all_untrimmed_instances;
 
-    storage->extended_api.get_accept_epoch = (int (*) (void*, iid_t, uint32_t*)) lmdb_get_accept_epoch;
-    storage->extended_api.store_accept_epoch = (int (*) (void*, iid_t, const uint32_t)) lmdb_store_accept_epoch;
+   // storage->extended_api.get_accept_epoch = (int (*) (void*, iid_t, uint32_t*)) lmdb_get_accept_epoch;
+   // storage->extended_api.store_accept_epoch = (int (*) (void*, iid_t, const uint32_t)) lmdb_store_accept_epoch;
 }

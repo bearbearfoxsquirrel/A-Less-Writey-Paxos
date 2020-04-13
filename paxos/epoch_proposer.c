@@ -755,7 +755,7 @@ enum epoch_paxos_message_return_codes epoch_proposer_receive_preempted(struct ep
                     // also increases ballot
                    epoch_proposer_check_and_set_current_epoch_from_epoch_ballot(p, preempted->acceptors_current_epoch_ballot);
                    epoch_proposer_instance_info_update_info_from_epoch_preemption(prepare_instance_info, preempted, p->id);
-                   prepare_instance_info->common_info.ballot = preempted->requested_epoch_ballot.ballot;
+                   prepare_instance_info->common_info.ballot = preempted->requested_epoch_ballot.ballot; //reset the ballot to see if should backoff too
                    return_code = EPOCH_PREEMPTED;
                 }
 

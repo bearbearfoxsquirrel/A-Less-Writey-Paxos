@@ -240,8 +240,9 @@ make_epoch_client(const char *config, int proposer_id, int outstanding, int valu
     c->outstanding_client_value_ids = malloc(sizeof(int) * c->max_outstanding);
     c->current_outstanding = 0;
 
-    struct timeval settle_in_time = {.tv_sec = 10, .tv_usec = 0};
-    c->latency_recorder = latency_recorder_new(latency_record_output_path, settle_in_time);
+    struct timeval settle_in_time = {.tv_sec = 20, .tv_usec = 0};
+    uint_fast64_t number_of_latencies_to_record = 50000;
+    c->latency_recorder = latency_recorder_new(latency_record_output_path, settle_in_time, number_of_latencies_to_record);
 
     c->stats_interval = (struct timeval){1, 0};
     c->stats_ev = evtimer_new(c->base, on_stats, c);

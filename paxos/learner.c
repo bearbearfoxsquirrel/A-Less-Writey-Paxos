@@ -126,11 +126,12 @@ void learner_receive_chosen(struct learner* l, struct paxos_chosen* chosen){
     }
 }
 
+/*
 void learner_receive_trim(struct learner* l, struct paxos_trim* trim_msg){
     learner_set_trim(l, trim_msg->iid);
     learner_set_instance_id(l, trim_msg->iid);
 }
-
+*/
 int
 learner_receive_accepted(struct learner* l, paxos_accepted* ack, struct paxos_chosen* chosen_msg)
 {

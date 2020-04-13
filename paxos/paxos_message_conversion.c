@@ -293,6 +293,15 @@ paxos_accepted_copy(struct paxos_accepted* dst, struct paxos_accepted* src) {
     }
 }
 
+void epoch_ballot_accept_copy(struct epoch_ballot_accept* dst, struct epoch_ballot_accept* src){
+    memcpy(dst, src, sizeof(struct epoch_ballot_accept));
+    if (dst->value_to_accept.paxos_value_len > 0){
+        dst->value_to_accept.paxos_value_val = malloc(src->value_to_accept.paxos_value_len * sizeof(char));
+        memcpy(dst->value_to_accept.paxos_value_val, src->value_to_accept.paxos_value_val, src->value_to_accept.paxos_value_len *
+                sizeof(char));
+    }
+}
+
 void
 paxos_accept_copy(struct paxos_accept* dst, struct paxos_accept* src) {
     memcpy(dst, src, sizeof(struct paxos_accept));
