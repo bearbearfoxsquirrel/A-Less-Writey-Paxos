@@ -48,14 +48,6 @@
 #include "stdio.h"
 #include "performance_threshold_timer.h"
 
-#define MIN_BACKOFF_TIME 5000
-#define MAX_BACKOFF_TIME 1000000
-#define MAX_INITIAL_BACKOFF_TIME 7000
-
-#define MIN(a,b) \
-   ({ __typeof__ (a) _a = (a); \
-       __typeof__ (b) _b = (b); \
-     _a < _b ? _a : _b; })
 
 KHASH_MAP_INIT_INT(backoffs, struct timeval*)
 KHASH_MAP_INIT_INT(retries, iid_t*)
@@ -70,7 +62,6 @@ struct evproposer {
 	struct event* timeout_ev;
 
 	struct backoff_manager* backoff_manager;
-//	khash_t(backoffs)* current_backoffs;
 
     int proposers_count;
     struct event *random_seed_event;
@@ -113,7 +104,7 @@ peer_send_trim(struct standard_paxos_peer* p, void* arg) {
 // Begins one or more instances, defined by the preexec_window
 static void
 proposer_preexecute(struct evproposer* p) {
-    int i;
+//    int i;
     struct paxos_prepare pr;
     int count = p->preexec_window - proposer_prepare_count(p->state) - proposer_acceptance_count(p->state);
     performance_threshold_timer_begin_timing(p->preexecute_timer);
@@ -152,45 +143,6 @@ proposer_preexecute(struct evproposer* p) {
     paxos_log_debug("Opened %d new instances", count);
 }
 
-
-/*
-// Begins one or more instances, defined by the preexec_window
-static void
-proposer_preexecute(struct evproposer* p) {
-	int i;
-	struct paxos_prepare pr;
-	int count = (p->preexec_window / p->proposers_count) - proposer_prepared_count(p->state) - proposer_acceptance_count(p->state);
-
-    struct timeval t1;
-    gettimeofday(&t1, NULL);
-    srand(t1.tv_usec * t1.tv_sec);
-
-
-    if (count <= 0) return;
-    iid_t* tried_preparing_instances = malloc(sizeof(iid_t) * count);
-    unsigned int tried_index = 0;
-    unsigned int num_prepreed= 0;
-
-    int min_possible_inst = proposer_get_next_instance_to_prepare(p->state);
-    while (count > 0 || tried_index < count * 2) {
-	    iid_t current_instance = random_between_excluding(min_possible_inst, min_possible_inst + p->preexec_window, tried_preparing_instances, tried_index);
-	    assert(current_instance != 0);
-	    proposer_set_current_instance(p->state, current_instance);
-        paxos_log_debug("current proposing instance: %u", current_instance);
-        bool new_prepare_for_instance = proposer_try_to_start_preparing_instance(p->state, proposer_get_current_instance(p->state), &pr);
-        if (new_prepare_for_instance) {
-            peers_for_n_acceptor(p->peers, peer_send_prepare, &pr, paxos_config.group_1);
-
-            count--;
-        }
-
-        tried_preparing_instances[tried_index++] = current_instance;
-	}
-
-	free(tried_preparing_instances);
-	paxos_log_debug("Opened %d new instances", count);
-}
-*/
 
 static void
 try_accept(struct evproposer* p)
@@ -446,12 +398,8 @@ evproposer_init_internal(int id, struct evpaxos_config* c, struct standard_paxos
 	p->id = id;
 	p->proposers_count = evpaxos_proposer_count(c);
 
-    p->state = proposer_new(p->id, acceptor_count,paxos_config.quorum_1,paxos_config.quorum_2);
+    p->state = proposer_new(p->id, acceptor_count, paxos_config.quorum_1, paxos_config.quorum_2, paxos_config.max_ballot_increment);
 	p->preexec_window = paxos_config.proposer_preexec_window;
-
-//	p->current_backoffs = kh_init_backoffs();
-//	kh_init_retries();
-
 
 	peers_subscribe(peers, PAXOS_PROMISE, evproposer_handle_promise, p);
 	peers_subscribe(peers, PAXOS_ACCEPTED, evproposer_handle_accepted, p);
@@ -500,7 +448,7 @@ evproposer_init(int id, const char* config_file, struct event_base* base)
 		return NULL;
 
 	// Check id validity of proposer_id
-	if (id < 0 || id >= MAX_N_OF_PROPOSERS) {
+	if (id < 0) {
 		paxos_log_error("Invalid proposer id: %d", id);
 		return NULL;
 	}
@@ -513,7 +461,7 @@ evproposer_init(int id, const char* config_file, struct event_base* base)
 		return NULL;
 
 	//todo config mechanism to work out backoff type
-	struct backoff* backoff = full_jitter_backoff_new(MAX_BACKOFF_TIME, MIN_BACKOFF_TIME, MAX_INITIAL_BACKOFF_TIME);
+	struct backoff* backoff = full_jitter_backoff_new(paxos_config.max_backoff_microseconds, paxos_config.min_backoff_microseconds, paxos_config.max_initial_backff_microseconds);
 	struct backoff_manager* backoff_manager = backoff_manager_new(backoff);
 
 	struct evproposer* p = evproposer_init_internal(id, config, peers, backoff_manager);

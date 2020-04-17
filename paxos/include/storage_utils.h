@@ -39,7 +39,7 @@ char* paxos_accepted_to_buffer(paxos_accepted* acc);
 void paxos_accepted_from_buffer(char* buffer, paxos_accepted* out);
 
 
-char* epoch_ballot_accept_to_buffer(struct epoch_ballot_accept* acc);
+char* epoch_ballot_accept_to_buffer(const struct epoch_ballot_accept* acc);
 void epoch_ballot_accept_from_buffer(char* buffer, struct epoch_ballot_accept* out);
 
 #ifdef __cplusplus

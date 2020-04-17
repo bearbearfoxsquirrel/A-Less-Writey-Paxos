@@ -42,7 +42,7 @@ extern "C" {
 
 struct proposer;
 
-struct proposer* proposer_new(int id, int acceptors, int q1, int q2);
+struct proposer *proposer_new(int id, int acceptors, int q1, int q2, uint32_t ballot_increment);
 void proposer_free(struct proposer* p);
 void proposer_add_paxos_value_to_queue(struct proposer* p, struct paxos_value* value);
 int proposer_prepare_count(struct proposer* p);

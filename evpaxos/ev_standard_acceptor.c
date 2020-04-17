@@ -36,6 +36,7 @@
 #include <event2/event.h>
 #include "ballot.h"
 #include <paxos_types.h>
+#include <random.h>
 #include "ev_timer_threshold_timer_util.h"
 #include "performance_threshold_timer.h"
 
@@ -48,6 +49,11 @@ struct ev_standard_acceptor
 	struct timeval timer_tv;
 	struct performance_threshold_timer* promise_timer;
 	struct performance_threshold_timer* acceptance_timer;
+
+    struct event* prewrite_instances_event;
+    struct timeval prewrite_instances_timer;
+
+    uint32_t expected_value_size;
 };
 
 static void
@@ -139,6 +145,21 @@ evacceptor_handle_trim(__unused struct standard_paxos_peer* p, standard_paxos_me
     standard_acceptor_receive_trim(a->state, trim);
 }
 
+
+static void ev_standard_acceptor_prewrite_instances(__unused int fd, __unused short ev, void* arg) {
+    struct ev_standard_acceptor *acceptor = arg;
+
+    iid_t next_instance_to_prewrite = standard_acceptor_get_next_instance_to_prewrite(acceptor->state);
+    if (next_instance_to_prewrite < standard_acceptor_get_max_proposed_instance(acceptor->state) +
+                                            standard_acceptor_get_max_instances_to_prewrite(acceptor->state)) {
+        standard_acceptor_prewrite_instances(acceptor->state,
+                next_instance_to_prewrite,
+                standard_acceptor_number_of_instance_to_prewrite_at_once(acceptor->state),
+                acceptor->expected_value_size);
+    }
+    event_add(acceptor->prewrite_instances_event, &acceptor->prewrite_instances_timer);
+}
+
 static void
 send_acceptor_state(__unused int fd, __unused short ev, void* arg)
 {
@@ -153,7 +174,11 @@ struct ev_standard_acceptor*
 evacceptor_init_internal(int id, __unused struct evpaxos_config* c, struct standard_paxos_peers* p)
 {
 	struct ev_standard_acceptor* acceptor = calloc(1, sizeof(struct ev_standard_acceptor));
-    acceptor->state = standard_acceptor_new(id);
+	acceptor->expected_value_size = paxos_config.expected_value_size;
+    acceptor->state = standard_acceptor_new(id,
+            paxos_config.num_instances_to_prewrite,
+            paxos_config.max_prewritten_instances,
+            paxos_config.expected_value_size);
 	acceptor->peers = p;
 
 	peers_subscribe(p, PAXOS_PREPARE, evacceptor_handle_prepare, acceptor);
@@ -169,6 +194,11 @@ evacceptor_init_internal(int id, __unused struct evpaxos_config* c, struct stand
 
 	acceptor->promise_timer = get_promise_performance_threshold_timer_new();
 	acceptor->acceptance_timer = get_acceptance_performance_threshold_timer_new();
+
+
+    acceptor->prewrite_instances_event = evtimer_new(base, ev_standard_acceptor_prewrite_instances, acceptor);
+    acceptor->prewrite_instances_timer = (struct timeval) {paxos_config.prewrite_time_seconds, paxos_config.prewrite_time_microseconds};
+    event_add(acceptor->prewrite_instances_event, &acceptor->prewrite_instances_timer);
 
 	return acceptor;
 }

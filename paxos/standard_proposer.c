@@ -54,32 +54,6 @@ KHASH_MAP_INIT_INT(chosen_instances, bool*)
 KHASH_MAP_INIT_INT(instance_info, struct standard_proposer_instance_info*)
 
 
-/*
-
-
-
-
-static void print_bytes_of_value_to_submit(char * ty, char * val, unsigned char * bytes, size_t num_bytes) {
-    char* string; //= sprintf("(%*s) %*s = [ ", 15, ty, 16, val);
-    asprintf(&string, "(%*s) %*s = [ ", 15, ty, 16, val);
-    for (size_t i = 0; i < num_bytes; i++) {
-        char* to_add;
-        asprintf(&to_add, "%*u ", 3, bytes[i]);
-        strcat(string, to_add);
-    }
-    strcat(string, "]");
-    paxos_log_debug("%s", string);
-}
-
-#define SHOW(T,V) do { T x = V; print_bytes_of_value_to_submit(#T, #V, (unsigned char*) &x, sizeof(x)); } while(0)
-
-
-*/
-
-
-#define INITIAL_BALLOT 400
-#define BALLOT_INCREMENT 400
-
 
 struct proposer
 {
@@ -101,6 +75,7 @@ struct proposer
 	khash_t(instance_info)* accept_phase_instances;  /* Waiting for accept acks */
 	khash_t(chosen_instances)* chosens;
   //  uint32_t max_instance_inited;
+    uint32_t ballot_increment;
 };
 
 struct timeout_iterator{
@@ -144,8 +119,8 @@ void check_and_handle_promises_value_for_instance(struct paxos_promise *ack, str
 
 void get_prepare_from_instance_info(struct standard_proposer_instance_info *inst, struct paxos_prepare *out);
 
-struct proposer*
-proposer_new(int id, int acceptors, int q1, int q2)
+struct proposer *
+proposer_new(int id, int acceptors, int q1, int q2, uint32_t ballot_increment)
 {
 	struct proposer *p;
 	p = calloc(1, sizeof(struct proposer));
@@ -161,6 +136,7 @@ proposer_new(int id, int acceptors, int q1, int q2)
 	p->prepare_phase_instances = kh_init(instance_info);
 	p->accept_phase_instances = kh_init(instance_info);
 	p->chosens = kh_init(chosen_instances);
+	p->ballot_increment = ballot_increment;
 	return p;
 }
 
@@ -313,7 +289,7 @@ proposer_try_to_start_preparing_instance(struct proposer* p, iid_t instance, pax
        //     p->next_prepare_instance = instance + 1;
         //}
         // New instance
-        struct ballot ballot = (struct ballot) {.number = random_between(1, INITIAL_BALLOT), .proposer_id = p->id};
+        struct ballot ballot = (struct ballot) {.number = random_between(1, p->ballot_increment), .proposer_id = p->id};
         assert(ballot.number > 0);
         int rv;
         inst = proposer_instance_info_new(instance, ballot, p->acceptors, p->q1);
@@ -726,7 +702,7 @@ proposer_update_instance_info_from_preemption(struct proposer *p, struct standar
                                               struct paxos_preempted *preempted_message)
 {
 
-	inst->common_info.ballot = (struct ballot) {.number = random_between(preempted_message->acceptor_current_ballot.number + 1, preempted_message->acceptor_current_ballot.number + BALLOT_INCREMENT + 1), .proposer_id = p->id};
+	inst->common_info.ballot = (struct ballot) {.number = random_between(preempted_message->acceptor_current_ballot.number + 1, preempted_message->acceptor_current_ballot.number + p->ballot_increment + 1), .proposer_id = p->id};
 	inst->common_info.last_accepted_ballot = INVALID_BALLOT;
 
     if (proposer_instance_info_has_promised_value(&inst->common_info)) {

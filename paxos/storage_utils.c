@@ -58,7 +58,7 @@ paxos_accepted_from_buffer(char* buffer, paxos_accepted* out)
 
 
 
-char* epoch_ballot_accept_to_buffer(struct epoch_ballot_accept* acc)
+char* epoch_ballot_accept_to_buffer(const struct epoch_ballot_accept* acc)
 {
     size_t len = acc->value_to_accept.paxos_value_len;
     char* buffer = calloc(1, sizeof(struct epoch_ballot_accept) + len);

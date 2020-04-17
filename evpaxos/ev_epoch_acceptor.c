@@ -12,6 +12,7 @@
 #include "epoch_paxos_message.h"
 #include "ballot.h"
 #include <paxos_types.h>
+#include <random.h>
 #include "performance_threshold_timer.h"
 #include "ev_timer_threshold_timer_util.h"
 
@@ -23,11 +24,15 @@ struct ev_epoch_acceptor {
     struct event* send_state_event;
     struct timeval send_state_timer;
 
+    struct event* prewrite_instances_event;
+    struct timeval prewrite_instances_timer;
+
 
     struct performance_threshold_timer* promise_timer;
     struct performance_threshold_timer* acceptance_timer;
 
     struct performance_threshold_timer* chosen_timer;
+    uint32_t expected_value_size;
 };
 
 static void peer_send_epoch_paxos_message(struct writeahead_epoch_paxos_peer* p, void* arg){
@@ -144,20 +149,41 @@ static void send_epoch_acceptor_state(__unused int fd, __unused short ev, void* 
     event_add(acceptor->send_state_event, &acceptor->send_state_timer);
 }
 
-struct ev_epoch_acceptor* ev_epoch_acceptor_init_internal(int id, struct evpaxos_config* c, struct writeahead_epoch_paxos_peers* p) {
+static void ev_epoch_acceptor_prewrite_instances(__unused int fd, __unused short ev, void* arg) {
+    struct ev_epoch_acceptor *acceptor = arg;
+    iid_t next_instnace_to_prewrite = writeahead_epoch_acceptor_get_next_instance_to_prewrite(acceptor->acceptor);
+    if (next_instnace_to_prewrite < writeahead_epoch_acceptor_get_max_proposed_instance(acceptor->acceptor) +
+                                            writeahead_epoch_acceptor_get_max_instances_prewrite(acceptor->acceptor)) {
+        writeahead_epoch_acceptor_prewrite_instances(acceptor->acceptor,
+                next_instnace_to_prewrite,
+                writeahead_epoch_acceptor_number_of_instance_to_prewrite_at_once(acceptor->acceptor), acceptor->expected_value_size);
+    }
+    event_add(acceptor->prewrite_instances_event, &acceptor->prewrite_instances_timer);
+}
+
+struct ev_epoch_acceptor *
+ev_epoch_acceptor_init_internal(int id, struct evpaxos_config *c, struct writeahead_epoch_paxos_peers *p) {
     struct ev_epoch_acceptor* acceptor = malloc(sizeof(struct ev_epoch_acceptor));
     struct epoch_notification epoch_notification;
     bool new_epoch;
-    acceptor->acceptor = writeahead_epoch_acceptor_new(id, &epoch_notification, &new_epoch);
+
+    acceptor->expected_value_size = paxos_config.expected_value_size;
+    acceptor->acceptor = writeahead_epoch_acceptor_new(id,
+                                                       &epoch_notification,
+                                                       &new_epoch,
+                                                       paxos_config.num_instances_to_prewrite,
+                                                       paxos_config.max_prewritten_instances,
+                                                       paxos_config.expected_value_size);
     acceptor->peers = p;
 
-    writeahead_epoch_paxos_peers_subscribe(acceptor->peers, WRITEAHEAD_EPOCH_BALLOT_ACCEPT, ev_epoch_acceptor_handle_epoch_ballot_accept, acceptor);
+    writeahead_epoch_paxos_peers_subscribe(p, WRITEAHEAD_EPOCH_BALLOT_ACCEPT, ev_epoch_acceptor_handle_epoch_ballot_accept, acceptor);
     writeahead_epoch_paxos_peers_subscribe(p, WRITEAHEAD_STANDARD_PREPARE, ev_epoch_acceptor_handle_standard_prepare, acceptor);
     writeahead_epoch_paxos_peers_subscribe(p, WRITEAHEAD_EPOCH_BALLOT_PREPARE, ev_epoch_acceptor_handle_epoch_ballot_prepare, acceptor);
     writeahead_epoch_paxos_peers_subscribe(p, WRITEAHEAD_INSTANCE_CHOSEN_AT_EPOCH_BALLOT,ev_epoch_acceptor_handle_epoch_ballot_chosen, acceptor );
     writeahead_epoch_paxos_peers_subscribe(p, WRITEAHEAD_EPOCH_NOTIFICATION, ev_epoch_acceptor_handle_epoch_notification, acceptor);
     writeahead_epoch_paxos_peers_subscribe(p, WRITEAHEAD_REPEAT, ev_epoch_acceptor_handle_repeat, acceptor);
     writeahead_epoch_paxos_peers_subscribe(p, WRITEAHEAD_INSTANCE_TRIM, ev_epoch_acceptor_handle_trim, acceptor);
+
 
 
     acceptor->promise_timer = get_promise_performance_threshold_timer_new();
@@ -169,6 +195,15 @@ struct ev_epoch_acceptor* ev_epoch_acceptor_init_internal(int id, struct evpaxos
     acceptor->send_state_timer = (struct timeval) {1, 0};
     event_add(acceptor->send_state_event, &acceptor->send_state_timer);
 
+    acceptor->prewrite_instances_event = evtimer_new(base, ev_epoch_acceptor_prewrite_instances, acceptor);
+    acceptor->prewrite_instances_timer = (struct timeval) {paxos_config.prewrite_time_seconds, paxos_config.prewrite_time_microseconds};
+    event_add(acceptor->prewrite_instances_event, &acceptor->prewrite_instances_timer);
+
+    struct writeahead_epoch_paxos_message msg = {
+            .type = WRITEAHEAD_EPOCH_NOTIFICATION,
+            .message_contents.epoch_notification = epoch_notification
+    };
+    writeahead_epoch_paxos_peers_foreach_client(acceptor->peers, peer_send_epoch_paxos_message, &msg);
     //todo send epoch_notifcation to all actors
 
     return acceptor;
@@ -195,6 +230,7 @@ struct ev_epoch_acceptor* ev_epoch_acceptor_init(int id, const char* config_fig,
 
 
     struct ev_epoch_acceptor* acceptor = ev_epoch_acceptor_init_internal(id, config, peers);
+
     evpaxos_config_free(config);
     return acceptor;
 }

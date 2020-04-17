@@ -250,11 +250,11 @@ ev_write_ahead_acceptor_init_internal(int id, __unused struct evpaxos_config* c,
 
 
    acceptor->state = write_ahead_window_acceptor_new(id,
-            50000,
-            3000,
-            15000,
-            2000,
-            2000 ); // dont want iteration to be larger than 4kb (page size)
+           paxos_config.min_proposed_instance_catchup,
+            paxos_config.ballot_catchup,
+            paxos_config.ballots_written_ahead,
+            paxos_config.num_instances_to_prewrite,
+            paxos_config.num_instances_to_prewrite); // dont want iteration to be larger than 4kb (page size)
    // by making instance window less than min instance
    // catchup you can do a sort of write a little bit at once ahead
    // of time rather than a giant bulk-write of all the written ahead instances
@@ -277,16 +277,16 @@ ev_write_ahead_acceptor_init_internal(int id, __unused struct evpaxos_config* c,
 
     // New event to check windows async
     acceptor->instance_window_check_event = event_new(base, -1, EV_TIMEOUT, check_instance_epoch_event, acceptor);
-    acceptor->instance_window_check_timer = (struct timeval) {.tv_sec = 1, .tv_usec = (rand() % 400000)};
+    acceptor->instance_window_check_timer = (struct timeval) {.tv_sec = paxos_config.prewrite_time_seconds, .tv_usec = paxos_config.prewrite_time_microseconds};
     acceptor->instance_window_epoch_iteration_event =  event_new(base, -1, EV_TIMEOUT, write_instance_epoch_event, acceptor);
     acceptor->instance_window_epoch_iteration_timer = (struct timeval) {.tv_sec = 0, .tv_usec = 1}; //0.5 seconds = 500000  us
     event_add(acceptor->instance_window_check_event, &acceptor->instance_window_check_timer);
 
     acceptor->ballot_window_check_event = evtimer_new(base, check_ballot_window_event, acceptor);
-    acceptor->ballot_window_check_timer = (struct timeval) {.tv_sec = 0, .tv_usec = 10000 + (rand() % 5000)};
+    acceptor->ballot_window_check_timer = (struct timeval) {paxos_config.ballot_windows_check_timer_seconds, paxos_config.ballot_windows_check_timer_microseconds};
 
     acceptor->ballot_window_iteration_event = evtimer_new(base, write_ballot_event, acceptor);
-    acceptor->ballot_window_iteration_timer = (struct timeval) {.tv_sec = 0, .tv_usec = 1000};
+    acceptor->ballot_window_iteration_timer = (struct timeval) {.tv_sec = 0, .tv_usec = 1}; // just one iteration because more isn't really needed
     event_add(acceptor->ballot_window_check_event, &acceptor->ballot_window_check_timer);
 
     acceptor->promise_timer = get_promise_performance_threshold_timer_new();

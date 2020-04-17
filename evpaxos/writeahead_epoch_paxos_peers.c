@@ -161,7 +161,20 @@ writeahead_epoch_paxos_peers_foreach_acceptor(struct writeahead_epoch_paxos_peer
         cb(p->peers[i], arg);
 }
 
-
+static void shuffle(struct writeahead_epoch_paxos_peer**array, size_t n)
+{
+    if (n > 1)
+    {
+        size_t i;
+        for (i = 0; i < n - 1; i++)
+        {
+            size_t j = i + rand() / (RAND_MAX / (n - i) + 1);
+            struct writeahead_epoch_paxos_peer* t = array[j];
+            array[j] = array[i];
+            array[i] = t;
+        }
+    }
+}
 
 void
 writeahead_epoch_paxos_peers_for_n_acceptor(struct writeahead_epoch_paxos_peers* p, writeahead_epoch_paxos_peer_iter_cb cb, void* arg, int n)
@@ -169,6 +182,7 @@ writeahead_epoch_paxos_peers_for_n_acceptor(struct writeahead_epoch_paxos_peers*
     if (n>p->peers_count)
         n=p->peers_count;
     int i;
+    shuffle(p->peers, p->peers_count);
     for (i = 0; i < n; ++i)
         cb(p->peers[i], arg);
 }

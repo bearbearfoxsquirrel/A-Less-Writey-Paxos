@@ -13,7 +13,7 @@ struct epoch_proposer;
 
 
 
-struct epoch_proposer* epoch_proposer_new(int id, int acceptors, int q1, int q2);
+struct epoch_proposer *epoch_proposer_new(int id, int acceptors, int q1, int q2, uint32_t max_ballot_increment);
 void epoch_proposer_free(struct epoch_proposer* p);
 void epoch_proposer_add_paxos_value_to_queue(struct epoch_proposer* p, struct paxos_value value);
 int epoch_proposer_prepare_count(struct epoch_proposer* p);

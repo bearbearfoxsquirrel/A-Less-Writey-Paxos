@@ -22,8 +22,6 @@
 KHASH_MAP_INIT_INT(instance_info, struct epoch_proposer_instance_info*)
 KHASH_MAP_INIT_INT(chosen_instances, bool*)
 
-#define INITIAL_BALLOT 1000
-#define BALLOT_INCREMENT 1000
 
 
 struct epoch_proposer {
@@ -45,6 +43,7 @@ struct epoch_proposer {
 
     khash_t(chosen_instances)* chosen_instances;
 
+    uint32_t ballot_increment;
 };
 
 struct epoch_proposer_timeout_iterator {
@@ -56,7 +55,7 @@ struct epoch_proposer_timeout_iterator {
 
 
 
-struct epoch_proposer* epoch_proposer_new(int id, int acceptors, int q1, int q2){
+struct epoch_proposer *epoch_proposer_new(int id, int acceptors, int q1, int q2, uint32_t max_ballot_increment) {
     struct epoch_proposer* proposer = calloc(1, sizeof(struct epoch_proposer));
     proposer->id = id;
     proposer->acceptors = acceptors;
@@ -77,7 +76,7 @@ struct epoch_proposer* epoch_proposer_new(int id, int acceptors, int q1, int q2)
     proposer->pending_client_values = pending_client_values_new();
 
 
-
+    proposer->ballot_increment = max_ballot_increment;
 
     return proposer;
 }
@@ -286,7 +285,7 @@ uint32_t epoch_proposer_get_min_unchosen_instance(struct epoch_proposer* p){
 // phase 1
 
 static struct ballot epoch_proposer_get_initial_ballot(const struct epoch_proposer *p) {
-    return (struct ballot){.number = random_between(1, INITIAL_BALLOT), .proposer_id = p->id};
+    return (struct ballot){.number = random_between(1, p->ballot_increment), .proposer_id = p->id};
 }
 
 bool epoch_proposer_try_to_start_preparing_instance(struct epoch_proposer* p, iid_t instance, struct epoch_paxos_prepares *out){
@@ -371,13 +370,15 @@ void epoch_proposer_check_and_handle_promises_last_accepted_value_for_instance(s
     }
 }
 
-void epoch_proposer_instance_info_update_info_from_epoch_preemption(struct epoch_proposer_instance_info* inst, struct epoch_ballot_preempted* preempted,
-                                                         unsigned int proposer_id) {
+void epoch_proposer_instance_info_update_info_from_epoch_preemption(struct epoch_proposer_instance_info *inst,
+                                                                    struct epoch_ballot_preempted *preempted,
+                                                                    unsigned int proposer_id,
+                                                                    uint32_t ballot_increment) {
     struct epoch_ballot next_epoch_ballot = (struct epoch_ballot) {
         .epoch = preempted->acceptors_current_epoch_ballot.epoch,
         .ballot = (struct ballot) {
             .number = random_between(preempted->acceptors_current_epoch_ballot.ballot.number + 1,
-                                     preempted->acceptors_current_epoch_ballot.ballot.number + 1 + BALLOT_INCREMENT),
+                                     preempted->acceptors_current_epoch_ballot.ballot.number + 1 + ballot_increment),
             .proposer_id = proposer_id
         }
     };
@@ -456,7 +457,7 @@ enum epoch_paxos_message_return_codes epoch_proposer_receive_promise(struct epoc
                                                    .requested_epoch_ballot = epoch_proposer_instance_info_get_current_epoch_ballot(inst),
                                                    .acceptors_current_epoch_ballot = ack->promised_epoch_ballot};
 
-        epoch_proposer_instance_info_update_info_from_epoch_preemption(inst, &preempted, p->id);
+        epoch_proposer_instance_info_update_info_from_epoch_preemption(inst, &preempted, p->id, p->ballot_increment);
 
         // still a good promise so it will serve as the first for the quorum on the new current epoch
         // todo add a feature to ev_proposer where it will know who is in the quorum and send promise requests to those not in the quorum
@@ -704,10 +705,10 @@ enum epoch_paxos_message_return_codes epoch_proposer_receive_chosen(struct epoch
 //void epoch_proposer_preempt(struct epoch_proposer* p, struct standard_epoch_proposer_instance_info* inst, paxos_prepare* out);
 
 void epoch_proposer_update_instance_info_from_ballot_preempted(struct epoch_proposer_instance_info* inst, struct epoch_ballot_preempted* preempted,
-                                                               unsigned int pid) {
+                                                               unsigned int pid, uint32_t ballot_increment) {
     struct epoch_ballot next_attempting_ballot = (struct epoch_ballot) {.epoch = preempted->acceptors_current_epoch_ballot.epoch,
                                                                                    .ballot = (struct ballot) {.number = random_between(preempted->acceptors_current_epoch_ballot.ballot.number + 1,
-                                                                                                                                        preempted->acceptors_current_epoch_ballot.ballot.number + BALLOT_INCREMENT + 1),
+                                                                                                                                        preempted->acceptors_current_epoch_ballot.ballot.number + ballot_increment + 1),
                                                                                                               .proposer_id = pid}};
     epoch_proposer_instance_info_set_current_epoch_ballot(inst, next_attempting_ballot);
 
@@ -754,13 +755,14 @@ enum epoch_paxos_message_return_codes epoch_proposer_receive_preempted(struct ep
                 if(epoch_greater_than(preempted->acceptors_current_epoch_ballot, epoch_proposer_instance_info_get_current_epoch_ballot(prepare_instance_info))){
                     // also increases ballot
                    epoch_proposer_check_and_set_current_epoch_from_epoch_ballot(p, preempted->acceptors_current_epoch_ballot);
-                   epoch_proposer_instance_info_update_info_from_epoch_preemption(prepare_instance_info, preempted, p->id);
+                    epoch_proposer_instance_info_update_info_from_epoch_preemption(prepare_instance_info, preempted,
+                                                                                   p->id, 0);
                    prepare_instance_info->common_info.ballot = preempted->requested_epoch_ballot.ballot; //reset the ballot to see if should backoff too
                    return_code = EPOCH_PREEMPTED;
                 }
 
                 if (epoch_ballot_greater_than(preempted->acceptors_current_epoch_ballot, epoch_proposer_instance_info_get_current_epoch_ballot(prepare_instance_info))){
-                    epoch_proposer_update_instance_info_from_ballot_preempted(prepare_instance_info, preempted, p->id);
+                    epoch_proposer_update_instance_info_from_ballot_preempted(prepare_instance_info, preempted, p->id, p->ballot_increment);
                     return_code = BALLOT_PREEMPTED;
                 }
 
@@ -782,12 +784,13 @@ enum epoch_paxos_message_return_codes epoch_proposer_receive_preempted(struct ep
 
                 if (epoch_greater_than(preempted->acceptors_current_epoch_ballot, epoch_proposer_instance_info_get_current_epoch_ballot(acceptnce_instance_info))){
                     epoch_proposer_check_and_set_current_epoch_from_epoch_ballot(p, preempted->acceptors_current_epoch_ballot);
-                    epoch_proposer_instance_info_update_info_from_epoch_preemption(acceptnce_instance_info, preempted, p->id);
+                    epoch_proposer_instance_info_update_info_from_epoch_preemption(acceptnce_instance_info, preempted,
+                                                                                   p->id, p->ballot_increment);
                     return_code = EPOCH_PREEMPTED;
                 }
 
                 if (epoch_ballot_greater_than(preempted->acceptors_current_epoch_ballot, epoch_proposer_instance_info_get_current_epoch_ballot(acceptnce_instance_info))){
-                    epoch_proposer_update_instance_info_from_ballot_preempted(acceptnce_instance_info, preempted, p->id);
+                    epoch_proposer_update_instance_info_from_ballot_preempted(acceptnce_instance_info, preempted, p->id, p->ballot_increment);
                     return_code = BALLOT_PREEMPTED;
                 }
 

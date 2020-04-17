@@ -259,8 +259,8 @@ new_hash_mapped_memory(int aid) {
     struct hash_mapped_memory *hash_mapped_mem = calloc(1, sizeof(struct hash_mapped_memory));
     init_hash_tables(hash_mapped_mem);
     hash_mapped_mem->aid = aid;
-    hash_mapped_mem->trim_instance_id = BELOW_MIN_INSTANCE_ID;
-    hash_mapped_mem->min_chosen_instance = BELOW_MIN_INSTANCE_ID;
+    hash_mapped_mem->trim_instance_id = INVALID_INSTANCE;
+    hash_mapped_mem->min_chosen_instance = INVALID_INSTANCE;
     return hash_mapped_mem;
 }
 

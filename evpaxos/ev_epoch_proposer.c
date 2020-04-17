@@ -32,9 +32,6 @@
 #include "ev_timer_threshold_timer_util.h"
 
 
-#define MIN_BACKOFF_TIME 3000
-#define MAX_BACKOFF_TIME 1000000
-#define MAX_INITIAL_BACKOFF_TIME 5000
 
 KHASH_MAP_INIT_INT(retries, iid_t*)
 
@@ -381,7 +378,8 @@ static void ev_epoch_proposer_gen_random_seed(__unused evutil_socket_t fd, __unu
 
 struct ev_epoch_proposer* ev_epoch_proposer_init_internal(int id, struct evpaxos_config* c, struct writeahead_epoch_paxos_peers* peers, struct backoff_manager* backoff_manager) {
     struct ev_epoch_proposer* proposer = malloc(sizeof(struct ev_epoch_proposer));
-    proposer->proposer = epoch_proposer_new(id, evpaxos_acceptor_count(c), paxos_config.quorum_1, paxos_config.quorum_2);
+    proposer->proposer = epoch_proposer_new(id, evpaxos_acceptor_count(c), paxos_config.quorum_1, paxos_config.quorum_2,
+                                            paxos_config.max_ballot_increment);
     epoch_proposer_set_current_instance(proposer->proposer, 1);
     proposer->max_num_open_instances = paxos_config.proposer_preexec_window;
 
@@ -430,7 +428,7 @@ struct ev_epoch_proposer* ev_epoch_proposer_init(int id, const char* config_file
         return NULL;
 
     // Check id validity of proposer_id
-    if (id < 0 || id >= MAX_N_OF_PROPOSERS) {
+    if (id < 0) {
         paxos_log_error("Invalid proposer id: %d", id);
         return NULL;
     }
@@ -443,7 +441,7 @@ struct ev_epoch_proposer* ev_epoch_proposer_init(int id, const char* config_file
         return NULL;
 
     //todo config mechanism to work out backoff type
-    struct backoff* backoff = full_jitter_backoff_new(MAX_BACKOFF_TIME, MIN_BACKOFF_TIME, MAX_INITIAL_BACKOFF_TIME);
+    struct backoff* backoff = full_jitter_backoff_new(paxos_config.max_backoff_microseconds, paxos_config.min_backoff_microseconds, paxos_config.max_initial_backff_microseconds);
     struct backoff_manager* backoff_manager = backoff_manager_new(backoff);
 
     struct ev_epoch_proposer* p = ev_epoch_proposer_init_internal(id, config, peers, backoff_manager);

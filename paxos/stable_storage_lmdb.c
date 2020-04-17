@@ -604,7 +604,7 @@ epoch_lmdb_storage_get_epoch_ballot_accept(struct lmdb_storage *lmdb_storage, co
 
     memset(&data, 0, sizeof(data));
 
-    key.mv_data = &instance;
+    key.mv_data = (void*) &instance;
     key.mv_size = sizeof(instance);
 
     if ((result = mdb_get(lmdb_storage->txn, lmdb_storage->dbi, &key, &data)) != 0) {
@@ -634,7 +634,7 @@ epoch_lmdb_storage_store_epoch_ballot_accept(struct lmdb_storage *lmdb_storage, 
     MDB_val key, data;
     char* buffer = epoch_ballot_accept_to_buffer(accept);
 
-    key.mv_data = &accept->instance;
+    key.mv_data = (void*) &accept->instance;
     key.mv_size = sizeof(iid_t);
 
     data.mv_data = buffer;

@@ -42,7 +42,6 @@ extern "C" {
 typedef uint32_t iid_t;
 typedef uint32_t ballot_t;
 
-#define BELOW_MIN_INSTANCE_ID 0;
 /* Logging and verbosity levels */
 typedef enum
 {
@@ -85,6 +84,27 @@ struct paxos_config
 	int lmdb_sync;
 	char *lmdb_env_path;
 	size_t lmdb_mapsize;
+
+
+	// related to prewriting
+    uint32_t expected_value_size;
+    uint32_t num_instances_to_prewrite;
+    uint32_t max_prewritten_instances;
+    uint32_t prewrite_time_seconds;
+    uint32_t prewrite_time_microseconds;
+    uint32_t min_proposed_instance_catchup;
+
+    // writing ahead ballots for less writey ballots
+    uint32_t ballots_written_ahead;
+    uint32_t ballot_catchup;
+    uint32_t ballot_windows_check_timer_microseconds;
+    uint32_t ballot_windows_check_timer_seconds;
+
+    // backoff variables
+    uint32_t max_backoff_microseconds;
+    uint32_t max_initial_backff_microseconds;
+    uint32_t min_backoff_microseconds;
+    uint32_t max_ballot_increment;
 };
 
 extern struct paxos_config paxos_config;
@@ -116,7 +136,6 @@ void paxos_log_debug(const char* format, ...);
 	The proposers must be started with different IDs.
 	This number MUST be a power of 10.
 */
-#define MAX_N_OF_PROPOSERS 10
 
 #ifdef __cplusplus
 }

@@ -49,8 +49,8 @@ struct evpaxos_config
 
 	// todo add learners so they can update each other
 
-	struct address proposers[MAX_N_OF_PROPOSERS];
-	struct address acceptors[MAX_N_OF_PROPOSERS];
+	struct address proposers[500]; //todo not use this
+	struct address acceptors[500];
 };
 
 enum option_type
@@ -76,13 +76,34 @@ struct option options[] =
 {
         { "verbosity", &paxos_config.verbosity, option_verbosity },
         {"tcp-nodelay",             &paxos_config.tcp_nodelay,             option_boolean },
+
         {"quorum-1",                &paxos_config.quorum_1,                option_integer },
         {"quorum-2",                &paxos_config.quorum_2,                option_integer },
         {"group-1",                 &paxos_config.group_1,                 option_integer },
         {"group-2",                 &paxos_config.group_2,                 option_integer },
         {"learner-catch-up",        &paxos_config.learner_catch_up,        option_boolean },
         {"proposer-check_timeout",        &paxos_config.proposer_timeout,        option_integer },
+
         {"proposer-preexec-window", &paxos_config.proposer_preexec_window, option_integer },
+
+        {"max-ballot-increment", &paxos_config.max_ballot_increment, option_integer},
+        {"min-backoff-microseconds", &paxos_config.min_backoff_microseconds, option_integer},
+        {"max-initial-backoff-microseconds", &paxos_config.max_initial_backff_microseconds, option_integer},
+        {"max-backoff-microseconds", &paxos_config.max_backoff_microseconds, option_integer},
+
+
+        {"expected-value-size", &paxos_config.expected_value_size, option_integer},
+        {"number-of-instances-to-prewrite-per-iteration", &paxos_config.num_instances_to_prewrite, option_integer},
+        {"max-prewritten-instances", &paxos_config.max_prewritten_instances, option_integer},
+        {"prewrite-time-seconds", &paxos_config.prewrite_time_seconds, option_integer},
+        {"prewrite-time-microseconds", &paxos_config.prewrite_time_microseconds, option_integer},
+        {"min-instance-proposed-catchup", &paxos_config.min_proposed_instance_catchup, option_integer},
+
+        {"promised-ballots-catchup", &paxos_config.ballot_catchup, option_integer},
+        {"ballots-to-write-ahead", &paxos_config.ballots_written_ahead, option_integer},
+        {"ballot-windows-check-timer-seconds", &paxos_config.ballot_windows_check_timer_seconds, option_integer},
+        {"ballot-windows-check-timer-microseconds", &paxos_config.ballot_windows_check_timer_microseconds, option_integer},
+
         {"stable-storage-backend",  &paxos_config.storage_backend,         option_backend},
         {"acceptor-trash-files",    &paxos_config.trash_files,             option_boolean },
         {"lmdb-sync",               &paxos_config.lmdb_sync,               option_boolean },
@@ -325,34 +346,21 @@ parse_line(struct evpaxos_config* c, char* line)
 	tok = strsep(&line, sep);
 
 	if (strcasecmp(tok, "a") == 0 || strcasecmp(tok, "acceptor") == 0) {
-		if (c->acceptors_count >= MAX_N_OF_PROPOSERS) {
-			paxos_log_error("Number of acceptors exceded maximum of: %d\n",
-				MAX_N_OF_PROPOSERS);
-			return 0;
-		}
+
 		struct address* addr = &c->acceptors[c->acceptors_count];
 		c->acceptors_count++;
 		return parse_address(line, addr);
 	}
 
 	if (strcasecmp(tok, "p") == 0 || strcasecmp(tok, "proposer") == 0) {
-		if (c->proposers_count >= MAX_N_OF_PROPOSERS) {
-			paxos_log_error("Number of proposers exceded maximum of: %d\n",
-				MAX_N_OF_PROPOSERS);
-			return 0;
-		}
+
 		struct address* addr = &c->proposers[c->proposers_count];
         c->proposers_count++;
 		return parse_address(line, addr);
 	}
 
 	if (strcasecmp(tok, "r") == 0 || strcasecmp(tok, "replica") == 0) {
-		if (c->proposers_count >= MAX_N_OF_PROPOSERS ||
-			c->acceptors_count >= MAX_N_OF_PROPOSERS ) {
-				paxos_log_error("Number of replicas exceded maximum of: %d\n",
-					MAX_N_OF_PROPOSERS);
-				return 0;
-		}
+
 		struct address* pro_addr = &c->proposers[c->proposers_count++];
 		struct address* acc_addr = &c->acceptors[c->acceptors_count++];
 		rv = parse_address(line, pro_addr);
