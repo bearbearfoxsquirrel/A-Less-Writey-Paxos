@@ -3,6 +3,7 @@
 //
 
 #include <assert.h>
+#include "time.h"
 #include "performance_threshold_timer.h"
 #include "stdlib.h"
 

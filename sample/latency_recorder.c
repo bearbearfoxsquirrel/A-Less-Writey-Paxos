@@ -13,10 +13,10 @@ struct latency_recorder{
     struct timeval begin_time;
     bool begin_timing;
     struct timeval settle_in_time;
-    uint_fast64_t latencies_to_record;
+    u_int64_t latencies_to_record;
 };
 struct latency_recorder *
-latency_recorder_new(const char *output_file_path, struct timeval settle_in_time, uint_fast64_t latencies_to_record) {
+latency_recorder_new(const char *output_file_path, struct timeval settle_in_time, u_int64_t latencies_to_record) {
     struct latency_recorder* latency_recorder = malloc(sizeof(struct latency_recorder));
     latency_recorder->record = fopen(output_file_path, "w");
     latency_recorder->settle_in_time = settle_in_time;

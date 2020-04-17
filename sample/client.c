@@ -237,7 +237,7 @@ make_client(const char *config, int proposer_id, int outstanding, int value_size
     c->current_outstanding = 0;
 
     struct timeval settle_in_time = {.tv_sec = 20, .tv_usec = 0};
-    uint_fast64_t number_of_latencies_to_record = 50000;
+    u_int64_t number_of_latencies_to_record = 50000;
     c->latency_recorder = latency_recorder_new(latency_record_output_path, settle_in_time, number_of_latencies_to_record);
 
     c->stats_interval = (struct timeval){1, 0};
