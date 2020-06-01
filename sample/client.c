@@ -222,6 +222,8 @@ make_client(const char *config, int proposer_id, int outstanding, int value_size
     struct client* c;
     c = malloc(sizeof(struct client));
     c->base = event_base_new();
+
+    struct evpaxos_config* ev_config = evpaxos_config_read(config);
     //c->outstanding_values = malloc(max_outstanding * sizeof(int));
 
     memset(&c->stats, 0, sizeof(struct stats));
@@ -236,8 +238,8 @@ make_client(const char *config, int proposer_id, int outstanding, int value_size
     c->outstanding_client_value_ids = malloc(sizeof(int) * c->max_outstanding);
     c->current_outstanding = 0;
 
-    struct timeval settle_in_time = {.tv_sec = 20, .tv_usec = 0};
-    u_int64_t number_of_latencies_to_record = 50000;
+    struct timeval settle_in_time =  {.tv_sec = paxos_config.settle_in_time, .tv_usec = 0};
+    u_int64_t number_of_latencies_to_record = paxos_config.number_of_latencies_to_record;
     c->latency_recorder = latency_recorder_new(latency_record_output_path, settle_in_time, number_of_latencies_to_record);
 
     c->stats_interval = (struct timeval){1, 0};

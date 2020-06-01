@@ -50,7 +50,6 @@ start_proposer(const char* config, int id)
 	sig = evsignal_new(base, SIGINT, handle_sigint, base);
 	evsignal_add(sig, NULL);
 
-	// todo read from the config file here which type of proposer to make
 	prop = evproposer_init(id, config, base);
 	if (prop == NULL) {
 		printf("Could not start the proposer!\n");

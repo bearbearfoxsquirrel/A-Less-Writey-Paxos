@@ -65,6 +65,9 @@ struct proposer
 
 	// Stuff to handle client values
     struct client_value_queue *client_values_to_propose;
+    // new pending_values
+    // key is the paxos_value, value is the index in the array;
+
     struct pending_client_values *pending_client_values;
 	//unsigned int number_proposed_values;
 
@@ -130,7 +133,7 @@ proposer_new(int id, int acceptors, int q1, int q2, uint32_t ballot_increment)
 	p->q2 = q2;
 	p->trim_instance = 0;
 	p->next_prepare_instance = 1;
-	p->client_values_to_propose = carray_new(500);
+	p->client_values_to_propose = carray_new(10000);
     p->pending_client_values = pending_client_values_new();//calloc(1, sizeof(struct paxos_value*));
 	//p->number_proposed_values = 0;
 	p->prepare_phase_instances = kh_init(instance_info);
@@ -290,6 +293,7 @@ proposer_try_to_start_preparing_instance(struct proposer* p, iid_t instance, pax
         //}
         // New instance
         struct ballot ballot = (struct ballot) {.number = random_between(1, p->ballot_increment), .proposer_id = p->id};
+     //   ballot.number += ballot.number % paxos_config.num_proposers == p->id ? p->ballot_increment / 1.5 : 0;
         assert(ballot.number > 0);
         int rv;
         inst = proposer_instance_info_new(instance, ballot, p->acceptors, p->q1);
@@ -390,6 +394,7 @@ bool proposer_try_determine_value_to_propose(struct proposer* proposer, struct s
           //  paxos_value_free(&value_to_propose);
         } else {
             if (proposer->max_chosen_instance > inst->common_info.iid) {
+                //proposer->pending_client_values;
                 inst->common_info.proposing_value = paxos_value_new("NOP.", 5);
                 paxos_log_debug("Sending NOP to fill holes");
             } else {
@@ -557,6 +562,7 @@ static void check_and_handle_client_value_from_chosen(struct proposer* proposer,
 }
 
 int proposer_receive_chosen(struct proposer* p, struct paxos_chosen* ack) {
+
     assert(ack->iid != 0);
     assert(ack->value.paxos_value_len > 1);
 
@@ -643,6 +649,13 @@ void check_and_push_front_of_queue_if_client_value_was_proposed(struct proposer*
         remove_pending_value(p->pending_client_values, instance_info->common_info.iid, NULL);
         //free(proposed_value.paxos_value_val);
     }
+}
+
+bool proposer_is_instance_pending(struct proposer* p, iid_t instance){
+    struct standard_proposer_instance_info* inst;
+    bool in_promise_phase = get_instance_info(p->prepare_phase_instances, instance, &inst);
+    bool in_acceptance_phase = get_instance_info(p->accept_phase_instances, instance, &inst);
+    return in_acceptance_phase || in_promise_phase;
 }
 
 int proposer_receive_preempted(struct proposer* p, struct paxos_preempted* preempted, struct paxos_prepare* out) {

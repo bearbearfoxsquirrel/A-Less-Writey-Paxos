@@ -44,10 +44,12 @@ struct standard_paxos_peers;
 typedef void (*peer_cb)(struct standard_paxos_peer* p, standard_paxos_message* m, void* arg);
 typedef void (*peer_iter_cb)(struct standard_paxos_peer* p, void* arg);
 
-struct standard_paxos_peers* peers_new(struct event_base* base, struct evpaxos_config* config);
+struct standard_paxos_peers *
+peers_new(struct event_base *base, struct evpaxos_config *config, int messages_batched_average,
+          int max_messages_batched, unsigned int value_size);
 void peers_free(struct standard_paxos_peers* p);
 int peers_count(struct standard_paxos_peers* p);
-void peers_connect_to_acceptors(struct standard_paxos_peers* p);
+void peers_connect_to_acceptors(struct standard_paxos_peers* p, int source_id);
 int peers_listen(struct standard_paxos_peers* p, int port);
 void peers_subscribe(struct standard_paxos_peers* p, paxos_message_type t, peer_cb cb, void*);
 void peers_foreach_acceptor(struct standard_paxos_peers* p, peer_iter_cb cb, void* arg);

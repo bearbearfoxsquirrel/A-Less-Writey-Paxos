@@ -30,7 +30,6 @@
 #include <stdio.h>
 #include <evpaxos.h>
 #include <signal.h>
-#include <standard_acceptor.h>
 
 static void
 handle_sigint(int sig, short ev, void* arg)

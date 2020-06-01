@@ -26,6 +26,7 @@
  */
 
 
+#include <netinet/tcp.h>
 #include "paxos.h"
 #include "standard_paxos_message.h"
 #include "paxos_types_pack.h"
@@ -37,7 +38,7 @@ static int
 bufferevent_pack_data(void* data, const char* buf, size_t len)
 {
 	struct bufferevent* bev = (struct bufferevent*)data;
-	bufferevent_write(bev, buf, len);
+    bufferevent_write(bev, buf, len);
 	return 0;
 }
 
@@ -45,9 +46,15 @@ void
 send_paxos_message(struct bufferevent* bev, standard_paxos_message* msg)
 {
 	msgpack_packer* packer;
-	packer = msgpack_packer_new(bev, bufferevent_pack_data);
-	msgpack_pack_paxos_message(packer, msg);
+    int fd = bufferevent_getfd(bev);
+    int off = 0;
+    int on = 1;
+
+    setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &off, sizeof(int));
+    packer = msgpack_packer_new(bev, bufferevent_pack_data);
+    msgpack_pack_paxos_message(packer, msg);
 	msgpack_packer_free(packer);
+    setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &on, sizeof(int));
 }
 
 

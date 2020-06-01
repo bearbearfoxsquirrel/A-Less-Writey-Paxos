@@ -121,7 +121,7 @@ evacceptor_handle_repeat(struct standard_paxos_peer* p, standard_paxos_message* 
 	paxos_log_debug("Handle repeat for iids %d-%d", repeat->from, repeat->to);
 	for (iid = repeat->from; iid <= repeat->to; ++iid) {
         if (standard_acceptor_receive_repeat(a->state, iid, &out_msg)) {
-            assert(out_msg.u.accepted.value_ballot.number > 0);
+          //  assert(out_msg.u.accepted.value_ballot.number > 0);
 			send_paxos_message(peer_get_buffer(p), &out_msg);
 			paxos_message_destroy_contents(&out_msg);
 		}
@@ -129,7 +129,7 @@ evacceptor_handle_repeat(struct standard_paxos_peer* p, standard_paxos_message* 
 }
 
 static void
-evacceptor_handle_chosen(__unused struct standard_paxos_peer* p, struct standard_paxos_message* msg, void* arg){
+evacceptor_handle_chosen( struct standard_paxos_peer* p, struct standard_paxos_message* msg, void* arg){
     struct ev_standard_acceptor* a = (struct ev_standard_acceptor*)arg;
     struct paxos_chosen chosen_msg = msg->u.chosen;
 
@@ -138,7 +138,7 @@ evacceptor_handle_chosen(__unused struct standard_paxos_peer* p, struct standard
 }
 
 static void
-evacceptor_handle_trim(__unused struct standard_paxos_peer* p, standard_paxos_message* msg, void* arg)
+evacceptor_handle_trim( struct standard_paxos_peer* p, standard_paxos_message* msg, void* arg)
 {
 	paxos_trim* trim = &msg->u.trim;
 	struct ev_standard_acceptor* a = (struct ev_standard_acceptor*)arg;
@@ -146,7 +146,7 @@ evacceptor_handle_trim(__unused struct standard_paxos_peer* p, standard_paxos_me
 }
 
 
-static void ev_standard_acceptor_prewrite_instances(__unused int fd, __unused short ev, void* arg) {
+static void ev_standard_acceptor_prewrite_instances( int fd,  short ev, void* arg) {
     struct ev_standard_acceptor *acceptor = arg;
 
     iid_t next_instance_to_prewrite = standard_acceptor_get_next_instance_to_prewrite(acceptor->state);
@@ -161,7 +161,7 @@ static void ev_standard_acceptor_prewrite_instances(__unused int fd, __unused sh
 }
 
 static void
-send_acceptor_state(__unused int fd, __unused short ev, void* arg)
+send_acceptor_state( int fd,  short ev, void* arg)
 {
 	struct ev_standard_acceptor* a = (struct ev_standard_acceptor*)arg;
 	standard_paxos_message msg = {.type = PAXOS_ACCEPTOR_STATE};
@@ -171,14 +171,14 @@ send_acceptor_state(__unused int fd, __unused short ev, void* arg)
 }
 
 struct ev_standard_acceptor*
-evacceptor_init_internal(int id, __unused struct evpaxos_config* c, struct standard_paxos_peers* p)
+evacceptor_init_internal(int id,  struct evpaxos_config* c, struct standard_paxos_peers* p)
 {
 	struct ev_standard_acceptor* acceptor = calloc(1, sizeof(struct ev_standard_acceptor));
-	acceptor->expected_value_size = paxos_config.expected_value_size;
+	acceptor->expected_value_size = paxos_config.max_expected_value_size;
     acceptor->state = standard_acceptor_new(id,
             paxos_config.num_instances_to_prewrite,
             paxos_config.max_prewritten_instances,
-            paxos_config.expected_value_size);
+            paxos_config.max_expected_value_size);
 	acceptor->peers = p;
 
 	peers_subscribe(p, PAXOS_PREPARE, evacceptor_handle_prepare, acceptor);
@@ -195,11 +195,12 @@ evacceptor_init_internal(int id, __unused struct evpaxos_config* c, struct stand
 	acceptor->promise_timer = get_promise_performance_threshold_timer_new();
 	acceptor->acceptance_timer = get_acceptance_performance_threshold_timer_new();
 
-
-    acceptor->prewrite_instances_event = evtimer_new(base, ev_standard_acceptor_prewrite_instances, acceptor);
-    acceptor->prewrite_instances_timer = (struct timeval) {paxos_config.prewrite_time_seconds, paxos_config.prewrite_time_microseconds};
-    event_add(acceptor->prewrite_instances_event, &acceptor->prewrite_instances_timer);
-
+    if (paxos_config.max_prewritten_instances > 0 && paxos_config.num_instances_to_prewrite > 0) {
+        acceptor->prewrite_instances_event = evtimer_new(base, ev_standard_acceptor_prewrite_instances, acceptor);
+        acceptor->prewrite_instances_timer = (struct timeval) {paxos_config.prewrite_time_seconds,
+                                                               paxos_config.prewrite_time_microseconds};
+        event_add(acceptor->prewrite_instances_event, &acceptor->prewrite_instances_timer);
+    }
 	return acceptor;
 }
 
@@ -219,7 +220,8 @@ evacceptor_init(int id, const char* config_file, struct event_base* base)
 		return NULL;
 	}
 
-	struct standard_paxos_peers* peers = peers_new(base, config);
+    struct standard_paxos_peers* peers = peers_new(base, config, paxos_config.messages_batched_average,
+                                                   paxos_config.messages_batched_max, paxos_config.max_expected_value_size);
 	int port = evpaxos_acceptor_listen_port(config, id);
 	if (peers_listen(peers, port) == 0)
 		return NULL;

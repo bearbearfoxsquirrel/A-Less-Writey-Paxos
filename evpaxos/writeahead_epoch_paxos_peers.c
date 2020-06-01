@@ -69,6 +69,7 @@ struct writeahead_epoch_paxos_peers
     struct evpaxos_config* config;
     int subs_count;
     struct subscription subs[32];
+    struct bufferevent_rate_limit_group *rate_limit_group;
 };
 
 static struct timeval reconnect_timeout = {2,0};
@@ -86,9 +87,10 @@ static void writeahead_epoch_paxos_on_accept(struct evconnlistener *l, evutil_so
                       struct sockaddr* addr, int socklen, void *arg);
 static void writeahead_epoch_paxos_socket_set_nodelay(int fd);
 
-struct writeahead_epoch_paxos_peers*
-writeahead_epoch_paxos_peers_new(struct event_base* base, struct evpaxos_config* config)
-{
+struct writeahead_epoch_paxos_peers *
+writeahead_epoch_paxos_peers_new(struct event_base *base, struct evpaxos_config *config,
+                                 size_t messages_batched_average, size_t max_messages_batched,
+                                 unsigned int value_size) {
     struct writeahead_epoch_paxos_peers* p = malloc(sizeof(struct writeahead_epoch_paxos_peers));
     p->peers_count = 0;
     p->clients_count = 0;
@@ -98,6 +100,12 @@ writeahead_epoch_paxos_peers_new(struct event_base* base, struct evpaxos_config*
     p->listener = NULL;
     p->base = base;
     p->config = config;
+
+// int avg_size = sizeof(struct epoch_ballot_accepted) * messages_batched_average + value_size;
+  //  int max_size = sizeof(struct epoch_ballot_accepted) * max_messages_batched + value_size;
+   // struct timeval tick = (struct timeval){.tv_sec = 1, .tv_usec = 0};
+   // struct ev_token_bucket_cfg* config_ev = ev_token_bucket_cfg_new(avg_size,  max_size, avg_size, max_size, &tick);
+   // p->rate_limit_group = bufferevent_rate_limit_group_new(base, config_ev);
     return p;
 }
 
@@ -132,13 +140,29 @@ writeahead_epoch_paxos_peers_connect(struct writeahead_epoch_paxos_peers* p, int
 }
 
 void
-writeahead_epoch_paxos_peers_connect_to_acceptors(struct writeahead_epoch_paxos_peers* p)
+writeahead_epoch_paxos_peers_connect_to_acceptors(struct writeahead_epoch_paxos_peers* p, int source_id)
 {
-    int i;
-    for (i = 0; i < evpaxos_acceptor_count(p->config); i++) {
+    for (int i = 0; i < evpaxos_acceptor_count(p->config); i++) {
         struct sockaddr_in addr = evpaxos_acceptor_address(p->config, i);
         writeahead_epoch_paxos_peers_connect(p, i, &addr);
     }
+
+    for (unsigned int i = 0; i < p->peers_count; i++){
+        //if (i == source_id){
+            struct writeahead_epoch_paxos_peer* tmp = p->peers[i];
+            if (tmp->id == source_id) {
+                p->peers[i] = p->peers[0];
+                p->peers[0] = tmp;//p->peers[i];
+            //  }
+            }
+    }
+    paxos_log_debug("Order of acceptors connected to:");
+    for (unsigned int i = 0; i < p->peers_count; i++){
+        //if (i == source_id){
+        struct writeahead_paxos_peer* tmp = p->peers[i];
+      //  paxos_log_debug("acceptor %i", tmp->id);
+    }
+
 }
 
 void
@@ -182,7 +206,11 @@ writeahead_epoch_paxos_peers_for_n_acceptor(struct writeahead_epoch_paxos_peers*
     if (n>p->peers_count)
         n=p->peers_count;
     int i;
-    shuffle(p->peers, p->peers_count);
+
+    p->peers++;
+    shuffle(p->peers, p->peers_count - 1);
+    p->peers--;
+
     for (i = 0; i < n; ++i)
         cb(p->peers[i], arg);
 }
@@ -288,7 +316,7 @@ writeahead_epoch_paxos_on_read(struct bufferevent* bev, void* arg)
 }
 
 static void
-writeahead_epoch_paxos_on_peer_event(__unused struct bufferevent* bev, short ev, void *arg)
+writeahead_epoch_paxos_on_peer_event( struct bufferevent* bev, short ev, void *arg)
 {
     struct writeahead_epoch_paxos_peer* p = (struct writeahead_epoch_paxos_peer*)arg;
 
@@ -313,7 +341,7 @@ writeahead_epoch_paxos_on_peer_event(__unused struct bufferevent* bev, short ev,
 }
 
 static void
-writeahead_epoch_paxos_on_client_event(__unused struct bufferevent* bev, short ev, void *arg)
+writeahead_epoch_paxos_on_client_event( struct bufferevent* bev, short ev, void *arg)
 {
     struct writeahead_epoch_paxos_peer* p = (struct writeahead_epoch_paxos_peer*)arg;
     if (ev & BEV_EVENT_EOF || ev & BEV_EVENT_ERROR) {
@@ -333,13 +361,13 @@ writeahead_epoch_paxos_on_client_event(__unused struct bufferevent* bev, short e
 }
 
 static void
-writeahead_epoch_paxos_on_connection_timeout(__unused int fd, __unused short ev, void* arg)
+writeahead_epoch_paxos_on_connection_timeout( int fd,  short ev, void* arg)
 {
     writeahead_epoch_paxos_connect_peer((struct writeahead_epoch_paxos_peer*)arg);
 }
 
 static void
-writeahead_epoch_paxos_on_listener_error(struct evconnlistener* l, __unused void* arg)
+writeahead_epoch_paxos_on_listener_error(struct evconnlistener* l,  void* arg)
 {
     int err = EVUTIL_SOCKET_ERROR();
     struct event_base *base = evconnlistener_get_base(l);
@@ -349,8 +377,8 @@ writeahead_epoch_paxos_on_listener_error(struct evconnlistener* l, __unused void
 }
 
 static void
-writeahead_epoch_paxos_on_accept(__unused struct evconnlistener *l, evutil_socket_t fd,
-          struct sockaddr* addr, __unused int socklen, void *arg)
+writeahead_epoch_paxos_on_accept( struct evconnlistener *l, evutil_socket_t fd,
+          struct sockaddr* addr,  int socklen, void *arg)
 {
 
     struct writeahead_epoch_paxos_peer* peer;
@@ -395,6 +423,7 @@ writeahead_epoch_paxos_make_peer(struct writeahead_epoch_paxos_peers* peers, int
     p->peers = peers;
     p->reconnect_ev = NULL;
     p->status = BEV_EVENT_EOF;
+//    bufferevent_add_to_rate_limit_group(p->bev, peers->rate_limit_group);
     return p;
 }
 

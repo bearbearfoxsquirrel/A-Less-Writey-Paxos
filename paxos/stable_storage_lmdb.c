@@ -28,6 +28,7 @@
 
 
 #include "standard_stable_storage.h"
+#include <epoch_stable_storage.h>
 #include "storage_utils.h"
 #include <lmdb.h>
 #include <stdio.h>
@@ -37,8 +38,6 @@
 #include <sys/stat.h>
 #include <assert.h>
 #include <paxos_types.h>
-#include <epoch_stable_storage.h>
-#include <standard_stable_storage.h>
 #include "paxos_message_conversion.h"
 
 const int TRIM_ID_KEY = -1;
@@ -395,7 +394,7 @@ lmdb_storage_put_trim_instance(struct lmdb_storage *lmdb_storage, iid_t iid)
 }
 
 // Tells the storage to delete everything before the iid passed
-__unused static int
+ static int
 lmdb_storage_trim(struct lmdb_storage *lmdb_storage, iid_t iid) {
     assert(lmdb_storage->txn != NULL);
 

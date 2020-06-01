@@ -129,7 +129,7 @@ writeahead_epoch_acceptor_new(int id, struct epoch_notification *recover_message
         uint32_t recovery_epoch = old_epoch + 1;
         writeahead_epoch_acceptor_increase_epoch(acceptor, recovery_epoch);
     } else {
-        writeahead_epoch_acceptor_increase_epoch(acceptor, 0);
+        writeahead_epoch_acceptor_increase_epoch(acceptor, INVALID_EPOCH);
     }
 
 
@@ -355,7 +355,7 @@ int writeahead_epoch_acceptor_receive_epoch_ballot_prepare(struct writeahead_epo
                         request->instance);
 
         if (request->epoch_ballot_requested.epoch > acceptor->current_epoch){
-            assert(1 != 1);
+           // assert(1 != 1);
             if (write_ahead_epoch_acceptor_transaction_to_increment_epoch(acceptor, &request->epoch_ballot_requested) != 0) {
                 return 0;
             }
@@ -415,7 +415,7 @@ int writeahead_epoch_acceptor_receive_epoch_ballot_accept(struct writeahead_epoc
                                                                      &last_prepare);
 
     struct epoch_ballot_accept last_accept;
-    __unused bool previous_accept = epoch_paxos_storage_get_last_accept(&acceptor->volatile_storage, request->instance,
+     bool previous_accept = epoch_paxos_storage_get_last_accept(&acceptor->volatile_storage, request->instance,
                                                                &last_accept);
 
     bool was_instance_chosen = false;
@@ -442,7 +442,7 @@ int writeahead_epoch_acceptor_receive_epoch_ballot_accept(struct writeahead_epoc
         }
 
 
-        assert(request->instance < acceptor->next_instance_to_preprepare);
+  //      assert(request->instance < acceptor->next_instance_to_preprepare);
 
         if (request->instance > acceptor->next_instance_to_preprepare){
             acceptor->next_instance_to_preprepare = request->instance;
@@ -470,6 +470,7 @@ int writeahead_epoch_acceptor_receive_epoch_ballot_accept(struct writeahead_epoc
                 .accepted_value = last_accept.value_to_accept
         };
         is_a_message_returned = 1;
+        assert(strncmp(response->message_contents.epoch_ballot_accepted.accepted_value.paxos_value_val, "", 2));
     } else {
         is_a_message_returned = handle_making_premepted(acceptor, request->instance, request->epoch_ballot_requested,
                                                         response, &last_prepare, "Acceptance");

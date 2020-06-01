@@ -101,8 +101,8 @@ paxos_accept_request_and_last_acceptor_promise_to_preempted(int id, const struct
     };
 }
 
-__unused void
-paxos_accepted_to_preempted(__unused int id, __unused const struct paxos_accepted *acc, standard_paxos_message *out) {
+ void
+paxos_accepted_to_preempted( int id,  const struct paxos_accepted *acc, standard_paxos_message *out) {
     out->type = PAXOS_PREEMPTED;
     //todo remove or fix
   //  out->u.preempted = (paxos_preempted) {.aid = id, .iid = acc->iid, acc., acc->promise_ballot};
@@ -245,7 +245,7 @@ void paxos_accepted_update_instance_info_with_chosen(struct paxos_accepted *acce
  //  accepted->value_ballot = chosen->ballot;
   //  copy_ballot(&chosen->ballot, &accepted->promise_ballot);
     copy_ballot(&chosen->ballot, &accepted->value_ballot);
-    copy_ballot(&INVALID_BALLOT, &accepted->promise_ballot);
+    copy_ballot(&chosen->ballot, &accepted->promise_ballot);
     accepted->aid = aid;
 }
 

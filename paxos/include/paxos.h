@@ -87,7 +87,7 @@ struct paxos_config
 
 
 	// related to prewriting
-    uint32_t expected_value_size;
+    uint32_t max_expected_value_size;
     uint32_t num_instances_to_prewrite;
     uint32_t max_prewritten_instances;
     uint32_t prewrite_time_seconds;
@@ -105,6 +105,13 @@ struct paxos_config
     uint32_t max_initial_backff_microseconds;
     uint32_t min_backoff_microseconds;
     uint32_t max_ballot_increment;
+
+    // client benchmark variables
+    uint32_t settle_in_time;
+    uint32_t number_of_latencies_to_record;
+
+    int messages_batched_average;
+    int messages_batched_max;
 };
 
 extern struct paxos_config paxos_config;
@@ -129,13 +136,6 @@ void paxos_log_error(const char* format, ...);
 void paxos_log_info(const char* format, ...);
 void paxos_log_debug(const char* format, ...);
 
-/*
-	TODO MAX_N_OF_PROPOSERS should be removed.
-	The maximum number of proposers must be fixed beforehand
-	(this is because of unique ballot generation).
-	The proposers must be started with different IDs.
-	This number MUST be a power of 10.
-*/
 
 #ifdef __cplusplus
 }

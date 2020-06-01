@@ -65,6 +65,7 @@ struct standard_paxos_peers
 	struct evpaxos_config* config;
 	int subs_count;
 	struct subscription subs[32];
+	struct bufferevent_rate_limit_group* rate_limit_group;
 };
 
 static struct timeval reconnect_timeout = {2,0};
@@ -82,8 +83,9 @@ static void on_accept(struct evconnlistener *l, evutil_socket_t fd,
 	struct sockaddr* addr, int socklen, void *arg);
 static void socket_set_nodelay(int fd);
 
-struct standard_paxos_peers*
-peers_new(struct event_base* base, struct evpaxos_config* config)
+struct standard_paxos_peers *
+peers_new(struct event_base *base, struct evpaxos_config *config, int messages_batched_average,
+          int max_messages_batched, unsigned int value_size)
 {
 	struct standard_paxos_peers* p = malloc(sizeof(struct standard_paxos_peers));
 	p->peers_count = 0;
@@ -94,6 +96,11 @@ peers_new(struct event_base* base, struct evpaxos_config* config)
 	p->listener = NULL;
 	p->base = base;
 	p->config = config;
+//	int avg_size = (sizeof(struct paxos_accepted) * messages_batched_average) + value_size + 50;
+//	int max_size = (sizeof(struct paxos_accepted) * max_messages_batched) + value_size + 100;
+//	struct timeval tick = (struct timeval){.tv_sec = 1, .tv_usec = 0};
+//	struct ev_token_bucket_cfg* config_ev = ev_token_bucket_cfg_new(avg_size,  max_size, avg_size, max_size, &tick);
+//	p->rate_limit_group = bufferevent_rate_limit_group_new(base, config_ev);
 	return p;
 }
 
@@ -128,13 +135,32 @@ peers_connect(struct standard_paxos_peers* p, int id, struct sockaddr_in* addr)
 }
 
 void
-peers_connect_to_acceptors(struct standard_paxos_peers* p)
+peers_connect_to_acceptors(struct standard_paxos_peers* p, int source_id)
 {
 	int i;
 	for (i = 0; i < evpaxos_acceptor_count(p->config); i++) {
 		struct sockaddr_in addr = evpaxos_acceptor_address(p->config, i);
 		peers_connect(p, i, &addr);
 	}
+
+    for (unsigned int i = 0; i < p->peers_count; i++){
+        //if (i == source_id){
+        struct standard_paxos_peer* tmp = p->peers[i];
+        if (tmp->id == source_id) {
+            p->peers[i] = p->peers[0];
+            p->peers[0] = tmp;//p->peers[i];
+            //  }
+        }
+    }
+
+    paxos_log_debug("Order of acceptors connected to:");
+    for (unsigned int i = 0; i < p->peers_count; i++){
+        //if (i == source_id){
+        struct standard_paxos_peer* tmp = p->peers[i];
+        paxos_log_debug("acceptor %i", tmp->id);
+    }
+
+
 }
 
 void
@@ -180,9 +206,16 @@ peers_for_n_acceptor(struct standard_paxos_peers* p, peer_iter_cb cb, void* arg,
 	if (n>p->peers_count)
 		n=p->peers_count;
 	int i;
-    shuffle(p->peers, p->peers_count);
-	for (i = 0; i < n; ++i)
-		cb(p->peers[i], arg);
+
+     p->peers++;
+    shuffle(p->peers, p->peers_count - 1);
+
+	p->peers--;
+	for (i = 0; i < n; ++i) {
+        paxos_log_debug("sending to %i", p->peers[i]->id);
+        cb(p->peers[i], arg);
+    }
+
 }
 
 void
@@ -286,7 +319,7 @@ on_read(struct bufferevent* bev, void* arg)
 }
 
 static void
-on_peer_event(__unused struct bufferevent* bev, short ev, void *arg)
+on_peer_event( struct bufferevent* bev, short ev, void *arg)
 {
     struct standard_paxos_peer* p = (struct standard_paxos_peer*)arg;
 
@@ -311,7 +344,7 @@ on_peer_event(__unused struct bufferevent* bev, short ev, void *arg)
 }
 
 static void
-on_client_event(__unused struct bufferevent* bev, short ev, void *arg)
+on_client_event( struct bufferevent* bev, short ev, void *arg)
 {
 	struct standard_paxos_peer* p = (struct standard_paxos_peer*)arg;
 	if (ev & BEV_EVENT_EOF || ev & BEV_EVENT_ERROR) {
@@ -331,13 +364,13 @@ on_client_event(__unused struct bufferevent* bev, short ev, void *arg)
 }
 
 static void
-on_connection_timeout(__unused int fd, __unused short ev, void* arg)
+on_connection_timeout( int fd,  short ev, void* arg)
 {
 	connect_peer((struct standard_paxos_peer*)arg);
 }
 
 static void
-on_listener_error(struct evconnlistener* l, __unused void* arg)
+on_listener_error(struct evconnlistener* l,  void* arg)
 {
 	int err = EVUTIL_SOCKET_ERROR();
 	struct event_base *base = evconnlistener_get_base(l);
@@ -347,8 +380,8 @@ on_listener_error(struct evconnlistener* l, __unused void* arg)
 }
 
 static void
-on_accept(__unused struct evconnlistener *l, evutil_socket_t fd,
-	struct sockaddr* addr, __unused int socklen, void *arg)
+on_accept( struct evconnlistener *l, evutil_socket_t fd,
+	struct sockaddr* addr,  int socklen, void *arg)
 {
 
 	struct standard_paxos_peer* peer;
@@ -393,6 +426,7 @@ make_peer(struct standard_paxos_peers* peers, int id, struct sockaddr_in* addr)
 	p->peers = peers;
 	p->reconnect_ev = NULL;
 	p->status = BEV_EVENT_EOF;
+  //  bufferevent_add_to_rate_limit_group(p->bev, peers->rate_limit_group);
 	return p;
 }
 

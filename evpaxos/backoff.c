@@ -35,7 +35,7 @@ static unsigned long exponential_randomised_backoff_next(struct exponential_rand
         new_time = exponential_randomised_backoff_initial(handle);
         assert(new_time >= handle->min_backoff && new_time <= handle->max_initial_backoff);
     }
-    assert(new_time > 0 && new_time < handle->max_backoff);
+    assert(new_time > 0 && new_time <= handle->max_backoff);
     return new_time;
 }
 

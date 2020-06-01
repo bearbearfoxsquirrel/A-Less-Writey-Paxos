@@ -323,6 +323,7 @@ bool epoch_proposer_try_to_start_preparing_instance(struct epoch_proposer* p, ii
             out->explicit_epoch_prepare = (struct epoch_ballot_prepare) {
                 .instance = instance,
                 .epoch_ballot_requested = begining_epoch_ballot
+                        
             };
         }
 
@@ -563,6 +564,8 @@ int epoch_proposer_try_accept(struct epoch_proposer* p, struct epoch_ballot_acce
     if (is_value_to_propose){
         epoch_proposer_move_instance_between_phase(p->prepare_proposer_instance_infos, p->accept_proposer_instance_infos, instance_to_begin_accept, p->q2);
         set_epoch_ballot_accept_from_instance_info(out, instance_to_begin_accept);
+        assert(strncmp(out->value_to_accept.paxos_value_val, "", 2));
+
     }
     return is_value_to_propose;
 }

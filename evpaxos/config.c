@@ -84,25 +84,31 @@ struct option options[] =
         {"learner-catch-up",        &paxos_config.learner_catch_up,        option_boolean },
         {"proposer-check_timeout",        &paxos_config.proposer_timeout,        option_integer },
 
-        {"proposer-preexec-window", &paxos_config.proposer_preexec_window, option_integer },
+        {"proposer-preexec-window", &paxos_config.proposer_preexec_window,                         option_integer },
 
-        {"max-ballot-increment", &paxos_config.max_ballot_increment, option_integer},
-        {"min-backoff-microseconds", &paxos_config.min_backoff_microseconds, option_integer},
-        {"max-initial-backoff-microseconds", &paxos_config.max_initial_backff_microseconds, option_integer},
-        {"max-backoff-microseconds", &paxos_config.max_backoff_microseconds, option_integer},
+        {"max-ballot-increment", &paxos_config.max_ballot_increment,                               option_integer},
+        {"min-backoff-microseconds", &paxos_config.min_backoff_microseconds,                       option_integer},
+        {"max-initial-backoff-microseconds", &paxos_config.max_initial_backff_microseconds,        option_integer},
+        {"max-backoff-microseconds", &paxos_config.max_backoff_microseconds,                       option_integer},
 
 
-        {"expected-value-size", &paxos_config.expected_value_size, option_integer},
+        {"max-expected-value-size", &paxos_config.max_expected_value_size,                         option_integer},
         {"number-of-instances-to-prewrite-per-iteration", &paxos_config.num_instances_to_prewrite, option_integer},
-        {"max-prewritten-instances", &paxos_config.max_prewritten_instances, option_integer},
-        {"prewrite-time-seconds", &paxos_config.prewrite_time_seconds, option_integer},
-        {"prewrite-time-microseconds", &paxos_config.prewrite_time_microseconds, option_integer},
-        {"min-instance-proposed-catchup", &paxos_config.min_proposed_instance_catchup, option_integer},
+        {"max-prewritten-instances", &paxos_config.max_prewritten_instances,                       option_integer},
+        {"prewrite-time-seconds", &paxos_config.prewrite_time_seconds,                             option_integer},
+        {"prewrite-time-microseconds", &paxos_config.prewrite_time_microseconds,                   option_integer},
+        {"min-instance-proposed-catchup", &paxos_config.min_proposed_instance_catchup,             option_integer},
 
         {"promised-ballots-catchup", &paxos_config.ballot_catchup, option_integer},
         {"ballots-to-write-ahead", &paxos_config.ballots_written_ahead, option_integer},
         {"ballot-windows-check-timer-seconds", &paxos_config.ballot_windows_check_timer_seconds, option_integer},
         {"ballot-windows-check-timer-microseconds", &paxos_config.ballot_windows_check_timer_microseconds, option_integer},
+
+        {"client-settle-in-time", &paxos_config.settle_in_time, option_integer},
+        {"client-num-latencies-to-record", &paxos_config.number_of_latencies_to_record, option_integer},
+
+        {"messages-batched-average", &paxos_config.messages_batched_average, option_integer},
+        {"messages-batched-max", &paxos_config.messages_batched_max, option_integer},
 
         {"stable-storage-backend",  &paxos_config.storage_backend,         option_backend},
         {"acceptor-trash-files",    &paxos_config.trash_files,             option_boolean },
@@ -110,7 +116,6 @@ struct option options[] =
         {"lmdb-env-path",           &paxos_config.lmdb_env_path,           option_string },
         {"lmdb-mapsize",            &paxos_config.lmdb_mapsize,            option_bytes },
         {0 }
-        //todo add window options here
 };
 
 static int parse_line(struct evpaxos_config* c, char* line);

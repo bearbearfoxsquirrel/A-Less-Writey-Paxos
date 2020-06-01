@@ -71,8 +71,7 @@ int proposer_receive_chosen(struct proposer* p, struct paxos_chosen* ack);
 //void proposer_preempt(struct proposer* p, struct standard_proposer_instance_info* inst, paxos_prepare* out);
 int proposer_receive_preempted(struct proposer* p, struct paxos_preempted* preempted, struct paxos_prepare* out);
 
-int is_proposer_instance_pending_and_message_return(struct proposer* p, paxos_preempted* ack,
-                                                    paxos_prepare* out);
+bool proposer_is_instance_pending(struct proposer* p, iid_t instance);
 
 // periodic acceptor state
 void proposer_receive_acceptor_state(struct proposer* p,

@@ -150,9 +150,26 @@ learner_receive_accepted(struct learner* l, paxos_accepted* ack, struct paxos_ch
 	struct instance* inst;
 	inst = learner_get_instance_or_create(l, ack->iid);
 
-	instance_update(inst, ack, l->acceptors, l->quorum_size);
+    if (inst->iid == 0) {
+        paxos_log_debug("Received first message for iid: %u from Acceptor %u at Ballot %u.%u", ack->iid, ack->aid, ack->value_ballot.number, ack->value_ballot.proposer_id);
+        inst->iid = ack->iid;
+        copy_ballot(&ack->value_ballot, &inst->last_update_ballot);
+    }
 
+    if (instance_has_quorum(inst, l->acceptors, l->quorum_size)) {
+        paxos_log_debug("Dropped paxos_ack iid %u. Already closed.",
+                        ack->iid);
+        return 0;
+    }
 
+    struct paxos_accepted* prev_ack = inst->acks[ack->aid];
+    if (prev_ack != NULL && ballot_greater_than_or_equal(prev_ack->value_ballot, ack->value_ballot)) {
+        paxos_log_debug("Dropped paxos_ack for iid %u."
+                        "Previous ballot is newer or equal.", ack->iid);
+        return 0;
+    }
+
+    instance_add_accept(inst, ack);
 
     if (instance_has_quorum(inst, l->acceptors, l->quorum_size)) {
 		if  (inst->iid > l->highest_iid_closed){
@@ -253,30 +270,6 @@ instance_free(struct instance* inst, int acceptors)
 	free(inst);
 }
 
-static void
-instance_update(struct instance* inst, paxos_accepted* accepted, int acceptors, int quorum_size)
-{
-	if (inst->iid == 0) {
-		paxos_log_debug("Received first message for iid: %u at Ballot %u.%u", accepted->iid, accepted->value_ballot.number, accepted->value_ballot.proposer_id);
-		inst->iid = accepted->iid;
-		copy_ballot(&accepted->value_ballot, &inst->last_update_ballot);
-	}
-
-	if (instance_has_quorum(inst, acceptors, quorum_size)) {
-		paxos_log_debug("Dropped paxos_accepted iid %u. Already closed.",
-			accepted->iid);
-		return;
-	}
-
-	paxos_accepted* prev_accepted = inst->acks[accepted->aid];
-	if (prev_accepted != NULL && ballot_greater_than_or_equal(prev_accepted->value_ballot, accepted->value_ballot)) {
-		paxos_log_debug("Dropped paxos_accepted for iid %u."
-			"Previous ballot is newer or equal.", accepted->iid);
-		return;
-	}
-
-	instance_add_accept(inst, accepted);
-}
 
 /*
 	Checks if a given instance is closed, that is if a quorum of acceptor

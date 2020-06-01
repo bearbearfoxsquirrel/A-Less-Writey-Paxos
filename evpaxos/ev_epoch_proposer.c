@@ -89,6 +89,67 @@ peer_send_trim(struct writeahead_epoch_paxos_peer* p, void* arg) {
 }
 
 
+struct retry {
+    struct ev_epoch_proposer* proposer;
+    struct epoch_paxos_prepares* prepare;
+};
+
+static void ev_epoch_proposer_try_begin_new_instances(struct ev_epoch_proposer* p);
+
+
+
+static void ev_epoch_proposer_try_accept(struct ev_epoch_proposer* p) {
+    struct epoch_ballot_accept accept;
+    performance_threshold_timer_begin_timing(p->accept_timer);
+    while (epoch_proposer_try_accept(p->proposer, &accept)) {
+        assert(&accept.value_to_accept != NULL);
+        assert(accept.value_to_accept.paxos_value_val != NULL);
+        assert(accept.value_to_accept.paxos_value_len > 0);
+        assert(strncmp(accept.value_to_accept.paxos_value_val, "", 2));
+        writeahead_epoch_paxos_peers_for_n_acceptor(p->peers, peer_send_epoch_ballot_accept, &accept, paxos_config.group_2);
+    }
+    ev_performance_timer_stop_check_and_clear_timer(p->accept_timer, "Accept Request");
+
+    ev_epoch_proposer_try_begin_new_instances(p);
+}
+
+
+static void ev_epoch_proposer_try_higher_ballot( evutil_socket_t fd,  short event, void* arg) {
+    struct retry* args = arg;
+    struct ev_epoch_proposer* proposer = args->proposer;
+    struct epoch_paxos_prepares* next_prepare = args->prepare;
+    
+    switch (next_prepare->type) {
+        case STANDARD_PREPARE:
+            paxos_log_debug("Trying to Prepare next Epoch Ballot for Instance %u with Ballot %u.%u",
+                            next_prepare->standard_prepare.iid,
+                            next_prepare->standard_prepare.ballot.number,
+                            next_prepare->standard_prepare.ballot.proposer_id);
+            writeahead_epoch_paxos_peers_for_n_acceptor(proposer->peers, peer_send_standard_prepare, &next_prepare->standard_prepare,
+                                                        paxos_config.group_1); 
+            break;
+        case EXPLICIT_EPOCH_PREPARE:
+
+
+            paxos_log_debug("Trying to Prepare next Epoch Ballot for Instance %u with Epoch Ballot %u.%u.%u",
+                        next_prepare->explicit_epoch_prepare.instance,
+                        next_prepare->explicit_epoch_prepare.epoch_ballot_requested.epoch,
+                        next_prepare->explicit_epoch_prepare.epoch_ballot_requested.ballot.number,
+                        next_prepare->explicit_epoch_prepare.epoch_ballot_requested.ballot.proposer_id);
+        writeahead_epoch_paxos_peers_for_n_acceptor(proposer->peers, peer_send_epoch_ballot_prepare, &next_prepare->explicit_epoch_prepare,
+                                                    paxos_config.group_1);
+        break;
+    }
+    
+    free(next_prepare);
+    free(args);
+    ev_epoch_proposer_try_accept(proposer);
+}
+
+
+
+
+
 static void ev_epoch_proposer_try_begin_new_instances(struct ev_epoch_proposer* p) {
     struct epoch_paxos_prepares prepare;
 
@@ -109,22 +170,59 @@ static void ev_epoch_proposer_try_begin_new_instances(struct ev_epoch_proposer* 
         if (new_instance_to_prepare) {
             number_of_instances_to_open--;
 
-            switch(prepare.type) {
-                case STANDARD_PREPARE:
-                    paxos_log_debug("Sending Standard Prepare for Instance %u, Ballot %u.%u",
-                                    prepare.standard_prepare.iid, prepare.standard_prepare.ballot.number, prepare.standard_prepare.ballot.proposer_id);
+            if (prepare.standard_prepare.iid % 3 == 0) {
 
-                    writeahead_epoch_paxos_peers_for_n_acceptor(p->peers, peer_send_standard_prepare, &prepare.standard_prepare,
-                                         paxos_config.group_1);
-                    break;
-                case EXPLICIT_EPOCH_PREPARE:
-                    paxos_log_debug("Sending Epoch Ballot Prepare for Instance %u, Epoch Ballot %u.%u.%u",
-                                    prepare.explicit_epoch_prepare.instance,
-                                    prepare.explicit_epoch_prepare.epoch_ballot_requested.epoch,
-                                    prepare.explicit_epoch_prepare.epoch_ballot_requested.ballot.number, prepare.explicit_epoch_prepare.epoch_ballot_requested.ballot.proposer_id);
 
-                    writeahead_epoch_paxos_peers_for_n_acceptor(p->peers, peer_send_epoch_ballot_prepare, &prepare.explicit_epoch_prepare, paxos_config.group_1);
-                    break;
+                struct timeval current_backoff = (struct timeval) {0, random_between(5000, 10000)};
+
+
+
+                struct retry *retry_args = calloc(1, sizeof(struct retry));
+                struct epoch_paxos_prepares *delayed_prepare = malloc(sizeof(struct paxos_prepare));
+
+                *retry_args = (struct retry) {.proposer = p, .prepare = delayed_prepare};
+
+                switch (prepare.type) {
+
+                    case STANDARD_PREPARE:
+                        delayed_prepare->standard_prepare = prepare.standard_prepare;
+                        break;
+                    case EXPLICIT_EPOCH_PREPARE:
+                        delayed_prepare->explicit_epoch_prepare = prepare.explicit_epoch_prepare;
+                        break;
+                }
+
+                struct event *ev = evtimer_new(writeahead_epoch_paxos_peers_get_event_base(p->peers), ev_epoch_proposer_try_higher_ballot,
+                                               retry_args);
+                event_add(ev, &current_backoff);
+
+            } else {
+                switch (prepare.type) {
+
+
+                    case STANDARD_PREPARE:
+
+                        paxos_log_debug("Sending Standard Prepare for Instance %u, Ballot %u.%u",
+                                        prepare.standard_prepare.iid, prepare.standard_prepare.ballot.number,
+                                        prepare.standard_prepare.ballot.proposer_id);
+
+                        writeahead_epoch_paxos_peers_for_n_acceptor(p->peers, peer_send_standard_prepare,
+                                                                    &prepare.standard_prepare,
+                                                                    paxos_config.group_1);
+
+                        break;
+                    case EXPLICIT_EPOCH_PREPARE:
+                        paxos_log_debug("Sending Epoch Ballot Prepare for Instance %u, Epoch Ballot %u.%u.%u",
+                                        prepare.explicit_epoch_prepare.instance,
+                                        prepare.explicit_epoch_prepare.epoch_ballot_requested.epoch,
+                                        prepare.explicit_epoch_prepare.epoch_ballot_requested.ballot.number,
+                                        prepare.explicit_epoch_prepare.epoch_ballot_requested.ballot.proposer_id);
+
+                        writeahead_epoch_paxos_peers_for_n_acceptor(p->peers, peer_send_epoch_ballot_prepare,
+                                                                    &prepare.explicit_epoch_prepare,
+                                                                    paxos_config.group_1);
+                        break;
+                }
             }
         }
     }
@@ -133,22 +231,9 @@ static void ev_epoch_proposer_try_begin_new_instances(struct ev_epoch_proposer* 
 }
 
 
-static void ev_epoch_proposer_try_accept(struct ev_epoch_proposer* p) {
-    struct epoch_ballot_accept accept;
-    performance_threshold_timer_begin_timing(p->accept_timer);
-    while (epoch_proposer_try_accept(p->proposer, &accept)) {
-        assert(&accept.value_to_accept != NULL);
-        assert(accept.value_to_accept.paxos_value_val != NULL);
-        assert(accept.value_to_accept.paxos_value_len > 0);
-        writeahead_epoch_paxos_peers_for_n_acceptor(p->peers, peer_send_epoch_ballot_accept, &accept, paxos_config.group_2);
-    }
-    ev_performance_timer_stop_check_and_clear_timer(p->accept_timer, "Accept Request");
-
-    ev_epoch_proposer_try_begin_new_instances(p);
-}
 
 
-static void ev_epoch_proposer_handle_promise(__unused struct writeahead_epoch_paxos_peer* p, struct writeahead_epoch_paxos_message* msg, void* arg) {
+static void ev_epoch_proposer_handle_promise( struct writeahead_epoch_paxos_peer* p, struct writeahead_epoch_paxos_message* msg, void* arg) {
     struct ev_epoch_proposer* proposer = arg;
     struct epoch_ballot_promise* promise = &msg->message_contents.epoch_ballot_promise;
     struct epoch_ballot_prepare next_prepare = {0};
@@ -168,7 +253,7 @@ static void ev_epoch_proposer_handle_promise(__unused struct writeahead_epoch_pa
     }
 }
 
-static void ev_epoch_proposer_handle_accepted(__unused struct writeahead_epoch_paxos_peer* p, struct writeahead_epoch_paxos_message* msg, void* arg){
+static void ev_epoch_proposer_handle_accepted( struct writeahead_epoch_paxos_peer* p, struct writeahead_epoch_paxos_message* msg, void* arg){
     struct ev_epoch_proposer* proposer = arg;
     struct epoch_ballot_accepted* accepted = &msg->message_contents.epoch_ballot_accepted;
     struct epoch_ballot_chosen chosen_msg;
@@ -194,7 +279,7 @@ static void ev_epoch_proposer_handle_accepted(__unused struct writeahead_epoch_p
   //  }
 }
 
-static void ev_epoch_proposer_handle_chosen(__unused struct writeahead_epoch_paxos_peer* p, struct writeahead_epoch_paxos_message* msg, void* arg) {
+static void ev_epoch_proposer_handle_chosen( struct writeahead_epoch_paxos_peer* p, struct writeahead_epoch_paxos_message* msg, void* arg) {
     struct ev_epoch_proposer* proposer = arg;
     struct epoch_ballot_chosen* chosen_msg = &msg->message_contents.instance_chosen_at_epoch_ballot;
 
@@ -209,28 +294,8 @@ static void ev_epoch_proposer_handle_chosen(__unused struct writeahead_epoch_pax
    ev_epoch_proposer_try_accept(proposer); //needed?
 }
 
-struct retry {
-    struct ev_epoch_proposer* proposer;
-    struct epoch_ballot_prepare* prepare;
-};
 
-static void ev_epoch_proposer_try_higher_ballot(__unused evutil_socket_t fd, __unused short event, void* arg) {
-    struct retry* args = arg;
-    struct ev_epoch_proposer* proposer = args->proposer;
-    struct epoch_ballot_prepare* next_prepare = args->prepare;
-
-    paxos_log_debug("Trying to Prepare next Epoch Ballot for Instance %u with Epoch Ballot %u.%u.%u",
-            next_prepare->instance,
-            next_prepare->epoch_ballot_requested.epoch,
-            next_prepare->epoch_ballot_requested.ballot.number,
-            next_prepare->epoch_ballot_requested.ballot.proposer_id);
-    writeahead_epoch_paxos_peers_for_n_acceptor(proposer->peers, peer_send_epoch_ballot_prepare, next_prepare, paxos_config.group_1);
-    free(next_prepare);
-    free(args);
-    ev_epoch_proposer_try_accept(proposer);
-}
-
-static void ev_epoch_proposer_handle_preempted(__unused struct writeahead_epoch_paxos_peer* p, struct writeahead_epoch_paxos_message* msg, void* arg) {
+static void ev_epoch_proposer_handle_preempted( struct writeahead_epoch_paxos_peer* p, struct writeahead_epoch_paxos_message* msg, void* arg) {
     struct ev_epoch_proposer* proposer = arg;
     struct epoch_ballot_preempted preempted_msg = msg->message_contents.epoch_ballot_preempted;
 
@@ -265,7 +330,7 @@ static void ev_epoch_proposer_handle_preempted(__unused struct writeahead_epoch_
 
 
 static void
-ev_epoch_proposer_handle_trim(__unused struct writeahead_epoch_paxos_peer* p, struct writeahead_epoch_paxos_message* msg, void* arg) {
+ev_epoch_proposer_handle_trim( struct writeahead_epoch_paxos_peer* p, struct writeahead_epoch_paxos_message* msg, void* arg) {
 
     struct ev_epoch_proposer* proposer = arg;
     struct paxos_trim* trim_msg = &msg->message_contents.trim;
@@ -279,7 +344,7 @@ ev_epoch_proposer_handle_trim(__unused struct writeahead_epoch_paxos_peer* p, st
 }
 
 static void
-ev_epoch_proposer_handle_client_value(__unused struct writeahead_epoch_paxos_peer* p, struct writeahead_epoch_paxos_message* msg, void* arg)
+ev_epoch_proposer_handle_client_value( struct writeahead_epoch_paxos_peer* p, struct writeahead_epoch_paxos_message* msg, void* arg)
 {
     struct ev_epoch_proposer* proposer = arg;
     struct paxos_value* v = &msg->message_contents.client_value;
@@ -293,7 +358,7 @@ ev_epoch_proposer_handle_client_value(__unused struct writeahead_epoch_paxos_pee
 }
 
 static void
-ev_epoch_proposer_handle_acceptor_state(__unused struct writeahead_epoch_paxos_peer* p, struct writeahead_epoch_paxos_message* msg, void* arg)
+ev_epoch_proposer_handle_acceptor_state( struct writeahead_epoch_paxos_peer* p, struct writeahead_epoch_paxos_message* msg, void* arg)
 {
     struct ev_epoch_proposer* proposer = arg;
     struct writeahead_epoch_acceptor_state* acc_state = &msg->message_contents.state;
@@ -306,7 +371,7 @@ ev_epoch_proposer_handle_acceptor_state(__unused struct writeahead_epoch_paxos_p
 
 
 static void
-ev_epoch_proposer_check_timeouts(__unused evutil_socket_t fd, __unused short event, void *arg)
+ev_epoch_proposer_check_timeouts( evutil_socket_t fd,  short event, void *arg)
 {
     struct ev_epoch_proposer* p = arg;
     struct epoch_proposer_timeout_iterator* iter = epoch_proposer_timeout_iterator_new(p->proposer);
@@ -339,7 +404,7 @@ ev_epoch_proposer_check_timeouts(__unused evutil_socket_t fd, __unused short eve
 }
 
 static void
-ev_epoch_proposer_preexec_once(__unused evutil_socket_t fd,__unused short event, void *arg)
+ev_epoch_proposer_preexec_once( evutil_socket_t fd, short event, void *arg)
 {
     struct ev_epoch_proposer* p = arg;
     ev_epoch_proposer_try_begin_new_instances(p);
@@ -370,7 +435,7 @@ static void random_seed_from_dev_rand() {
     fclose(randomData);
 }
 
-static void ev_epoch_proposer_gen_random_seed(__unused evutil_socket_t fd, __unused short event, void* arg)  {
+static void ev_epoch_proposer_gen_random_seed( evutil_socket_t fd,  short event, void* arg)  {
     struct ev_epoch_proposer* p = arg;
     random_seed_from_dev_rand();
     event_add(p->random_seed_event, &p->random_seed_time);
@@ -433,8 +498,10 @@ struct ev_epoch_proposer* ev_epoch_proposer_init(int id, const char* config_file
         return NULL;
     }
 
-    struct writeahead_epoch_paxos_peers* peers = writeahead_epoch_paxos_peers_new(base, config);
-    writeahead_epoch_paxos_peers_connect_to_acceptors(peers);
+    struct writeahead_epoch_paxos_peers* peers = writeahead_epoch_paxos_peers_new(base, config,
+                                                                                  paxos_config.messages_batched_average,
+                                                                                  paxos_config.messages_batched_max, paxos_config.max_expected_value_size);
+    writeahead_epoch_paxos_peers_connect_to_acceptors(peers, id);
     int port = evpaxos_proposer_listen_port(config, id);
     int rv = writeahead_epoch_paxos_peers_listen(peers, port);
     if (rv == 0 ) // failure

@@ -29,7 +29,7 @@ static void peer_send_epoch_paxos_message(struct writeahead_epoch_paxos_peer* p,
 
 
 
-static void ev_epoch_learner_check_holes(__unused evutil_socket_t fd, __unused short event, void *arg)
+static void ev_epoch_learner_check_holes( evutil_socket_t fd,  short event, void *arg)
 {
     struct writeahead_epoch_paxos_message msg;
     unsigned int chunks = 10;
@@ -71,7 +71,7 @@ ev_epoch_learner_deliver_next_closed(struct ev_epoch_learner* l)
     }
 }
 
-static void ev_epoch_learner_handle_accepted(__unused struct writeahead_epoch_paxos_peer* p, struct writeahead_epoch_paxos_message* msg, void* arg){
+static void ev_epoch_learner_handle_accepted( struct writeahead_epoch_paxos_peer* p, struct writeahead_epoch_paxos_message* msg, void* arg){
     struct ev_epoch_learner* l = arg;
     struct epoch_ballot_accepted* accepted = &msg->message_contents.epoch_ballot_accepted;
     struct writeahead_epoch_paxos_message chosen;
@@ -87,14 +87,14 @@ static void ev_epoch_learner_handle_accepted(__unused struct writeahead_epoch_pa
     }
 }
 
-static void ev_epoch_learner_handle_chosen(__unused struct writeahead_epoch_paxos_peer* p, struct writeahead_epoch_paxos_message* msg, void* arg) {
+static void ev_epoch_learner_handle_chosen( struct writeahead_epoch_paxos_peer* p, struct writeahead_epoch_paxos_message* msg, void* arg) {
     struct ev_epoch_learner* l = arg;
     struct epoch_ballot_chosen* chosen = &msg->message_contents.instance_chosen_at_epoch_ballot;
     epoch_learner_receive_epoch_ballot_chosen(l->learner, chosen);
     ev_epoch_learner_deliver_next_closed(l);
 }
 
-static void ev_learner_handle_trim(__unused struct writeahead_epoch_paxos_peer* p, struct writeahead_epoch_paxos_message* msg, void* arg) {
+static void ev_learner_handle_trim( struct writeahead_epoch_paxos_peer* p, struct writeahead_epoch_paxos_message* msg, void* arg) {
     struct ev_epoch_learner* l = arg;
     struct paxos_trim* trim = &msg->message_contents.trim;
     epoch_learner_set_trim_instance(l->learner, trim->iid);
@@ -129,8 +129,10 @@ struct ev_epoch_learner* ev_epoch_learner_init(const char* config_file, epoch_cl
     struct evpaxos_config* c = evpaxos_config_read(config_file);
     if (c == NULL) return NULL;
 
-    struct writeahead_epoch_paxos_peers* peers = writeahead_epoch_paxos_peers_new(b, c);
-    writeahead_epoch_paxos_peers_connect_to_acceptors(peers);
+    struct writeahead_epoch_paxos_peers* peers = writeahead_epoch_paxos_peers_new(b, c,
+                                                                                  paxos_config.messages_batched_average,
+                                                                                  paxos_config.messages_batched_max, paxos_config.max_expected_value_size);
+    writeahead_epoch_paxos_peers_connect_to_acceptors(peers, INT32_MAX); //todo fix lazy bad
     //peers_connect_to_proposers(peers);
 
     struct ev_epoch_learner* l = ev_epoch_learner_init_internal(c, peers, f, arg);
