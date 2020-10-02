@@ -8,6 +8,7 @@
 set(LMDB_ROOT "" CACHE STRING "lmdb root directory")
 
 find_path(LMDB_INCLUDE_DIR lmdb.h HINTS "${LMDB_ROOT}/include")
+
 find_library(LMDB_LIBRARY lmdb HINTS "${LMDB_ROOT}/lib")
 
 set(LMDB_LIBRARIES ${LMDB_LIBRARY})

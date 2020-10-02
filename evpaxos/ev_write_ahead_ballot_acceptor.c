@@ -102,9 +102,8 @@ static void
 ev_write_ahead_acceptor_handle_accept(struct standard_paxos_peer* p, standard_paxos_message* msg, void* arg)
 {
     standard_paxos_message out;
-    paxos_accept* accept = &args->msg->u.accept;
-    struct ev_write_ahead_acceptor* a = (struct ev_write_ahead_acceptor*)args->arg;
-    struct standard_paxos_peer* p = args->p;
+    paxos_accept* accept = &msg->u.accept;
+    struct ev_write_ahead_acceptor* a = (struct ev_write_ahead_acceptor*)arg;
 
     assert(accept->value.paxos_value_len > 0);
     performance_threshold_timer_begin_timing(a->acceptance_timer);
