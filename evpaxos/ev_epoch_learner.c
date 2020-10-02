@@ -129,9 +129,7 @@ struct ev_epoch_learner* ev_epoch_learner_init(const char* config_file, epoch_cl
     struct evpaxos_config* c = evpaxos_config_read(config_file);
     if (c == NULL) return NULL;
 
-    struct writeahead_epoch_paxos_peers* peers = writeahead_epoch_paxos_peers_new(b, c,
-                                                                                  paxos_config.messages_batched_average,
-                                                                                  paxos_config.messages_batched_max, paxos_config.max_expected_value_size);
+    struct writeahead_epoch_paxos_peers* peers = writeahead_epoch_paxos_peers_new(b, c);
     writeahead_epoch_paxos_peers_connect_to_acceptors(peers, INT32_MAX); //todo fix lazy bad
     //peers_connect_to_proposers(peers);
 

@@ -498,9 +498,7 @@ struct ev_epoch_proposer* ev_epoch_proposer_init(int id, const char* config_file
         return NULL;
     }
 
-    struct writeahead_epoch_paxos_peers* peers = writeahead_epoch_paxos_peers_new(base, config,
-                                                                                  paxos_config.messages_batched_average,
-                                                                                  paxos_config.messages_batched_max, paxos_config.max_expected_value_size);
+    struct writeahead_epoch_paxos_peers* peers = writeahead_epoch_paxos_peers_new(base, config);
     writeahead_epoch_paxos_peers_connect_to_acceptors(peers, id);
     int port = evpaxos_proposer_listen_port(config, id);
     int rv = writeahead_epoch_paxos_peers_listen(peers, port);

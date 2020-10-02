@@ -184,34 +184,6 @@ void write_ahead_window_acceptor_new_ballot_epoch_from_last_epoch(struct writeah
 }
 
 
-// Check whether it a ballot has been safely prewritten to stable storage
-// This is important to ensure it is safe to give a promise on a ballot
-bool
-write_ahead_window_acceptor_is_instance_written_ahead(struct writeahead_ballot_acceptor* acceptor,
-                                                      iid_t instance,
-                                                      struct ballot ballot)
-{
-    iid_t *last_inited_instance = calloc(1, sizeof(iid_t));
-    storage_get_max_inited_instance(&acceptor->stable_storage, last_inited_instance);
-
-    if (*last_inited_instance < instance) {
-        free(last_inited_instance);
-        paxos_accepted stable_instance_info;
-        memset(&stable_instance_info, 0, sizeof(struct paxos_accepted));
-        storage_get_instance_info(&acceptor->stable_storage, instance, &stable_instance_info);
-
-        if (ballot_greater_than(stable_instance_info.promise_ballot, ballot)) {
-            return true;
-        } else {
-            return false;
-        }
-    } else {
-        free(last_inited_instance);
-        return false;
-    }
-}
-
-
 static void update_flagged_ballot_windows(struct writeahead_ballot_acceptor *acceptor) {
     if(acceptor->number_of_instances_to_begin_new_ballot_epoch > 0){
         for (iid_t i = 0; i < acceptor->number_of_instances_to_begin_new_ballot_epoch; i++){
@@ -301,41 +273,6 @@ write_ahead_window_acceptor_write_next_iteration_of_instance_epoch(struct writea
 }
 
 
-bool write_ahead_acceptor_is_new_instance_epoch_needed(struct writeahead_ballot_acceptor* acceptor) {
-    return //(write_ahead_window_acceptor_does_instance_window_need_adjusting(acceptor->last_instance_responded_to,
-                                                                   //        acceptor->last_instance_epoch_end,
-                                                                   //        acceptor->min_instance_catachup) && !acceptor->updating_instance_epoch);
-            (acceptor->last_instance_epoch_end - acceptor->last_instance_responded_to < acceptor->min_instance_catachup) && !acceptor->updating_instance_epoch;
-}
-
-void write_ahead_acceptor_begin_writing_instance_epoch(struct writeahead_ballot_acceptor* acceptor) {
-    acceptor->updating_instance_epoch = true;
-    acceptor->new_epoch_end = acceptor->last_instance_epoch_end + acceptor->instance_window;
-
-    // This tells the acceptor where to start writing ahead the next epoch
-    acceptor->last_iteration_end = acceptor->last_instance_epoch_end;
-    paxos_log_info("Instance Window has caught up."
-                    "Beginning new epoch.");
-}
-
-void write_ahead_acceptor_write_iteration_of_instance_epoch(struct writeahead_ballot_acceptor* acceptor) {
-    if (acceptor->updating_instance_epoch) {
-        storage_tx_begin(&acceptor->stable_storage);
-        write_ahead_window_acceptor_write_next_iteration_of_instance_epoch(acceptor);
-        storage_tx_commit(&acceptor->stable_storage);
-
-        if (acceptor->new_epoch_end <= acceptor->last_iteration_end) {
-            acceptor->updating_instance_epoch = false;
-            acceptor->last_instance_epoch_end = acceptor->last_iteration_end; // last_interation_end because new_epoch_end might be lower (but shouldn't be if programmed right)
-            paxos_log_info("Finished writing New Instance Epoch");
-        }
-    }
-}
-
-bool write_ahead_acceptor_is_writing_epoch(struct writeahead_ballot_acceptor* acceptor){
-    return acceptor->updating_instance_epoch;
-}
-
 /*
 void check_and_update_instance_window(struct writeahead_ballot_acceptor *acceptor) {
     // Will not do if already updating
@@ -417,15 +354,8 @@ write_ahead_window_acceptor_copy_to_paxos_storage_from_stable_storage(struct sta
 
 
 
-struct writeahead_ballot_acceptor*
-write_ahead_window_acceptor_new (
-        int id,
-        int min_instance_catchup,
-        int min_ballot_catchup,
-        int bal_window,
-        int instance_window,
-        int instance_epoch_writing_iteration_size
-            )
+struct writeahead_ballot_acceptor *
+write_ahead_window_acceptor_new(int id, int min_ballot_catchup, int bal_window)
 {
     int error;
 
@@ -482,9 +412,7 @@ write_ahead_window_acceptor_new (
     // Set up write ahead acceptor variables
     acceptor->stable_storage_duplicate = stable_storage_duplicate;
     acceptor->volatile_storage = volatile_storage;
-    acceptor->instance_window = instance_window;
     acceptor->ballot_window = bal_window;
-    acceptor->min_instance_catachup = min_instance_catchup;
     acceptor->min_ballot_catachup = min_ballot_catchup;
 
    // writeahead_ballot_acceptor->last_instance_needs_new_ballot_epoch = false;
@@ -501,7 +429,6 @@ write_ahead_window_acceptor_new (
     acceptor->last_instance_epoch_end = 0;
     acceptor->new_epoch_end = 0;
     acceptor->last_iteration_end = 0;
-    acceptor->instance_epoch_iteration_size = instance_epoch_writing_iteration_size;
 
     iid_t max_instance;
 

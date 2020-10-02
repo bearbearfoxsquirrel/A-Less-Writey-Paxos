@@ -29,7 +29,7 @@ write_ahead_window_acceptor_new (
 
 struct writeahead_ballot_acceptor;
 
-struct writeahead_ballot_acceptor* write_ahead_window_acceptor_new(int id, int min_instance_catchup, int min_ballot_catchup, int bal_window, int instance_window, int instance_epoch_writing_iteration_size);
+struct writeahead_ballot_acceptor *write_ahead_window_acceptor_new(int id, int min_ballot_catchup, int bal_window);
 
 iid_t write_ahead_ballot_acceptor_get_trim(struct writeahead_ballot_acceptor* acceptor);
 
@@ -50,15 +50,7 @@ void write_ahead_window_acceptor_get_current_state(struct writeahead_ballot_acce
 
 void write_ahead_window_acceptor_check_and_update_write_ahead_windows(struct writeahead_ballot_acceptor* acceptor);
 
-bool write_ahead_acceptor_is_new_instance_epoch_needed(struct writeahead_ballot_acceptor* acceptor);
-
-void write_ahead_acceptor_write_iteration_of_instance_epoch(struct writeahead_ballot_acceptor* acceptor);
-
 void write_ahead_acceptor_check_and_update_ballot_epochs(struct writeahead_ballot_acceptor* acceptor);
-
-bool write_ahead_acceptor_is_writing_epoch(struct writeahead_ballot_acceptor* acceptor);
-
-void write_ahead_acceptor_begin_writing_instance_epoch(struct writeahead_ballot_acceptor* acceptor);
 
 void write_ahead_acceptor_clean_up_instance_epoch_stuff(struct writeahead_ballot_acceptor* acceptor);
 

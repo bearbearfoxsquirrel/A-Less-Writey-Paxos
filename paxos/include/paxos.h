@@ -85,15 +85,6 @@ struct paxos_config
 	char *lmdb_env_path;
 	size_t lmdb_mapsize;
 
-
-	// related to prewriting
-    uint32_t max_expected_value_size;
-    uint32_t num_instances_to_prewrite;
-    uint32_t max_prewritten_instances;
-    uint32_t prewrite_time_seconds;
-    uint32_t prewrite_time_microseconds;
-    uint32_t min_proposed_instance_catchup;
-
     // writing ahead ballots for less writey ballots
     uint32_t ballots_written_ahead;
     uint32_t ballot_catchup;

@@ -172,8 +172,7 @@ evlearner_init(const char* config_file, deliver_function f, void* arg,
 	struct evpaxos_config* c = evpaxos_config_read(config_file);
 	if (c == NULL) return NULL;
 
-    struct standard_paxos_peers* peers = peers_new(b, c, paxos_config.messages_batched_average,
-                                                   paxos_config.messages_batched_max, paxos_config.max_expected_value_size);
+    struct standard_paxos_peers* peers = peers_new(b, c);
 	peers_connect_to_acceptors(peers, INT32_MAX); //todo fix bad bad
 	//peers_connect_to_proposers(peers);
 

@@ -91,14 +91,6 @@ struct option options[] =
         {"max-initial-backoff-microseconds", &paxos_config.max_initial_backff_microseconds,        option_integer},
         {"max-backoff-microseconds", &paxos_config.max_backoff_microseconds,                       option_integer},
 
-
-        {"max-expected-value-size", &paxos_config.max_expected_value_size,                         option_integer},
-        {"number-of-instances-to-prewrite-per-iteration", &paxos_config.num_instances_to_prewrite, option_integer},
-        {"max-prewritten-instances", &paxos_config.max_prewritten_instances,                       option_integer},
-        {"prewrite-time-seconds", &paxos_config.prewrite_time_seconds,                             option_integer},
-        {"prewrite-time-microseconds", &paxos_config.prewrite_time_microseconds,                   option_integer},
-        {"min-instance-proposed-catchup", &paxos_config.min_proposed_instance_catchup,             option_integer},
-
         {"promised-ballots-catchup", &paxos_config.ballot_catchup, option_integer},
         {"ballots-to-write-ahead", &paxos_config.ballots_written_ahead, option_integer},
         {"ballot-windows-check-timer-seconds", &paxos_config.ballot_windows_check_timer_seconds, option_integer},

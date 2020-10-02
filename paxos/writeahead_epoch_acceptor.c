@@ -21,10 +21,7 @@ struct writeahead_epoch_acceptor {
     iid_t trim_instance; // here for fast access
     uint32_t current_epoch;
 
-    iid_t next_instance_to_preprepare;
-    iid_t preprepred_window;
     iid_t max_proposed_instance;
-    iid_t max_instanes_preprepared;
 };
 
 static int writeahead_epoch_acceptor_increase_epoch(struct writeahead_epoch_acceptor* acceptor, uint32_t new_epoch){
@@ -57,60 +54,10 @@ iid_t writeahead_epoch_acceptor_get_max_proposed_instance(struct writeahead_epoc
     return acceptor->max_proposed_instance;
 }
 
-iid_t writeahead_epoch_acceptor_get_next_instance_to_prewrite(struct writeahead_epoch_acceptor* acceptor) {
-    return acceptor->next_instance_to_preprepare;
-}
-
-iid_t writeahead_epoch_acceptor_get_max_instances_prewrite(struct writeahead_epoch_acceptor* acceptor) {
-    return acceptor->max_instanes_preprepared;
-}
-
-iid_t writeahead_epoch_acceptor_number_of_instance_to_prewrite_at_once(struct writeahead_epoch_acceptor* acceptor) {
-    return acceptor->preprepred_window;
-}
-
-void writeahead_epoch_acceptor_prewrite_instances(struct writeahead_epoch_acceptor *acceptor, iid_t start, iid_t stop,
-                                                  uint32_t dummy_value_size) {
-    //todo make use a start and stop so recovery can prewrite from trim to way ahead of max inited
-    // todo and then the event can only do it for a window
-    // todo add avalue size
-  //  if(acceptor->next_instance_to_preprepare < acceptor->max_proposed_instance + acceptor->max_instanes_preprepared){
-        epoch_stable_storage_tx_begin(&acceptor->stable_storage);
-        char* dummy_value = malloc(sizeof(char) * dummy_value_size);
-
-        for (iid_t i = start; i < stop; i++) {
-            struct epoch_ballot_accept accept = (struct epoch_ballot_accept) {
-                    .instance = i,
-                    .epoch_ballot_requested = (struct epoch_ballot) {INVALID_EPOCH, INVALID_BALLOT},
-                    .value_to_accept = INVALID_VALUE
-            };
-            accept.value_to_accept.paxos_value_len = dummy_value_size;//paxos_value_new(doodle, 5000);
-            accept.value_to_accept.paxos_value_val = dummy_value;
-
-            struct paxos_prepare prepare_to_store = (struct paxos_prepare) {
-                    .iid = i,
-                    .ballot = INVALID_BALLOT
-            };
-            epoch_paxos_storage_store_last_prepare(&acceptor->volatile_storage, &prepare_to_store);
-            epoch_stable_storage_store_epoch_ballot_accept(&acceptor->stable_storage, &accept);
-            epoch_paxos_storage_store_accept(&acceptor->volatile_storage, &accept);
-        }
-        epoch_stable_storage_tx_commit(&acceptor->stable_storage);
-        acceptor->next_instance_to_preprepare = acceptor->next_instance_to_preprepare + acceptor->preprepred_window;
-
-        free(dummy_value);
-
-        paxos_log_debug("Preprepared to Instance %u", acceptor->next_instance_to_preprepare);
-  //  }
-
-}
-
 
 
 struct writeahead_epoch_acceptor *
-writeahead_epoch_acceptor_new(int id, struct epoch_notification *recover_message, bool *has_recovery_message,
-                              iid_t prepareparing_window_size, iid_t max_number_of_prewritten_instances,
-                              uint32_t expected_value_size) {
+writeahead_epoch_acceptor_new(int id, struct epoch_notification *recover_message, bool *has_recovery_message) {
     struct writeahead_epoch_acceptor* acceptor = calloc(1, sizeof(struct writeahead_epoch_acceptor));
     acceptor->id = id;
     epoch_stable_storage_init(&acceptor->stable_storage, id);
@@ -165,15 +112,6 @@ writeahead_epoch_acceptor_new(int id, struct epoch_notification *recover_message
     epoch_stable_storage_tx_commit(&acceptor->stable_storage);
 
     assert(incremented_epoch > old_epoch);
-
-    acceptor->preprepred_window = prepareparing_window_size;
-    epoch_paxos_storage_get_max_inited_instance(&acceptor->volatile_storage, &acceptor->next_instance_to_preprepare);
-    acceptor->max_proposed_instance =  acceptor->next_instance_to_preprepare;
-    acceptor->next_instance_to_preprepare++;
-    acceptor->max_instanes_preprepared = max_number_of_prewritten_instances;
-
-
-    writeahead_epoch_acceptor_prewrite_instances(acceptor, acceptor->trim_instance, trim + number_of_accepts + max_number_of_prewritten_instances, expected_value_size);
 
     if (acceptor->current_epoch > 0) {
         create_epoch_notification_message(recover_message, acceptor);
@@ -440,15 +378,6 @@ int writeahead_epoch_acceptor_receive_epoch_ballot_accept(struct writeahead_epoc
         if (request->instance > acceptor->max_proposed_instance) {
             acceptor->max_proposed_instance = request->instance;
         }
-
-
-  //      assert(request->instance < acceptor->next_instance_to_preprepare);
-
-        if (request->instance > acceptor->next_instance_to_preprepare){
-            acceptor->next_instance_to_preprepare = request->instance;
-        }
-
-
 
         paxos_log_debug("New highest Epoch Ballot Accepted (%u.%u.%u) for Instance %u",
                         request->epoch_ballot_requested.epoch,

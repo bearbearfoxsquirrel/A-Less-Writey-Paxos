@@ -24,10 +24,6 @@ struct ev_epoch_acceptor {
     struct event* send_state_event;
     struct timeval send_state_timer;
 
-    struct event* prewrite_instances_event;
-    struct timeval prewrite_instances_timer;
-
-
     struct performance_threshold_timer* promise_timer;
     struct performance_threshold_timer* acceptance_timer;
 
@@ -149,31 +145,13 @@ static void send_epoch_acceptor_state( int fd,  short ev, void* arg) {
     event_add(acceptor->send_state_event, &acceptor->send_state_timer);
 }
 
-static void ev_epoch_acceptor_prewrite_instances( int fd,  short ev, void* arg) {
-    struct ev_epoch_acceptor *acceptor = arg;
-    iid_t next_instnace_to_prewrite = writeahead_epoch_acceptor_get_next_instance_to_prewrite(acceptor->acceptor);
-    if (next_instnace_to_prewrite < writeahead_epoch_acceptor_get_max_proposed_instance(acceptor->acceptor) +
-                                            writeahead_epoch_acceptor_get_max_instances_prewrite(acceptor->acceptor)) {
-        writeahead_epoch_acceptor_prewrite_instances(acceptor->acceptor,
-                next_instnace_to_prewrite,
-                writeahead_epoch_acceptor_number_of_instance_to_prewrite_at_once(acceptor->acceptor), acceptor->expected_value_size);
-    }
-    event_add(acceptor->prewrite_instances_event, &acceptor->prewrite_instances_timer);
-}
-
 struct ev_epoch_acceptor *
 ev_epoch_acceptor_init_internal(int id, struct evpaxos_config *c, struct writeahead_epoch_paxos_peers *p) {
     struct ev_epoch_acceptor* acceptor = malloc(sizeof(struct ev_epoch_acceptor));
     struct epoch_notification epoch_notification;
     bool new_epoch;
 
-    acceptor->expected_value_size = paxos_config.max_expected_value_size;
-    acceptor->acceptor = writeahead_epoch_acceptor_new(id,
-                                                       &epoch_notification,
-                                                       &new_epoch,
-                                                       paxos_config.num_instances_to_prewrite,
-                                                       paxos_config.max_prewritten_instances,
-                                                       paxos_config.max_expected_value_size);
+    acceptor->acceptor = writeahead_epoch_acceptor_new(id, &epoch_notification, &new_epoch);
     acceptor->peers = p;
 
     writeahead_epoch_paxos_peers_subscribe(p, WRITEAHEAD_EPOCH_BALLOT_ACCEPT, ev_epoch_acceptor_handle_epoch_ballot_accept, acceptor);
@@ -195,12 +173,6 @@ ev_epoch_acceptor_init_internal(int id, struct evpaxos_config *c, struct writeah
     acceptor->send_state_timer = (struct timeval) {1, 0};
     event_add(acceptor->send_state_event, &acceptor->send_state_timer);
 
-    if (paxos_config.max_prewritten_instances > 0 && paxos_config.num_instances_to_prewrite > 0) {
-        acceptor->prewrite_instances_event = evtimer_new(base, ev_epoch_acceptor_prewrite_instances, acceptor);
-        acceptor->prewrite_instances_timer = (struct timeval) {paxos_config.prewrite_time_seconds,
-                                                               paxos_config.prewrite_time_microseconds};
-        event_add(acceptor->prewrite_instances_event, &acceptor->prewrite_instances_timer);
-    }
     struct writeahead_epoch_paxos_message msg = {
             .type = WRITEAHEAD_EPOCH_NOTIFICATION,
             .message_contents.epoch_notification = epoch_notification
@@ -225,9 +197,7 @@ struct ev_epoch_acceptor* ev_epoch_acceptor_init(int id, const char* config_fig,
         return NULL;
     }
 
-    struct writeahead_epoch_paxos_peers* peers = writeahead_epoch_paxos_peers_new(base, config,
-                                                                                  paxos_config.messages_batched_average,
-                                                                                  paxos_config.messages_batched_max, paxos_config.max_expected_value_size);
+    struct writeahead_epoch_paxos_peers* peers = writeahead_epoch_paxos_peers_new(base, config);
     int port = evpaxos_acceptor_listen_port(config, id);
     if (writeahead_epoch_paxos_peers_listen(peers, port) == 0)
         return NULL;

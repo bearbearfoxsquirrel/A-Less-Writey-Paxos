@@ -88,9 +88,7 @@ static void writeahead_epoch_paxos_on_accept(struct evconnlistener *l, evutil_so
 static void writeahead_epoch_paxos_socket_set_nodelay(int fd);
 
 struct writeahead_epoch_paxos_peers *
-writeahead_epoch_paxos_peers_new(struct event_base *base, struct evpaxos_config *config,
-                                 size_t messages_batched_average, size_t max_messages_batched,
-                                 unsigned int value_size) {
+writeahead_epoch_paxos_peers_new(struct event_base *base, struct evpaxos_config *config) {
     struct writeahead_epoch_paxos_peers* p = malloc(sizeof(struct writeahead_epoch_paxos_peers));
     p->peers_count = 0;
     p->clients_count = 0;

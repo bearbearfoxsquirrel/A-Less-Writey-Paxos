@@ -84,8 +84,7 @@ static void on_accept(struct evconnlistener *l, evutil_socket_t fd,
 static void socket_set_nodelay(int fd);
 
 struct standard_paxos_peers *
-peers_new(struct event_base *base, struct evpaxos_config *config, int messages_batched_average,
-          int max_messages_batched, unsigned int value_size)
+peers_new(struct event_base *base, struct evpaxos_config *config)
 {
 	struct standard_paxos_peers* p = malloc(sizeof(struct standard_paxos_peers));
 	p->peers_count = 0;
@@ -313,6 +312,7 @@ on_read(struct bufferevent* bev, void* arg)
 	struct standard_paxos_peer* p = (struct standard_paxos_peer*)arg;
 	struct evbuffer* in = bufferevent_get_input(bev);
 	while (recv_paxos_message(in, &msg)) {
+	    // add multi threading here?
 		dispatch_message(p, &msg);
         paxos_message_destroy_contents(&msg);
 	}

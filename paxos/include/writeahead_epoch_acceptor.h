@@ -12,9 +12,7 @@
 struct writeahead_epoch_acceptor;
 
 struct writeahead_epoch_acceptor *
-writeahead_epoch_acceptor_new(int id, struct epoch_notification *recover_message, bool *has_recovery_message,
-                              iid_t prepareparing_window_size, iid_t max_number_of_prewritten_instances,
-                              uint32_t expected_value_size);
+writeahead_epoch_acceptor_new(int id, struct epoch_notification *recover_message, bool *has_recovery_message);
 
 void writeahead_epoch_acceptor_free(struct writeahead_epoch_acceptor* acceptor);
 
@@ -34,16 +32,7 @@ int writeahead_epoch_acceptor_get_current_state(struct writeahead_epoch_acceptor
 
 int writeahead_epoch_acceptor_receive_instance_chosen(struct writeahead_epoch_acceptor* acceptor, struct epoch_ballot_chosen *chosen_message); // todo
 
-void writeahead_epoch_acceptor_prewrite_instances(struct writeahead_epoch_acceptor *acceptor, iid_t start, iid_t stop,
-                                                  uint32_t dummy_value_size);
-
-
 iid_t writeahead_epoch_acceptor_get_max_proposed_instance(struct writeahead_epoch_acceptor* acceptor);
 
-iid_t writeahead_epoch_acceptor_get_next_instance_to_prewrite(struct writeahead_epoch_acceptor* acceptor);
-
-iid_t writeahead_epoch_acceptor_get_max_instances_prewrite(struct writeahead_epoch_acceptor* acceptor);
-
-iid_t writeahead_epoch_acceptor_number_of_instance_to_prewrite_at_once(struct writeahead_epoch_acceptor* acceptor);
 
 #endif //LIBPAXOS_WRITEAHEAD_EPOCH_ACCEPTOR_H

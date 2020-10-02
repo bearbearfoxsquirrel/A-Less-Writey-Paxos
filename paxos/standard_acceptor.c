@@ -47,10 +47,7 @@ struct standard_acceptor
     struct paxos_storage* paxos_storage;
  //   khash_t(is_chosen)* chosen_instances;
 
-    iid_t next_instance_to_preprepare;
-    iid_t preprepred_window;
     iid_t max_proposed_instance;
-    iid_t max_instanes_preprepared;
 };
 
 
@@ -59,68 +56,9 @@ iid_t standard_acceptor_get_max_proposed_instance(struct standard_acceptor* acce
     return acceptor->max_proposed_instance;
 }
 
-iid_t standard_acceptor_get_next_instance_to_prewrite(struct standard_acceptor* acceptor) {
-    return acceptor->next_instance_to_preprepare;
-}
-
-iid_t standard_acceptor_get_max_instances_to_prewrite(struct standard_acceptor* acceptor) {
-    return acceptor->max_instanes_preprepared;
-}
-
-iid_t standard_acceptor_number_of_instance_to_prewrite_at_once(struct standard_acceptor* acceptor) {
-    return acceptor->preprepred_window;
-}
-
-
-void standard_acceptor_prewrite_instances(struct standard_acceptor *acceptor, iid_t start, iid_t stop,
-                                          uint32_t dummy_value_size) {
-        storage_tx_begin(&acceptor->stable_storage);
-
-        struct paxos_accepted instance_info;
-
-        char* dummy_value = malloc(sizeof(char) * dummy_value_size);
-        for (iid_t i = start; i < stop; i++) {
-
-
-            storage_get_instance_info(&acceptor->stable_storage, i, &instance_info);
-            if (ballot_greater_than(instance_info.promise_ballot, INVALID_BALLOT)) {
-
-                struct paxos_accept accept = (struct paxos_accept) {
-                        .iid = i,
-                        .ballot =  INVALID_BALLOT,
-                        .value = INVALID_VALUE
-                };
-
-                accept.value.paxos_value_len = dummy_value_size;
-                accept.value.paxos_value_val = dummy_value;
-
-                struct paxos_prepare prepare_to_store = (struct paxos_prepare) {
-                        .iid = i,
-                        .ballot = INVALID_BALLOT
-                };
-
-                instance_info.iid = i;
-                instance_info.promise_ballot = INVALID_BALLOT;
-                instance_info.value_ballot = INVALID_BALLOT;
-                instance_info.value.paxos_value_len = dummy_value_size;
-                instance_info.value.paxos_value_val = dummy_value;
-
-                store_last_prepare(acceptor->paxos_storage, &prepare_to_store);
-                store_acceptance(acceptor->paxos_storage, &accept);
-                storage_store_instance_info(&acceptor->stable_storage, &instance_info);
-            }
-        }
-        storage_tx_commit(&acceptor->stable_storage);
-        acceptor->next_instance_to_preprepare = acceptor->next_instance_to_preprepare + acceptor->preprepred_window;
-
-        paxos_log_debug("Preprepared to Instance %u", acceptor->next_instance_to_preprepare);
-
-}
-
 
 struct standard_acceptor *
-standard_acceptor_new(int id, iid_t prepreparing_window_size, iid_t max_number_of_preprepared_instances,
-                      uint32_t expected_value_size)
+standard_acceptor_new(int id)
 {
 	struct standard_acceptor* a = calloc(1, sizeof(struct standard_acceptor));
 
@@ -146,15 +84,6 @@ standard_acceptor_new(int id, iid_t prepreparing_window_size, iid_t max_number_o
     if (storage_tx_commit(&a->stable_storage) != 0)
 		return NULL;
 
-
-    a->preprepred_window = prepreparing_window_size;
-    get_max_inited_instance(a->paxos_storage, &a->next_instance_to_preprepare);
-    a->max_proposed_instance =  a->next_instance_to_preprepare;
-    a->next_instance_to_preprepare++;
-    a->max_instanes_preprepared = max_number_of_preprepared_instances;
-
-
-    standard_acceptor_prewrite_instances(a, a->trim_iid, a->trim_iid + number_of_instances_retrieved + max_number_of_preprepared_instances, expected_value_size);
 
     return a;
 }

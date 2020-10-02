@@ -43,8 +43,7 @@ struct standard_acceptor {
 };
 */
 struct standard_acceptor *
-standard_acceptor_new(int id, iid_t prepreparing_window_size, iid_t max_number_of_preprepared_instances,
-                      uint32_t expected_value_size);
+standard_acceptor_new(int id);
 
 void standard_acceptor_free(struct standard_acceptor *a);
 
@@ -63,19 +62,8 @@ int standard_acceptor_receive_trim(struct standard_acceptor *a, paxos_trim *trim
 
 void standard_acceptor_get_current_state(struct standard_acceptor *a, paxos_standard_acceptor_state *state);
 
-void standard_acceptor_prewrite_instances(struct standard_acceptor *acceptor, iid_t start, iid_t stop,
-                                          uint32_t dummy_value_size);
-
-
-
 
 iid_t standard_acceptor_get_max_proposed_instance(struct standard_acceptor* acceptor);
-
-iid_t standard_acceptor_get_next_instance_to_prewrite(struct standard_acceptor* acceptor);
-
-iid_t standard_acceptor_get_max_instances_to_prewrite(struct standard_acceptor* acceptor);
-
-iid_t standard_acceptor_number_of_instance_to_prewrite_at_once(struct standard_acceptor* acceptor);
 
 #ifdef __cplusplus
 }
