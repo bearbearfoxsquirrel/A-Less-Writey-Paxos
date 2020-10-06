@@ -489,7 +489,7 @@ evproposer_init(int id, const char* config_file, struct event_base* base)
 		return NULL;
 	}
 
-    struct standard_paxos_peers* peers = peers_new(base, config);
+    struct standard_paxos_peers* peers = peers_new(base, config, 0);
 	peers_connect_to_acceptors(peers, id);
 	int port = evpaxos_proposer_listen_port(config, id);
 	int rv = peers_listen(peers, port);

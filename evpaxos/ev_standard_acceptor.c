@@ -176,8 +176,8 @@ evacceptor_init_internal(int id,  struct evpaxos_config* c, struct standard_paxo
 	return acceptor;
 }
 
-struct ev_standard_acceptor*
-evacceptor_init(int id, const char* config_file, struct event_base* base)
+struct ev_standard_acceptor *
+evacceptor_init(int id, const char *config_file, struct event_base *base, int num_threads)
 {
 	struct evpaxos_config* config = evpaxos_config_read(config_file);
 	if (config  == NULL)
@@ -192,7 +192,7 @@ evacceptor_init(int id, const char* config_file, struct event_base* base)
 		return NULL;
 	}
 
-    struct standard_paxos_peers* peers = peers_new(base, config);
+    struct standard_paxos_peers* peers = peers_new(base, config, num_threads);
 	int port = evpaxos_acceptor_listen_port(config, id);
 	if (peers_listen(peers, port) == 0)
 		return NULL;

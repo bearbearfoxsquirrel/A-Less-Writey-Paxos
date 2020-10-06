@@ -29,6 +29,9 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <evpaxos.h>
+#include <event.h>
+#include <event2/thread.h>
+
 #include <signal.h>
 
 static void
@@ -46,13 +49,15 @@ start_acceptor(int id, const char* config)
 	struct event_base* base;
 	struct event* sig;
 
+	evthread_use_pthreads();
 	base = event_base_new();
 	sig = evsignal_new(base, SIGINT, handle_sigint, base);
 	evsignal_add(sig, NULL);
 
 	// TODO Change to mechanism that reads config and works out what acceptor to choose
-   struct ev_standard_acceptor* acc = evacceptor_init(id, config, base);
-	if (acc == NULL) {
+   struct ev_standard_acceptor* acc = evacceptor_init(id, config, base, 2);
+
+    if (acc == NULL) {
 		printf("Could not start the acceptor\n");
 		return;
 	}

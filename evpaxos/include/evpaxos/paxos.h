@@ -140,8 +140,7 @@ void evlearner_send_trim(struct evlearner* l, unsigned iid);
  * Initializes a acceptor with a given id (which MUST be unique),
  * a config file and a libevent event_base.
  */
-struct ev_standard_acceptor* evacceptor_init(int id, const char* config,
-                                             struct event_base* b);
+struct ev_standard_acceptor *evacceptor_init(int id, const char *config_file, struct event_base *base, int num_threads);
 
 /**
  * Frees the memory allocated by the acceptor.

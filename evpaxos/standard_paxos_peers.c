@@ -36,7 +36,26 @@
 #include <event2/listener.h>
 #include <netinet/tcp.h>
 #include <standard_paxos_message.h>
+#include <event2/thread.h>
+#include <thpool.h>
 
+#include <fcntl.h>
+
+/** Returns true on success, or false if there was an error */
+bool SetSocketBlockingEnabled(int fd, bool blocking)
+{
+    if (fd < 0) return false;
+
+#ifdef _WIN32
+    unsigned long mode = blocking ? 0 : 1;
+   return (ioctlsocket(fd, FIONBIO, &mode) == 0) ? true : false;
+#else
+    int flags = fcntl(fd, F_GETFL, 0);
+    if (flags == -1) return false;
+    flags = blocking ? (flags & ~O_NONBLOCK) : (flags | O_NONBLOCK);
+    return (fcntl(fd, F_SETFL, flags) == 0) ? true : false;
+#endif
+}
 
 struct standard_paxos_peer
 {
@@ -48,8 +67,7 @@ struct standard_paxos_peer
 	struct standard_paxos_peers* peers;
 };
 
-struct subscription
-{
+struct subscription {
 	paxos_message_type type;
 	peer_cb callback;
 	void* arg;
@@ -66,6 +84,7 @@ struct standard_paxos_peers
 	int subs_count;
 	struct subscription subs[32];
 	struct bufferevent_rate_limit_group* rate_limit_group;
+	threadpool pool;
 };
 
 static struct timeval reconnect_timeout = {2,0};
@@ -84,7 +103,7 @@ static void on_accept(struct evconnlistener *l, evutil_socket_t fd,
 static void socket_set_nodelay(int fd);
 
 struct standard_paxos_peers *
-peers_new(struct event_base *base, struct evpaxos_config *config)
+peers_new(struct event_base *base, struct evpaxos_config *config, int num_threads)
 {
 	struct standard_paxos_peers* p = malloc(sizeof(struct standard_paxos_peers));
 	p->peers_count = 0;
@@ -95,6 +114,7 @@ peers_new(struct event_base *base, struct evpaxos_config *config)
 	p->listener = NULL;
 	p->base = base;
 	p->config = config;
+	p->pool = thpool_init(num_threads);
 //	int avg_size = (sizeof(struct paxos_accepted) * messages_batched_average) + value_size + 50;
 //	int max_size = (sizeof(struct paxos_accepted) * max_messages_batched) + value_size + 100;
 //	struct timeval tick = (struct timeval){.tv_sec = 1, .tv_usec = 0};
@@ -293,9 +313,17 @@ peers_get_event_base(struct standard_paxos_peers* p)
 	return p->base;
 }
 
+static struct worker_args {
+    struct standard_paxos_peer* p;
+    struct standard_paxos_message* msg;
+};
+
 static void
-dispatch_message(struct standard_paxos_peer* p, standard_paxos_message* msg)
+dispatch_message(struct worker_args args)
 {
+    struct standard_paxos_message* msg = args.msg;
+    struct standard_paxos_peer* p = (struct standard_paxos_peer*) args.p;
+
 	int i;
 	for (i = 0; i < p->peers->subs_count; ++i) {
 		struct subscription* sub = &p->peers->subs[i];
@@ -305,6 +333,7 @@ dispatch_message(struct standard_paxos_peer* p, standard_paxos_message* msg)
 	}
 }
 
+
 static void
 on_read(struct bufferevent* bev, void* arg)
 {
@@ -313,7 +342,9 @@ on_read(struct bufferevent* bev, void* arg)
 	struct evbuffer* in = bufferevent_get_input(bev);
 	while (recv_paxos_message(in, &msg)) {
 	    // add multi threading here?
-		dispatch_message(p, &msg);
+        struct worker_args worker_args = {.p = p, .msg = &msg};
+        thpool_add_work(p->peers->pool, (void (*) (void*)) &dispatch_message, &worker_args);
+//		dispatch_message(p, &msg);
         paxos_message_destroy_contents(&msg);
 	}
 }
@@ -396,7 +427,7 @@ on_accept( struct evconnlistener *l, evutil_socket_t fd,
 	bufferevent_setfd(peer->bev, fd);
 	bufferevent_setcb(peer->bev, on_read, NULL, on_client_event, peer);
 	bufferevent_enable(peer->bev, EV_READ|EV_WRITE);
-	socket_set_nodelay(fd);
+        socket_set_nodelay(fd);
 
 	paxos_log_info("Accepted connection from %s:%d",
 		inet_ntoa(((struct sockaddr_in*)addr)->sin_addr),
@@ -422,7 +453,7 @@ make_peer(struct standard_paxos_peers* peers, int id, struct sockaddr_in* addr)
 	struct standard_paxos_peer* p = malloc(sizeof(struct standard_paxos_peer));
 	p->id = id;
 	p->addr = *addr;
-	p->bev = bufferevent_socket_new(peers->base, -1, BEV_OPT_CLOSE_ON_FREE);
+	p->bev = bufferevent_socket_new(peers->base, -1, BEV_OPT_CLOSE_ON_FREE | BEV_OPT_THREADSAFE);
 	p->peers = peers;
 	p->reconnect_ev = NULL;
 	p->status = BEV_EVENT_EOF;

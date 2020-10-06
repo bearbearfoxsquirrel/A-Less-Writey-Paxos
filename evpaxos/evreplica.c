@@ -60,7 +60,7 @@ evpaxos_replica_init(int id, const char* config_file, deliver_function f,
 	
 	config = evpaxos_config_read(config_file);
 
-    r->peers = peers_new(base, config);
+    r->peers = peers_new(base, config, 0);
 	peers_connect_to_acceptors(r->peers, id);
 	
 	r->acceptor = evacceptor_init_internal(id, config, r->peers);

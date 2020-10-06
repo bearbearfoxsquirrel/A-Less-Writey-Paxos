@@ -1,4 +1,5 @@
 include_directories(${CMAKE_SOURCE_DIR}/paxos/include)
+include_directories(${CMAKE_SOURCE_DIR}/CThreadPool)
 include_directories(${CMAKE_SOURCE_DIR}/evpaxos/include)
 include_directories(${LIBEVENT_INCLUDE_DIRS} ${MSGPACK_INCLUDE_DIRS})
 
@@ -10,7 +11,7 @@ set(LOCAL_SOURCES config.c standard_paxos_message.c paxos_types_pack.c standard_
 
 add_library(evpaxos SHARED ${LOCAL_SOURCES})
 
-target_link_libraries(evpaxos paxos ${LIBPAXOS_LINKER_LIBS}
+target_link_libraries(evpaxos paxos thpool ${LIBPAXOS_LINKER_LIBS}
 	${LIBEVENT_LIBRARIES} ${MSGPACK_LIBRARIES})
 
 set_target_properties(evpaxos PROPERTIES

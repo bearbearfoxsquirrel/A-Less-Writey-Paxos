@@ -267,7 +267,7 @@ ev_write_ahead_window_acceptor_init(int id, const char* config_file, struct even
         return NULL;
     }
 
-    struct standard_paxos_peers* peers = peers_new(b, config);
+    struct standard_paxos_peers* peers = peers_new(b, config, 0);
 //    struct peers* peers_acceptors = peers_new(b, config);
 
     int port = evpaxos_acceptor_listen_port(config, id);
