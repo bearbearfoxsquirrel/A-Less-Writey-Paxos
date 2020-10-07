@@ -316,6 +316,8 @@ standard_acceptor_receive_repeat(struct standard_acceptor *a, iid_t iid, struct 
             instance_info.promise_ballot = instance_info.value_ballot;
             return 1;
         } else {
+
+            paxos_log_debug("Asked to repeat iid: %u but there is no record of it here.", iid);
             return 0;
         }
     }

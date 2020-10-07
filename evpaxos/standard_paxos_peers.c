@@ -142,6 +142,8 @@ peers_connect_to_acceptors(struct standard_paxos_peers* p, int source_id)
 		peers_connect(p, i, &addr);
 	}
 
+
+	// What was I doing here?
     for (unsigned int i = 0; i < p->peers_count; i++){
         //if (i == source_id){
         struct standard_paxos_peer* tmp = p->peers[i];

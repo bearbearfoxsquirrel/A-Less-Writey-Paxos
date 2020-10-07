@@ -129,7 +129,7 @@ static void
 proposer_preexecute(struct evproposer* p) {
 //    int i;
     struct paxos_prepare pr;
-    int count = p->preexec_window - proposer_prepare_count(p->state) - proposer_acceptance_count(p->state);
+    int count = p->preexec_window - (proposer_prepare_count(p->state) + proposer_acceptance_count(p->state));
     performance_threshold_timer_begin_timing(p->preexecute_timer);
 
 
@@ -200,7 +200,7 @@ try_accept(struct evproposer* p)
 {
 	paxos_accept accept;
 
-	 performance_threshold_timer_begin_timing(p->propose_timer);
+//	 performance_threshold_timer_begin_timing(p->propose_timer);
     while (proposer_try_accept(p->state, &accept)) {
         assert(&accept.value != NULL);
         assert(accept.value.paxos_value_val != NULL);
@@ -209,7 +209,7 @@ try_accept(struct evproposer* p)
         peers_for_n_acceptor(p->peers, peer_send_accept, &accept, paxos_config.group_2);
     }
 
-     ev_performance_timer_stop_check_and_clear_timer(p->propose_timer, "Proposing Values");
+    // ev_performance_timer_stop_check_and_clear_timer(p->propose_timer, "Proposing Values");
 
     proposer_preexecute(p);
 }
@@ -225,9 +225,9 @@ evproposer_handle_promise( struct standard_paxos_peer* p, standard_paxos_message
 	if (promise->ballot.proposer_id != proposer->id)
 	    return;
 
-	performance_threshold_timer_begin_timing(proposer->promise_timer);
+	//performance_threshold_timer_begin_timing(proposer->promise_timer);
 	int quorum_reached = proposer_receive_promise(proposer->state, promise, &prepare);
-	 ev_performance_timer_stop_check_and_clear_timer(proposer->promise_timer, "Handling a Promise");
+//	 ev_performance_timer_stop_check_and_clear_timer(proposer->promise_timer, "Handling a Promise");
 	if (quorum_reached)
 	    try_accept(proposer);
 }
@@ -248,9 +248,9 @@ evproposer_handle_accepted( struct standard_paxos_peer* p, standard_paxos_messag
     assert(acc->value.paxos_value_len > 1);
     assert(acc->value_ballot.number > 0);
 
-    performance_threshold_timer_begin_timing(proposer->acceptance_timer);
+  //  performance_threshold_timer_begin_timing(proposer->acceptance_timer);
     bool quorum_reached = proposer_receive_accepted(proposer->state, acc, &chosen_msg);
-    ev_performance_timer_stop_check_and_clear_timer(proposer->acceptance_timer, "Handing an Acceptance");
+   // ev_performance_timer_stop_check_and_clear_timer(proposer->acceptance_timer, "Handing an Acceptance");
 
     if (quorum_reached){
      //   peers_foreach_acceptor(proposer->peers, peer_send_chosen, &chosen_msg);
@@ -276,10 +276,10 @@ evproposer_handle_chosen( struct standard_paxos_peer* p, struct standard_paxos_m
     struct evproposer* proposer = arg;
     struct paxos_chosen* chosen_msg = &msg->u.chosen;
 
-    performance_threshold_timer_begin_timing(proposer->chosen_timer);
+  //  performance_threshold_timer_begin_timing(proposer->chosen_timer);
     assert(chosen_msg->iid != INVALID_INSTANCE);
     proposer_receive_chosen(proposer->state, chosen_msg);
-    ev_performance_timer_stop_check_and_clear_timer(proposer->chosen_timer, "Chosen");
+  //  ev_performance_timer_stop_check_and_clear_timer(proposer->chosen_timer, "Chosen");
 
     backoff_manager_close_backoff_if_exists(proposer->backoff_manager, chosen_msg->iid);
 
@@ -299,9 +299,9 @@ evproposer_handle_preempted( struct standard_paxos_peer* p, standard_paxos_messa
     struct paxos_prepare* next_prepare = calloc(1, sizeof(struct paxos_prepare));
     assert(ballot_greater_than(preempted_msg.acceptor_current_ballot, preempted_msg.attempted_ballot));
 
-    performance_threshold_timer_begin_timing(proposer->preemption_timer);
+  //  performance_threshold_timer_begin_timing(proposer->preemption_timer);
     bool new_preemption = proposer_receive_preempted(proposer->state, &preempted_msg, next_prepare);
-    ev_performance_timer_stop_check_and_clear_timer(proposer->preemption_timer, "preemption");
+  //  ev_performance_timer_stop_check_and_clear_timer(proposer->preemption_timer, "preemption");
     if (new_preemption) {
         assert(next_prepare->iid != 0);
         assert(ballot_greater_than(next_prepare->ballot, preempted_msg.acceptor_current_ballot));
