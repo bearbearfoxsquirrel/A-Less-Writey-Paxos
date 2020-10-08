@@ -154,7 +154,7 @@ static void ev_epoch_proposer_try_begin_new_instances(struct ev_epoch_proposer* 
         epoch_proposer_next_instance(p->proposer);
 
         if (new_instance_to_prepare) {
-        //    number_of_instances_to_open--;
+           number_of_instances_to_open--;
 
         //    if (prepare.standard_prepare.iid % 3 == 0) {
 
