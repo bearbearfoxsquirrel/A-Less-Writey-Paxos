@@ -91,7 +91,7 @@ peer_send_trim(struct writeahead_epoch_paxos_peer* p, void* arg) {
 
 struct retry {
     struct ev_epoch_proposer* proposer;
-    struct epoch_paxos_prepares* prepare;
+    struct epoch_ballot_prepare* prepare;
 };
 
 static void ev_epoch_proposer_try_begin_new_instances(struct ev_epoch_proposer* p);
@@ -117,29 +117,15 @@ static void ev_epoch_proposer_try_accept(struct ev_epoch_proposer* p) {
 static void ev_epoch_proposer_try_higher_ballot( evutil_socket_t fd,  short event, void* arg) {
     struct retry* args = arg;
     struct ev_epoch_proposer* proposer = args->proposer;
-    struct epoch_paxos_prepares* next_prepare = args->prepare;
-    
-    switch (next_prepare->type) {
-        case STANDARD_PREPARE:
-            paxos_log_debug("Trying to Prepare next Epoch Ballot for Instance %u with Ballot %u.%u",
-                            next_prepare->standard_prepare.iid,
-                            next_prepare->standard_prepare.ballot.number,
-                            next_prepare->standard_prepare.ballot.proposer_id);
-            writeahead_epoch_paxos_peers_for_n_acceptor(proposer->peers, peer_send_standard_prepare, &next_prepare->standard_prepare,
-                                                        paxos_config.group_1); 
-            break;
-        case EXPLICIT_EPOCH_PREPARE:
-
+    struct epoch_ballot_prepare* next_prepare = args->prepare;
 
             paxos_log_debug("Trying to Prepare next Epoch Ballot for Instance %u with Epoch Ballot %u.%u.%u",
-                        next_prepare->explicit_epoch_prepare.instance,
-                        next_prepare->explicit_epoch_prepare.epoch_ballot_requested.epoch,
-                        next_prepare->explicit_epoch_prepare.epoch_ballot_requested.ballot.number,
-                        next_prepare->explicit_epoch_prepare.epoch_ballot_requested.ballot.proposer_id);
-        writeahead_epoch_paxos_peers_for_n_acceptor(proposer->peers, peer_send_epoch_ballot_prepare, &next_prepare->explicit_epoch_prepare,
-                                                    paxos_config.group_1);
-        break;
-    }
+                        next_prepare->instance,
+                        next_prepare->epoch_ballot_requested.epoch,
+                        next_prepare->epoch_ballot_requested.ballot.number,
+                        next_prepare->epoch_ballot_requested.ballot.proposer_id);
+        writeahead_epoch_paxos_peers_for_n_acceptor(proposer->peers, peer_send_epoch_ballot_prepare, &next_prepare, paxos_config.group_1);
+
     
     free(next_prepare);
     free(args);
@@ -168,35 +154,35 @@ static void ev_epoch_proposer_try_begin_new_instances(struct ev_epoch_proposer* 
         epoch_proposer_next_instance(p->proposer);
 
         if (new_instance_to_prepare) {
-            number_of_instances_to_open--;
+        //    number_of_instances_to_open--;
 
-            if (prepare.standard_prepare.iid % 3 == 0) {
-
-
-                struct timeval current_backoff = (struct timeval) {0, random_between(5000, 10000)};
+        //    if (prepare.standard_prepare.iid % 3 == 0) {
 
 
+            //    struct timeval current_backoff = (struct timeval) {0, random_between(5000, 10000)};
 
-                struct retry *retry_args = calloc(1, sizeof(struct retry));
-                struct epoch_paxos_prepares *delayed_prepare = malloc(sizeof(struct paxos_prepare));
 
-                *retry_args = (struct retry) {.proposer = p, .prepare = delayed_prepare};
 
-                switch (prepare.type) {
+              //  struct retry *retry_args = calloc(1, sizeof(struct retry));
+           //     struct epoch_paxos_prepares *delayed_prepare = malloc(sizeof(struct paxos_prepare));
 
-                    case STANDARD_PREPARE:
-                        delayed_prepare->standard_prepare = prepare.standard_prepare;
-                        break;
-                    case EXPLICIT_EPOCH_PREPARE:
-                        delayed_prepare->explicit_epoch_prepare = prepare.explicit_epoch_prepare;
-                        break;
-                }
+           //     *retry_args = (struct retry) {.proposer = p, .prepare = delayed_prepare};
 
-                struct event *ev = evtimer_new(writeahead_epoch_paxos_peers_get_event_base(p->peers), ev_epoch_proposer_try_higher_ballot,
-                                               retry_args);
-                event_add(ev, &current_backoff);
+             //   switch (prepare.type) {
 
-            } else {
+             //       case STANDARD_PREPARE:
+             //           delayed_prepare->standard_prepare = prepare.standard_prepare;
+             //           break;
+          //          case EXPLICIT_EPOCH_PREPARE:
+              //          delayed_prepare->explicit_epoch_prepare = prepare.explicit_epoch_prepare;
+             //           break;
+             //   }
+
+              //  struct event *ev = evtimer_new(writeahead_epoch_paxos_peers_get_event_base(p->peers), ev_epoch_proposer_try_higher_ballot,
+             //                                  retry_args);
+             //   event_add(ev, &current_backoff);
+
+            //} else {
                 switch (prepare.type) {
 
 
@@ -223,7 +209,7 @@ static void ev_epoch_proposer_try_begin_new_instances(struct ev_epoch_proposer* 
                                                                     paxos_config.group_1);
                         break;
                 }
-            }
+            //}
         }
     }
     ev_performance_timer_stop_check_and_clear_timer(p->preprare_timer, "Prepare");

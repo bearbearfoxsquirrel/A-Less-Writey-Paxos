@@ -295,6 +295,7 @@ int writeahead_epoch_acceptor_receive_epoch_ballot_prepare(struct writeahead_epo
         if (request->epoch_ballot_requested.epoch > acceptor->current_epoch){
            // assert(1 != 1);
             if (write_ahead_epoch_acceptor_transaction_to_increment_epoch(acceptor, &request->epoch_ballot_requested) != 0) {
+                paxos_log_debug("Failed to write epoch to disk, cancelling promise");
                 return 0;
             }
         }

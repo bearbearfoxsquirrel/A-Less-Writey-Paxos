@@ -565,7 +565,7 @@ static int lmdb_get_current_epoch(struct lmdb_storage* lmdb_storage, uint32_t * 
             *retreived_epoch = 0; // the trim instance has not been found so return 0
         }
     } else {
-        *retreived_epoch = *(uint32_t *) data.mv_data; // return the found trim instance
+        *retreived_epoch = *(uint32_t*) data.mv_data; // return the found trim instance
     }
     return 1;
 }

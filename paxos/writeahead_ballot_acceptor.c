@@ -548,7 +548,7 @@ write_ahead_window_acceptor_receive_prepare(struct writeahead_ballot_acceptor* a
             memset(&last_stable_promise, 0, sizeof(last_stable_promise));
             int written_to_ss = get_last_promise(a->stable_storage_duplicate, req->iid, &last_stable_promise);
 
-            assert(written_to_ss);
+         //   assert(written_to_ss);
             if (ballot_greater_than(req->ballot, last_stable_promise.ballot)) {
                 paxos_log_debug("Storing new promise to stable storage");
                 if (storage_tx_begin(&a->stable_storage) != 0) {
