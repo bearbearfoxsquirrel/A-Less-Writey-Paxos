@@ -110,7 +110,7 @@ static void ev_epoch_acceptor_handle_repeat(struct writeahead_epoch_paxos_peer* 
     struct ev_epoch_acceptor* acceptor = arg;
     struct writeahead_epoch_paxos_message out_msg;
     paxos_log_debug("Handle repeat for Instances %d-%d", repeat->from, repeat->to);
-    for (iid_t instance = repeat->from; instance <= repeat->to; ++instance) {
+    for (iid_t instance = repeat->from; instance <= repeat->to; instance++) {
         if (writeahead_epoch_acceptor_receive_repeat(acceptor->acceptor, instance, &out_msg)) {
             //assert(out_msg.message_contents.epoch_ballot_accepted.accepted_epoch_ballot.ballot.number > 0);
             peer_send_epoch_paxos_message(p, &out_msg);
@@ -123,10 +123,10 @@ static void ev_epoch_acceptor_handle_epoch_ballot_chosen( struct writeahead_epoc
     struct ev_epoch_acceptor* acceptor = arg;
     struct epoch_ballot_chosen* chosen = &msg->message_contents.instance_chosen_at_epoch_ballot;
 
-    performance_threshold_timer_begin_timing(acceptor->chosen_timer);
+   // performance_threshold_timer_begin_timing(acceptor->chosen_timer);
 
     writeahead_epoch_acceptor_receive_instance_chosen(acceptor->acceptor, chosen);
-    ev_performance_timer_stop_check_and_clear_timer(acceptor->chosen_timer, "Chosen");
+   // ev_performance_timer_stop_check_and_clear_timer(acceptor->chosen_timer, "Chosen");
 
 }
 

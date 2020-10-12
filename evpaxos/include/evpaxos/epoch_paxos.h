@@ -83,8 +83,9 @@ int ev_epoch_paxos_replica_count(struct ev_epoch_paxos_replica* replica);
  * an optional argument to that is passed to the callback, and
  * a libev_epoch_ent event_base.
  */
-struct ev_epoch_learner* ev_epoch_learner_init(const char* config, epoch_client_deliver_function f,
-                                 void* arg, struct event_base* base);
+struct ev_epoch_learner *
+ev_epoch_learner_init(const char *config, epoch_client_deliver_function f, void *arg, struct event_base *base,
+                      int partner_id);
 
 /**
  * Release the memory allocated by the learner

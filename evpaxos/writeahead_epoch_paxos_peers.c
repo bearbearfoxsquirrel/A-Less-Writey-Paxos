@@ -61,8 +61,9 @@ struct subscription
 
 struct writeahead_epoch_paxos_peers
 {
-    int peers_count, clients_count;
+    int peers_count, clients_count, acceptor_count, proposer_count;
     struct writeahead_epoch_paxos_peer** peers;   /* peers we connected to */
+    struct writeahead_epoch_paxos_peer** proposers;
     struct writeahead_epoch_paxos_peer** clients; /* peers we accepted connections from */
     struct evconnlistener* listener;
     struct event_base* base;
@@ -77,7 +78,7 @@ static struct writeahead_epoch_paxos_peer* writeahead_epoch_paxos_make_peer(stru
 static void writeahead_epoch_paxos_free_peer(struct writeahead_epoch_paxos_peer* p);
 static void writeahead_epoch_paxos_free_all_peers(struct writeahead_epoch_paxos_peer** p, int count);
 static void writeahead_epoch_paxos_connect_peer(struct writeahead_epoch_paxos_peer* p);
-static void writeahead_epoch_paxos_peers_connect(struct writeahead_epoch_paxos_peers* p, int id, struct sockaddr_in* addr);
+static void writeahead_epoch_paxos_peers_connect(struct writeahead_epoch_paxos_peers* p, struct writeahead_epoch_paxos_peer ***peers, int peers_num, int id, struct sockaddr_in* addr);
 static void writeahead_epoch_paxos_on_read(struct bufferevent* bev, void* arg);
 static void writeahead_epoch_paxos_on_peer_event(struct bufferevent* bev, short ev, void *arg);
 static void writeahead_epoch_paxos_on_client_event(struct bufferevent* bev, short events, void *arg);
@@ -98,6 +99,9 @@ writeahead_epoch_paxos_peers_new(struct event_base *base, struct evpaxos_config 
     p->listener = NULL;
     p->base = base;
     p->config = config;
+    p->proposers = NULL;
+    p->proposer_count = 0;
+    p->acceptor_count = 0;
 
 // int avg_size = sizeof(struct epoch_ballot_accepted) * messages_batched_average + value_size;
   //  int max_size = sizeof(struct epoch_ballot_accepted) * max_messages_batched + value_size;
@@ -124,17 +128,15 @@ writeahead_epoch_paxos_peers_count(struct writeahead_epoch_paxos_peers* p)
 }
 
 static void
-writeahead_epoch_paxos_peers_connect(struct writeahead_epoch_paxos_peers* p, int id, struct sockaddr_in* addr)
+writeahead_epoch_paxos_peers_connect(struct writeahead_epoch_paxos_peers* p, struct writeahead_epoch_paxos_peer ***peers, int peers_num, int id, struct sockaddr_in* addr)
 {
-    p->peers = realloc(p->peers, sizeof(struct writeahead_epoch_paxos_peer*) * (p->peers_count + 1));
-    p->peers[p->peers_count] = writeahead_epoch_paxos_make_peer(p, id, addr);
+    *peers = realloc(*peers, sizeof(struct writeahead_epoch_paxos_peer*) * (peers_num + 1));
+    (*peers)[peers_num] = writeahead_epoch_paxos_make_peer(p, id, addr);
 
-    struct writeahead_epoch_paxos_peer* peer = p->peers[p->peers_count];
+    struct writeahead_epoch_paxos_peer* peer = (*peers)[peers_num];
     bufferevent_setcb(peer->bev, writeahead_epoch_paxos_on_read, NULL, writeahead_epoch_paxos_on_peer_event, peer);
     peer->reconnect_ev = evtimer_new(p->base, writeahead_epoch_paxos_on_connection_timeout, peer);
     writeahead_epoch_paxos_connect_peer(peer);
-
-    p->peers_count++;
 }
 
 void
@@ -142,10 +144,12 @@ writeahead_epoch_paxos_peers_connect_to_acceptors(struct writeahead_epoch_paxos_
 {
     for (int i = 0; i < evpaxos_acceptor_count(p->config); i++) {
         struct sockaddr_in addr = evpaxos_acceptor_address(p->config, i);
-        writeahead_epoch_paxos_peers_connect(p, i, &addr);
+        writeahead_epoch_paxos_peers_connect(p, &p->peers, p->peers_count, i, &addr);
+        p->peers_count++;
+        p->acceptor_count++;
     }
 
-    for (unsigned int i = 0; i < p->peers_count; i++){
+    for (unsigned int i = 0; i < p->acceptor_count; i++){
         //if (i == source_id){
             struct writeahead_epoch_paxos_peer* tmp = p->peers[i];
             if (tmp->id == source_id) {
@@ -154,27 +158,47 @@ writeahead_epoch_paxos_peers_connect_to_acceptors(struct writeahead_epoch_paxos_
             //  }
             }
     }
+
+
     paxos_log_debug("Order of acceptors connected to:");
-    for (unsigned int i = 0; i < p->peers_count; i++){
-        //if (i == source_id){
-        struct writeahead_paxos_peer* tmp = p->peers[i];
+    //for (unsigned int i = 0; i < p->peers_count; i++){
+     //   //if (i == source_id){
+       // struct writeahead_paxos_peer* tmp = p->peers[i];
       //  paxos_log_debug("acceptor %i", tmp->id);
-    }
+   // }
+
+
 
 }
 
 void
-writeahead_epoch_paxos_peers_connect_to_proposers(struct writeahead_epoch_paxos_peers* p){
+writeahead_epoch_paxos_peers_connect_to_proposers(struct writeahead_epoch_paxos_peers *p, int partner_id) {
     for (int i = 0; i < evpaxos_proposer_count(p->config); i++) {
         struct sockaddr_in address = evpaxos_proposer_address(p->config, i);
-        writeahead_epoch_paxos_peers_connect(p, i, &address);
+        writeahead_epoch_paxos_peers_connect(p, &p->proposers, i, i, &address);
+        p->proposer_count++;
     }
+
+    if (partner_id > 0) { // Any negative ID to not sort
+        for (unsigned int i = 0; i < p->proposer_count; i++) {
+            //if (i == source_id){
+            struct writeahead_epoch_paxos_peer *tmp = p->peers[i];
+            if (tmp->id == partner_id) {
+                p->peers[i] = p->peers[0];
+                p->peers[0] = tmp;//p->peers[i];
+                //  }
+            }
+        }
+    }
+
 }
 
 void writeahead_epoch_paxos_peers_foreach_proposer(struct writeahead_epoch_paxos_peers* p, writeahead_epoch_paxos_peer_iter_cb cb, void* arg){
-    for (int i = 0; i < p->peers_count; i++)
-        cb(p->peers[i], arg);
+    for (int i = 0; i < p->proposer_count; i++)
+        cb(p->proposers[i], arg);
 }
+
+
 void
 writeahead_epoch_paxos_peers_foreach_acceptor(struct writeahead_epoch_paxos_peers* p, writeahead_epoch_paxos_peer_iter_cb cb, void* arg)
 {
@@ -199,17 +223,31 @@ static void shuffle(struct writeahead_epoch_paxos_peer**array, size_t n)
 }
 
 void
+writeahead_epoch_paxos_peers_for_n_proposers(struct writeahead_epoch_paxos_peers* p, writeahead_epoch_paxos_peer_iter_cb cb, void* arg, int n)
+{
+    if (n>p->proposer_count)
+        n=p->proposer_count;
+
+    p->proposers++;
+    shuffle(p->proposers, n - 1);
+    p->proposers--;
+
+    for (int i = 0; i < n; ++i)
+        cb(p->proposers[i], arg);
+}
+
+
+void
 writeahead_epoch_paxos_peers_for_n_acceptor(struct writeahead_epoch_paxos_peers* p, writeahead_epoch_paxos_peer_iter_cb cb, void* arg, int n)
 {
     if (n>p->peers_count)
         n=p->peers_count;
-    int i;
 
     p->peers++;
-    shuffle(p->peers, p->peers_count - 1);
+    shuffle(p->peers, n - 1);
     p->peers--;
 
-    for (i = 0; i < n; ++i)
+    for (int i = 0; i < n; ++i)
         cb(p->peers[i], arg);
 }
 

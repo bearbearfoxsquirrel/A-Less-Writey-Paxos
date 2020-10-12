@@ -102,6 +102,14 @@ struct option options[] =
         {"messages-batched-average", &paxos_config.messages_batched_average, option_integer},
         {"messages-batched-max", &paxos_config.messages_batched_max, option_integer},
 
+        {"lnr-comm-all-acceptors-trim", &paxos_config.lnr_comm_all_acc_trim, option_boolean},
+        {"lnr-comm-all-proposers-trim", &paxos_config.lnr_comm_all_prop_trim, option_boolean},
+
+        {"lnr-comm-all-acceptors-chosen", &paxos_config.lnr_comm_all_acc_chosen, option_boolean},
+        {"lnr-comm-all-proposers-chosen", &paxos_config.lnr_comm_all_prop_chosen, option_boolean},
+
+        {"lnr-min-chunks-missing-before-repeats", &paxos_config.lnr_missing_chunks_before_repeats, option_integer},
+
         {"stable-storage-backend",  &paxos_config.storage_backend,         option_backend},
         {"acceptor-trash-files",    &paxos_config.trash_files,             option_boolean },
         {"lmdb-sync",               &paxos_config.lmdb_sync,               option_boolean },

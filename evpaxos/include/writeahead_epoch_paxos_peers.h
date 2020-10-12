@@ -22,9 +22,15 @@ writeahead_epoch_paxos_peers_new(struct event_base *base, struct evpaxos_config 
 void writeahead_epoch_paxos_peers_free(struct writeahead_epoch_paxos_peers* p);
 int writeahead_epoch_paxos_peers_count(struct writeahead_epoch_paxos_peers* p);
 void writeahead_epoch_paxos_peers_connect_to_acceptors(struct writeahead_epoch_paxos_peers* p, int soruce_id);
+
+void writeahead_epoch_paxos_peers_connect_to_proposers(struct writeahead_epoch_paxos_peers *p, int partner_id);
+void writeahead_epoch_paxos_peers_foreach_proposer(struct writeahead_epoch_paxos_peers* p, writeahead_epoch_paxos_peer_iter_cb cb, void* arg);
+
+
 int writeahead_epoch_paxos_peers_listen(struct writeahead_epoch_paxos_peers* p, int port);
 void writeahead_epoch_paxos_peers_subscribe(struct writeahead_epoch_paxos_peers* p, enum writeahead_epoch_message_type t, writeahead_epoch_paxos_peer_cb cb, void* arg);
 void writeahead_epoch_paxos_peers_foreach_acceptor(struct writeahead_epoch_paxos_peers* p, writeahead_epoch_paxos_peer_iter_cb cb, void* arg);
+void writeahead_epoch_paxos_peers_for_n_proposers(struct writeahead_epoch_paxos_peers* p, writeahead_epoch_paxos_peer_iter_cb cb, void* arg, int n);
 void writeahead_epoch_paxos_peers_for_n_acceptor(struct writeahead_epoch_paxos_peers* p, writeahead_epoch_paxos_peer_iter_cb cb, void* arg, int n);
 void writeahead_epoch_paxos_peers_foreach_client(struct writeahead_epoch_paxos_peers* p, writeahead_epoch_paxos_peer_iter_cb cb, void* arg);
 struct writeahead_epoch_paxos_peer* writeahead_epoch_paxos_peers_get_acceptor(struct writeahead_epoch_paxos_peers* p, int id);

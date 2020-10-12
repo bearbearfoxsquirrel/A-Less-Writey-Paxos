@@ -285,7 +285,7 @@ uint32_t epoch_proposer_get_min_unchosen_instance(struct epoch_proposer* p){
 // phase 1
 
 static struct ballot epoch_proposer_get_initial_ballot(const struct epoch_proposer *p) {
-    return (struct ballot){.number = random_between(1, p->ballot_increment), .proposer_id = p->id};
+    return (struct ballot){.number = random_between(1 + p->id, p->ballot_increment) - p->id, .proposer_id = p->id};
 }
 
 bool epoch_proposer_try_to_start_preparing_instance(struct epoch_proposer* p, iid_t instance, struct epoch_paxos_prepares *out){
@@ -306,26 +306,25 @@ bool epoch_proposer_try_to_start_preparing_instance(struct epoch_proposer* p, ii
 
 
     khiter_t key = kh_get_instance_info(p->prepare_proposer_instance_infos, instance);
-    struct epoch_ballot begining_epoch_ballot = {0};
+
+    struct epoch_ballot begining_epoch_ballot = {p->known_highest_epoch, .ballot = epoch_proposer_get_initial_ballot(p)};
     if (key == kh_end(p->prepare_proposer_instance_infos)) {
-        if (p->known_highest_epoch == INVALID_EPOCH) {
+        if (begining_epoch_ballot.epoch == INVALID_EPOCH) {
             out->type = STANDARD_PREPARE;
-            begining_epoch_ballot = (struct epoch_ballot) {.epoch = INVALID_EPOCH,
-                    .ballot = epoch_proposer_get_initial_ballot(p)};
             out->standard_prepare = (struct paxos_prepare) {
                 .iid = instance,
                 .ballot = begining_epoch_ballot.ballot
             };
         } else {
             out->type = EXPLICIT_EPOCH_PREPARE;
-            begining_epoch_ballot = (struct epoch_ballot) {.epoch = p->known_highest_epoch,
-                    .ballot = epoch_proposer_get_initial_ballot(p)};
             out->explicit_epoch_prepare = (struct epoch_ballot_prepare) {
                 .instance = instance,
                 .epoch_ballot_requested = begining_epoch_ballot
-                        
             };
         }
+
+
+
 
         assert(begining_epoch_ballot.ballot.number > 0);
         struct epoch_proposer_instance_info* inst = epoch_proposer_instance_info_new(instance, begining_epoch_ballot, p->acceptors, p->q1);
@@ -710,8 +709,8 @@ enum epoch_paxos_message_return_codes epoch_proposer_receive_chosen(struct epoch
 void epoch_proposer_update_instance_info_from_ballot_preempted(struct epoch_proposer_instance_info* inst, struct epoch_ballot_preempted* preempted,
                                                                unsigned int pid, uint32_t ballot_increment) {
     struct epoch_ballot next_attempting_ballot = (struct epoch_ballot) {.epoch = preempted->acceptors_current_epoch_ballot.epoch,
-                                                                                   .ballot = (struct ballot) {.number = random_between(preempted->acceptors_current_epoch_ballot.ballot.number + 1,
-                                                                                                                                        preempted->acceptors_current_epoch_ballot.ballot.number + ballot_increment + 1),
+                                                                                   .ballot = (struct ballot) {.number = random_between(preempted->acceptors_current_epoch_ballot.ballot.number + 1 + pid,
+                                                                                                                                        preempted->acceptors_current_epoch_ballot.ballot.number + ballot_increment + 1) - pid,
                                                                                                               .proposer_id = pid}};
     epoch_proposer_instance_info_set_current_epoch_ballot(inst, next_attempting_ballot);
 
@@ -737,6 +736,13 @@ void epoch_proposer_check_and_requeue_client_value_if_was_proposed(struct epoch_
     }
 }
 
+bool epoch_proposer_is_instance_pending(struct epoch_proposer* p, iid_t instance){
+    struct epoch_proposer_instance_info* inst;
+    bool in_promise_phase = epoch_proposer_get_instance_info_in_phase(p->prepare_proposer_instance_infos, instance, &inst);
+    bool in_acceptance_phase = epoch_proposer_get_instance_info_in_phase(p->accept_proposer_instance_infos, instance, &inst);
+    return in_acceptance_phase || in_promise_phase;
+}
+
 enum epoch_paxos_message_return_codes epoch_proposer_receive_preempted(struct epoch_proposer* p, struct epoch_ballot_preempted* preempted, struct epoch_ballot_prepare* next_prepare){
         if (preempted->instance < p->trim_instance) {
             paxos_log_debug("Ignoring Preempted, Instance %u has been trimmed", preempted->instance);
@@ -758,8 +764,15 @@ enum epoch_paxos_message_return_codes epoch_proposer_receive_preempted(struct ep
                 if(epoch_greater_than(preempted->acceptors_current_epoch_ballot, epoch_proposer_instance_info_get_current_epoch_ballot(prepare_instance_info))){
                     // also increases ballot
                    epoch_proposer_check_and_set_current_epoch_from_epoch_ballot(p, preempted->acceptors_current_epoch_ballot);
-                    epoch_proposer_instance_info_update_info_from_epoch_preemption(prepare_instance_info, preempted,
-                                                                                   p->id, 0);
+             //       epoch_proposer_instance_info_update_info_from_epoch_preemption(prepare_instance_info, preempted,
+               //                                                                    p->id, 0);
+
+                    epoch_proposer_instance_info_set_current_epoch_ballot(prepare_instance_info, (struct epoch_ballot) {.epoch = preempted->acceptors_current_epoch_ballot.epoch, .ballot = prepare_instance_info->common_info.ballot});
+
+                    prepare_instance_info->common_info.proposing_value = NULL;
+                    quorum_clear(&prepare_instance_info->quorum);
+                    gettimeofday(&prepare_instance_info->common_info.created_at, NULL);
+
                    prepare_instance_info->common_info.ballot = preempted->requested_epoch_ballot.ballot; //reset the ballot to see if should backoff too
                    return_code = EPOCH_PREEMPTED;
                 }
@@ -787,8 +800,14 @@ enum epoch_paxos_message_return_codes epoch_proposer_receive_preempted(struct ep
 
                 if (epoch_greater_than(preempted->acceptors_current_epoch_ballot, epoch_proposer_instance_info_get_current_epoch_ballot(acceptnce_instance_info))){
                     epoch_proposer_check_and_set_current_epoch_from_epoch_ballot(p, preempted->acceptors_current_epoch_ballot);
-                    epoch_proposer_instance_info_update_info_from_epoch_preemption(acceptnce_instance_info, preempted,
-                                                                                   p->id, p->ballot_increment);
+
+                    epoch_proposer_instance_info_set_current_epoch_ballot(acceptnce_instance_info, (struct epoch_ballot) {.epoch = preempted->acceptors_current_epoch_ballot.epoch, .ballot = acceptnce_instance_info->common_info.ballot});
+
+                    acceptnce_instance_info->common_info.proposing_value = NULL;
+                    quorum_clear(&acceptnce_instance_info->quorum);
+                    gettimeofday(&acceptnce_instance_info->common_info.created_at, NULL);
+                   // epoch_proposer_instance_info_update_info_from_epoch_preemption(acceptnce_instance_info, preempted,
+                    //                                                               p->id, p->ballot_increment);
                     return_code = EPOCH_PREEMPTED;
                 }
 

@@ -252,7 +252,7 @@ make_epoch_client(const char *config, int proposer_id, int outstanding, int valu
     event_add(c->stats_ev, &c->stats_interval);
 
     paxos_config.learner_catch_up = 0;
-    c->learner = ev_epoch_learner_init(config, on_deliver, c, c->base);
+    c->learner = ev_epoch_learner_init(config, on_deliver, c, c->base, c->bev);
 
     c->sig = evsignal_new(c->base, SIGINT, handle_sigint, c);
     evsignal_add(c->sig, NULL);

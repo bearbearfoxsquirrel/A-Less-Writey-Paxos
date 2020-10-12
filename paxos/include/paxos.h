@@ -103,6 +103,12 @@ struct paxos_config
 
     int messages_batched_average;
     int messages_batched_max;
+
+    bool lnr_comm_all_prop_trim;
+    bool lnr_comm_all_acc_trim;
+    bool lnr_comm_all_prop_chosen;
+    bool lnr_comm_all_acc_chosen;
+    int lnr_missing_chunks_before_repeats;
 };
 
 extern struct paxos_config paxos_config;

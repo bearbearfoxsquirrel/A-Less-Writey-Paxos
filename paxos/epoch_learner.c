@@ -137,7 +137,7 @@ bool epoch_learner_is_instance_outdated(struct epoch_learner* l, iid_t instance,
 
 bool epoch_learner_is_instance_chosen(struct instance* inst, char* message_type){
     if (inst->chosen) {
-        paxos_log_debug("Dropping %s Message for Instance. It is already Chosen.", message_type, inst->instance);
+        paxos_log_debug("Dropping %s Message for Instance %u. It is already Chosen.", message_type, inst->instance);
         return true;
     } else {
         return false;

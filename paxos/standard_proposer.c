@@ -586,13 +586,14 @@ int proposer_receive_chosen(struct proposer* p, struct paxos_chosen* ack) {
     paxos_log_debug("Received chosen message for Instance %u at Ballot %u.%u", ack->iid, ack->ballot.number, ack->ballot.proposer_id);
     set_instance_chosen(p, ack->iid);
     assert(proposer_is_instance_chosen(p, ack->iid));
-
+    bool was_acked = false;
     struct standard_proposer_instance_info* inst_accept;
     bool in_accept_phase = get_instance_info(p->accept_phase_instances, ack->iid, &inst_accept);
     if (in_accept_phase) {
         check_and_handle_client_value_from_chosen(p, ack, inst_accept);
          remove_instance_from_phase(p->accept_phase_instances, ack->iid);
          standard_proposer_instance_info_free(&inst_accept);
+         was_acked = true;
     }
 
     struct standard_proposer_instance_info* inst_prepare;
@@ -600,13 +601,14 @@ int proposer_receive_chosen(struct proposer* p, struct paxos_chosen* ack) {
     if (in_prepare_phase) {
         remove_instance_from_phase(p->prepare_phase_instances, ack->iid);
         standard_proposer_instance_info_free(&inst_prepare);
+        was_acked = true;
     }
 
     if (proposer_get_min_unchosen_instance(p) >= ack->iid) {
         proposer_trim_proposer_instance_infos(p, p->accept_phase_instances, ack->iid);
         proposer_trim_proposer_instance_infos(p, p->prepare_phase_instances, ack->iid);
     }
-    return 1;
+    return was_acked;
 }
 
 

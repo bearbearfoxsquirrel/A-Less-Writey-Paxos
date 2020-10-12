@@ -45,8 +45,7 @@ enum epoch_paxos_message_return_codes epoch_proposer_receive_chosen(struct epoch
 //void epoch_proposer_preempt(struct epoch_proposer* p, struct standard_epoch_proposer_instance_info* inst, paxos_prepare* out);
 enum epoch_paxos_message_return_codes epoch_proposer_receive_preempted(struct epoch_proposer* p, struct epoch_ballot_preempted* preempted, struct epoch_ballot_prepare* next_prepare);
 
-int is_epoch_proposer_instance_pending_and_message_return(struct epoch_proposer* p, paxos_preempted* ack,
-                                                    paxos_prepare* out);
+bool epoch_proposer_is_instance_pending(struct epoch_proposer *p, iid_t instance);
 
 // periodic acceptor state
 enum epoch_paxos_message_return_codes epoch_proposer_receive_acceptor_state(struct epoch_proposer* p, struct writeahead_epoch_acceptor_state* state);

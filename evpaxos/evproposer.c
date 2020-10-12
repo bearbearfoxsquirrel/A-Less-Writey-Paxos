@@ -111,18 +111,8 @@ peer_send_trim(struct standard_paxos_peer* p, void* arg) {
 static void try_accept(struct evproposer* p);
 
 static void
-evproposer_try_higher_ballot( evutil_socket_t fd,  short event, void* arg) {
-    struct retry* args =  arg;
-    struct evproposer* proposer = args->proposer;
+evproposer_try_higher_ballot( evutil_socket_t fd,  short event, void* arg);
 
-    paxos_log_debug("Trying next ballot %u, %u.%u", args->prepare->iid, args->prepare->ballot.number, args->prepare->ballot.proposer_id);
-    if (proposer_is_instance_pending(proposer->state, args->prepare->iid)) { // may have been chosen or trimmed by the time backoff is over
-        peers_for_n_acceptor(proposer->peers, peer_send_prepare, args->prepare, paxos_config.group_1);
-    }
-    paxos_prepare_free(args->prepare);
-
-    try_accept(proposer);
-}
 
 // Begins one or more instances, defined by the preexec_window
 static void
@@ -196,6 +186,24 @@ proposer_preexecute(struct evproposer* p) {
 
 
 static void
+evproposer_try_higher_ballot( evutil_socket_t fd,  short event, void* arg) {
+    struct retry* args =  arg;
+    struct evproposer* proposer = args->proposer;
+
+    paxos_log_debug("Trying next ballot for Instance %u, %u.%u", args->prepare->iid, args->prepare->ballot.number, args->prepare->ballot.proposer_id);
+    if (proposer_is_instance_pending(proposer->state, args->prepare->iid)) { // may have been chosen or trimmed by the time backoff is over
+        peers_for_n_acceptor(proposer->peers, peer_send_prepare, args->prepare, paxos_config.group_1);
+    } else {
+        backoff_manager_close_backoff_if_exists(proposer->backoff_manager, args->prepare->iid);
+        proposer_preexecute(proposer);
+    }
+    paxos_prepare_free(args->prepare);
+
+    // try_accept(proposer);
+}
+
+
+static void
 try_accept(struct evproposer* p)
 {
 	paxos_accept accept;
@@ -211,7 +219,7 @@ try_accept(struct evproposer* p)
 
     // ev_performance_timer_stop_check_and_clear_timer(p->propose_timer, "Proposing Values");
 
-    proposer_preexecute(p);
+    proposer_preexecute(p); // ?
 }
 
 
@@ -267,7 +275,7 @@ evproposer_handle_accepted( struct standard_paxos_peer* p, standard_paxos_messag
 
         proposer_preexecute(proposer);
     }
-    try_accept(proposer);
+ //   try_accept(proposer);
 }
 
 
@@ -278,12 +286,14 @@ evproposer_handle_chosen( struct standard_paxos_peer* p, struct standard_paxos_m
 
   //  performance_threshold_timer_begin_timing(proposer->chosen_timer);
     assert(chosen_msg->iid != INVALID_INSTANCE);
-    proposer_receive_chosen(proposer->state, chosen_msg);
-  //  ev_performance_timer_stop_check_and_clear_timer(proposer->chosen_timer, "Chosen");
+    if (proposer_receive_chosen(proposer->state, chosen_msg)) {
+        //  ev_performance_timer_stop_check_and_clear_timer(proposer->chosen_timer, "Chosen");
 
-    backoff_manager_close_backoff_if_exists(proposer->backoff_manager, chosen_msg->iid);
+        backoff_manager_close_backoff_if_exists(proposer->backoff_manager, chosen_msg->iid);
+        proposer_preexecute(proposer);
+    }
 
-    try_accept(proposer);
+   // try_accept(proposer);
 }
 
 

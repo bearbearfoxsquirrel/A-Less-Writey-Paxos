@@ -33,7 +33,7 @@ struct backoff_manager* backoff_manager_new(struct backoff* backoff){
 void backoff_manager_free(struct backoff_manager **manager){
     struct managed_backoff* managed_backoff;
     kh_foreach_value((*manager)->backingoff_instances, managed_backoff, free(managed_backoff));
-    backoff_free(&(*manager)->backoff_mechanism);
+    //backoff_free(&(*manager)->backoff_mechanism); // TODO add back
     *manager = NULL;
 }
 
@@ -81,6 +81,8 @@ void backoff_manager_close_backoff_if_exists(struct backoff_manager* manager, ii
         if (kh_exist(manager->backingoff_instances, key) == 1) {
             struct managed_backoff *instance_backoff = kh_value(manager->backingoff_instances, key);
             kh_del_backingoff_instances(manager->backingoff_instances, key);
+
+            //todo add backoff_free
             free(instance_backoff);
         }
     }

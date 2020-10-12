@@ -100,7 +100,7 @@ static void ev_epoch_proposer_try_begin_new_instances(struct ev_epoch_proposer* 
 
 static void ev_epoch_proposer_try_accept(struct ev_epoch_proposer* p) {
     struct epoch_ballot_accept accept;
-    performance_threshold_timer_begin_timing(p->accept_timer);
+  //  performance_threshold_timer_begin_timing(p->accept_timer);
     while (epoch_proposer_try_accept(p->proposer, &accept)) {
         assert(&accept.value_to_accept != NULL);
         assert(accept.value_to_accept.paxos_value_val != NULL);
@@ -108,9 +108,9 @@ static void ev_epoch_proposer_try_accept(struct ev_epoch_proposer* p) {
         assert(strncmp(accept.value_to_accept.paxos_value_val, "", 2));
         writeahead_epoch_paxos_peers_for_n_acceptor(p->peers, peer_send_epoch_ballot_accept, &accept, paxos_config.group_2);
     }
-    ev_performance_timer_stop_check_and_clear_timer(p->accept_timer, "Accept Request");
+ //   ev_performance_timer_stop_check_and_clear_timer(p->accept_timer, "Accept Request");
 
-    ev_epoch_proposer_try_begin_new_instances(p);
+    ev_epoch_proposer_try_begin_new_instances(p); //?
 }
 
 
@@ -118,18 +118,23 @@ static void ev_epoch_proposer_try_higher_ballot( evutil_socket_t fd,  short even
     struct retry* args = arg;
     struct ev_epoch_proposer* proposer = args->proposer;
     struct epoch_ballot_prepare* next_prepare = args->prepare;
+    if  (epoch_proposer_is_instance_pending(proposer->proposer, next_prepare->instance)) { // may have been chosen or trimmed by the time backoff is over
 
-            paxos_log_debug("Trying to Prepare next Epoch Ballot for Instance %u with Epoch Ballot %u.%u.%u",
+        paxos_log_debug("Trying to Prepare next Epoch Ballot for Instance %u with Epoch Ballot %u.%u.%u",
                         next_prepare->instance,
                         next_prepare->epoch_ballot_requested.epoch,
                         next_prepare->epoch_ballot_requested.ballot.number,
                         next_prepare->epoch_ballot_requested.ballot.proposer_id);
-        writeahead_epoch_paxos_peers_for_n_acceptor(proposer->peers, peer_send_epoch_ballot_prepare, &next_prepare, paxos_config.group_1);
-
+        writeahead_epoch_paxos_peers_for_n_acceptor(proposer->peers, peer_send_epoch_ballot_prepare, next_prepare,
+                                                    paxos_config.group_1);
+    } else {
+        backoff_manager_close_backoff_if_exists(proposer->backoff_manager, next_prepare->instance);
+        ev_epoch_proposer_try_begin_new_instances(proposer);
+    }
     
     free(next_prepare);
     free(args);
-    ev_epoch_proposer_try_accept(proposer);
+    //ev_epoch_proposer_try_accept(proposer);
 }
 
 
@@ -139,10 +144,10 @@ static void ev_epoch_proposer_try_higher_ballot( evutil_socket_t fd,  short even
 static void ev_epoch_proposer_try_begin_new_instances(struct ev_epoch_proposer* p) {
     struct epoch_paxos_prepares prepare;
 
-    unsigned int number_of_instances_to_open = p->max_num_open_instances - epoch_proposer_prepare_count(p->proposer) - epoch_proposer_acceptance_count(p->proposer);
+    unsigned int number_of_instances_to_open = p->max_num_open_instances - (epoch_proposer_prepare_count(p->proposer) + epoch_proposer_acceptance_count(p->proposer));
 
     paxos_log_debug("Opening %u new Instances", number_of_instances_to_open);
-    performance_threshold_timer_begin_timing(p->preprare_timer);
+ //   performance_threshold_timer_begin_timing(p->preprare_timer);
 
     while (number_of_instances_to_open > 0) {
         iid_t current_instance = epoch_proposer_get_current_instance(p->proposer);
@@ -212,7 +217,7 @@ static void ev_epoch_proposer_try_begin_new_instances(struct ev_epoch_proposer* 
             //}
         }
     }
-    ev_performance_timer_stop_check_and_clear_timer(p->preprare_timer, "Prepare");
+ //   ev_performance_timer_stop_check_and_clear_timer(p->preprare_timer, "Prepare");
 
 }
 
@@ -227,9 +232,9 @@ static void ev_epoch_proposer_handle_promise( struct writeahead_epoch_paxos_peer
     if (promise->promised_epoch_ballot.ballot.proposer_id != epoch_proposer_get_id(proposer->proposer))
         return;
 
-    performance_threshold_timer_begin_timing(proposer->promise_timer);
+   // performance_threshold_timer_begin_timing(proposer->promise_timer);
     enum epoch_paxos_message_return_codes return_code = epoch_proposer_receive_promise(proposer->proposer, promise, &next_prepare);
-    ev_performance_timer_stop_check_and_clear_timer(proposer->promise_timer, "Promise");
+  //  ev_performance_timer_stop_check_and_clear_timer(proposer->promise_timer, "Promise");
 
     if (return_code == EPOCH_PREEMPTED) {
         assert(next_prepare.instance != INVALID_INSTANCE);
@@ -260,8 +265,9 @@ static void ev_epoch_proposer_handle_accepted( struct writeahead_epoch_paxos_pee
         //send chosen
         //  ev_epoch_proposer_try_begin_new_instances(proposer);
         //  } else {
+        ev_epoch_proposer_try_begin_new_instances(proposer);
     }
-        ev_epoch_proposer_try_accept(proposer);
+       // ev_epoch_proposer_try_accept(proposer);
   //  }
 }
 
@@ -277,7 +283,8 @@ static void ev_epoch_proposer_handle_chosen( struct writeahead_epoch_paxos_peer*
         backoff_manager_close_backoff_if_exists(proposer->backoff_manager, chosen_msg->instance);
         ev_epoch_proposer_try_begin_new_instances(proposer);
     }
-   ev_epoch_proposer_try_accept(proposer); //needed?
+  //  ev_epoch_proposer_try_begin_new_instances(proposer);
+//   ev_epoch_proposer_try_accept(proposer); //needed?
 }
 
 
@@ -290,9 +297,9 @@ static void ev_epoch_proposer_handle_preempted( struct writeahead_epoch_paxos_pe
     struct epoch_ballot_prepare* next_prepare = malloc(sizeof(struct epoch_ballot_prepare));
     assert(epoch_ballot_greater_than(preempted_msg.acceptors_current_epoch_ballot, preempted_msg.requested_epoch_ballot));
 
-    performance_threshold_timer_begin_timing(proposer->preempt_timer);
+ //   performance_threshold_timer_begin_timing(proposer->preempt_timer);
     enum epoch_paxos_message_return_codes return_code = epoch_proposer_receive_preempted(proposer->proposer, &preempted_msg, next_prepare);
-    ev_performance_timer_stop_check_and_clear_timer(proposer->preempt_timer, "Preempt");
+  //  ev_performance_timer_stop_check_and_clear_timer(proposer->preempt_timer, "Preempt");
 
     if (return_code == BALLOT_PREEMPTED) {
         assert(next_prepare->instance != 0);
@@ -307,6 +314,7 @@ static void ev_epoch_proposer_handle_preempted( struct writeahead_epoch_paxos_pe
 
         struct retry* retry_args = calloc(1, sizeof(struct retry));
         *retry_args = (struct retry) {.proposer = proposer, .prepare = next_prepare};
+        assert(current_backoff->tv_usec > 0);
         struct event* ev = evtimer_new(writeahead_epoch_paxos_peers_get_event_base(proposer->peers), ev_epoch_proposer_try_higher_ballot, retry_args);
         event_add(ev, current_backoff);
     } else if (return_code == EPOCH_PREEMPTED) {
@@ -349,7 +357,7 @@ ev_epoch_proposer_handle_acceptor_state( struct writeahead_epoch_paxos_peer* p, 
     struct ev_epoch_proposer* proposer = arg;
     struct writeahead_epoch_acceptor_state* acc_state = &msg->message_contents.state;
     epoch_proposer_receive_acceptor_state(proposer->proposer, acc_state);
-    ev_epoch_proposer_try_accept(proposer);
+  //  ev_epoch_proposer_try_accept(proposer);
 
     backoff_manager_close_less_than_or_equal(proposer->backoff_manager, acc_state->standard_acceptor_state.trim_iid);
 
