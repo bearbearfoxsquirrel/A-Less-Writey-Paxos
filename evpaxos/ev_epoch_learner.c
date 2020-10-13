@@ -89,6 +89,7 @@ static void ev_epoch_learner_handle_accepted( struct writeahead_epoch_paxos_peer
 
     if (return_code == QUORUM_REACHED) {
         writeahead_epoch_paxos_peers_for_n_acceptor(l->peers, peer_send_epoch_paxos_message, &chosen, l->comm_acc_num_chosen);
+    //    paxos_value_destroy(&chosen.message_contents.instance_chosen_at_epoch_ballot.chosen_value);
         writeahead_epoch_paxos_peers_for_n_proposers(l->peers, peer_send_epoch_paxos_message, &chosen, l->comm_prop_num_chosen);
 
 
@@ -115,7 +116,7 @@ static void ev_learner_handle_trim( struct writeahead_epoch_paxos_peer* p, struc
 struct ev_epoch_learner* ev_epoch_learner_init_internal(struct evpaxos_config* config, struct writeahead_epoch_paxos_peers* peers, epoch_client_deliver_function f, void* arg) {
     struct ev_epoch_learner* learner = malloc(sizeof(struct ev_epoch_learner));
     int acceptor_count = evpaxos_acceptor_count(config);
-    
+
     learner->learner = epoch_learner_new(acceptor_count);
 
     struct event_base* base = writeahead_epoch_paxos_peers_get_event_base(peers);

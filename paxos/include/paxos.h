@@ -109,6 +109,9 @@ struct paxos_config
     bool lnr_comm_all_prop_chosen;
     bool lnr_comm_all_acc_chosen;
     int lnr_missing_chunks_before_repeats;
+
+    char* backoff_type;
+    bool pessimistic_proposing;
 };
 
 extern struct paxos_config paxos_config;

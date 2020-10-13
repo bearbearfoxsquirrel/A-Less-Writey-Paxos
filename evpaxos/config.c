@@ -115,6 +115,9 @@ struct option options[] =
         {"lmdb-sync",               &paxos_config.lmdb_sync,               option_boolean },
         {"lmdb-env-path",           &paxos_config.lmdb_env_path,           option_string },
         {"lmdb-mapsize",            &paxos_config.lmdb_mapsize,            option_bytes },
+
+        {"backoff-type", &paxos_config.backoff_type, option_string},
+        {"pessimistic-proposing", &paxos_config.pessimistic_proposing, option_boolean},
         {0 }
 };
 
