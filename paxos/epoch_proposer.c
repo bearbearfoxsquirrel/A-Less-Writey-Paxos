@@ -545,17 +545,17 @@ bool epoch_proposer_try_determine_value_to_propose(struct epoch_proposer* propos
             client_value_now_pending_at(proposer->pending_client_values, inst->common_info.iid, value_to_propose);// value_to_propose);
         } else {
             // check if other outstanding values to repropose
-        //    int num_instances_with_outstnaind_values;
-    //        iid_t* instances_with_outstanding_values = epoch_proposer_get_iids_in_acceptances_phase_with_val(proposer, &num_instances_with_outstnaind_values);
-    //        if (num_instances_with_outstnaind_values > 0){
-     //          iid_t instance_to_repropose_val =instances_with_outstanding_values[random_between(0, num_instances_with_outstnaind_values - 1)];
-     //          struct paxos_value* value;
-     //          bool value_found = get_value_pending_at(proposer->pending_client_values, instance_to_repropose_val, value);
-      //         assert(value_found);
-     //          client_value_now_pending_at(proposer->pending_client_values, instance_to_repropose_val, value);
-      //          inst->common_info.proposing_value = value;//paxos_value_new(value_to_propose->paxos_value_val, value_to_propose->paxos_value_len);
-
-      //      } else {
+              int num_instances_with_outstnaind_values;
+            iid_t* instances_with_outstanding_values = epoch_proposer_get_iids_in_acceptances_phase_with_val(proposer, &num_instances_with_outstnaind_values);
+            if (num_instances_with_outstnaind_values > 0){
+               iid_t instance_to_repropose_val =instances_with_outstanding_values[random_between(0, num_instances_with_outstnaind_values - 1)];
+               struct paxos_value* value;
+               bool value_found = get_value_pending_at(proposer->pending_client_values, instance_to_repropose_val, value);
+               assert(value_found);
+               client_value_now_pending_at(proposer->pending_client_values, instance_to_repropose_val, value);
+                inst->common_info.proposing_value = value;//paxos_value_new(value_to_propose->paxos_value_val, value_to_propose->paxos_value_len);
+                paxos_log_debug("Reproposing client value from instance %u to this instance", instance_to_repropose_val);
+            } else {
                 // Fill holes
                 if (proposer->max_chosen_instance > inst->common_info.iid) {
 
@@ -566,7 +566,7 @@ bool epoch_proposer_try_determine_value_to_propose(struct epoch_proposer* propos
                     paxos_log_debug("No need to propose a Value");
                     return false;
                 }
-         //   }
+            }
         }
     } else {
         // Must repropose previous value
