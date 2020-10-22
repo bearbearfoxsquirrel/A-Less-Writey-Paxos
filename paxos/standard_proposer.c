@@ -65,7 +65,7 @@ struct proposer
 
 	// Stuff to handle client values
     struct client_value_queue *client_values_to_propose;
-    // new pending_values
+    // new pending_instances
     // key is the paxos_value, value is the index in the array;
 
     struct pending_client_values *pending_client_values;
@@ -545,7 +545,7 @@ static void check_and_handle_client_value_from_chosen(struct proposer* proposer,
                                                             &current_proposed_client_value);
     if (inst_has_pending_client_val) {
 
-        remove_pending_value(proposer->pending_client_values, chosen_msg->iid, NULL);
+        remove_pending_value_at(proposer->pending_client_values, chosen_msg->iid, NULL);
        if (!is_values_equal(*info->common_info.proposing_value, chosen_msg->value) ) {
             paxos_log_debug("Pending client value was not Chosen for Instance %u, pushing back to queue.", info->common_info.iid);
             // A different value to the one we proposed is here
@@ -648,7 +648,7 @@ void check_and_push_front_of_queue_if_client_value_was_proposed(struct proposer*
         carray_push_front(p->client_values_to_propose,
                          instance_info->common_info.proposing_value);
         instance_info->common_info.proposing_value = NULL;
-        remove_pending_value(p->pending_client_values, instance_info->common_info.iid, NULL);
+        remove_pending_value_at(p->pending_client_values, instance_info->common_info.iid, NULL);
         //free(proposed_value.paxos_value_val);
     }
 }

@@ -511,11 +511,32 @@ static bool get_min_instance_to_begin_accept_phase(struct epoch_proposer *p,
     }
 }
 
+iid_t* epoch_proposer_get_iids_in_acceptances_phase_with_val(struct epoch_proposer* proposer, int* num_instances) {
+    khash_t(instance_info)* hash_table = proposer->prepare_proposer_instance_infos;
+    khiter_t key;
+    *num_instances = 0;
+    iid_t* iids_found;
 
+    for (key = kh_begin(hash_table); key != kh_end(hash_table); ++key) {
+        if (kh_exist(hash_table, key) == 0) {
+            continue;
+        } else {
+           struct epoch_proposer_instance_info* current_inst = kh_value(hash_table, key);
+           if (current_inst->common_info.proposing_value != NULL) {
+               (*num_instances)++;
+               iids_found = realloc(iids_found, sizeof(iid_t) * (*num_instances));
+               iids_found[(*num_instances) - 1] = current_inst->common_info.iid;
+           }
+        }
+    }
+}
+
+//void epoch_proposer_is_pending_client_values()
 // I know bad practice to copy code but I'm too lazy to work out nice way to do this
 bool epoch_proposer_try_determine_value_to_propose(struct epoch_proposer* proposer, struct epoch_proposer_instance_info* inst) {
     if (!proposer_instance_info_has_promised_value(&inst->common_info)) {
         if (!carray_empty(proposer->client_values_to_propose)) {
+            // Client value to propose
             assert(inst->common_info.proposing_value == NULL);
             paxos_log_debug("Proposing client value");
             struct paxos_value* value_to_propose = carray_pop_front(proposer->client_values_to_propose);
@@ -523,15 +544,32 @@ bool epoch_proposer_try_determine_value_to_propose(struct epoch_proposer* propos
             inst->common_info.proposing_value = value_to_propose;//paxos_value_new(value_to_propose->paxos_value_val, value_to_propose->paxos_value_len);
             client_value_now_pending_at(proposer->pending_client_values, inst->common_info.iid, value_to_propose);// value_to_propose);
         } else {
-            if (proposer->max_chosen_instance > inst->common_info.iid) {
-                inst->common_info.proposing_value = paxos_value_new("NOP.", 5);
-                paxos_log_debug("Sending NOP to fill holes");
-            } else {
-                paxos_log_debug("No need to propose a Value");
-                return false;
-            }
+            // check if other outstanding values to repropose
+        //    int num_instances_with_outstnaind_values;
+    //        iid_t* instances_with_outstanding_values = epoch_proposer_get_iids_in_acceptances_phase_with_val(proposer, &num_instances_with_outstnaind_values);
+    //        if (num_instances_with_outstnaind_values > 0){
+     //          iid_t instance_to_repropose_val =instances_with_outstanding_values[random_between(0, num_instances_with_outstnaind_values - 1)];
+     //          struct paxos_value* value;
+     //          bool value_found = get_value_pending_at(proposer->pending_client_values, instance_to_repropose_val, value);
+      //         assert(value_found);
+     //          client_value_now_pending_at(proposer->pending_client_values, instance_to_repropose_val, value);
+      //          inst->common_info.proposing_value = value;//paxos_value_new(value_to_propose->paxos_value_val, value_to_propose->paxos_value_len);
+
+      //      } else {
+                // Fill holes
+                if (proposer->max_chosen_instance > inst->common_info.iid) {
+
+                    inst->common_info.proposing_value = paxos_value_new("NOP.", 5);
+                    paxos_log_debug("Sending NOP to fill holes");
+                } else {
+                    // All caught up
+                    paxos_log_debug("No need to propose a Value");
+                    return false;
+                }
+         //   }
         }
     } else {
+        // Must repropose previous value
         paxos_log_debug("Instance has a previously proposed Value. Proposing it.");
         inst->common_info.proposing_value = inst->common_info.last_accepted_value;
         inst->common_info.last_accepted_value = NULL;
@@ -630,19 +668,22 @@ enum epoch_paxos_message_return_codes epoch_proposer_receive_accepted(struct epo
 }
 
 void epoch_proposer_check_and_handle_client_value_from_chosen(struct epoch_proposer* p, struct epoch_proposer_instance_info* inst, struct epoch_ballot_chosen* chosen){
-    struct paxos_value proposed_client_value;
-    bool client_value_proposed = get_value_pending_at(p->pending_client_values, chosen->instance, &proposed_client_value);
+   // struct paxos_value proposed_client_value;
+    bool client_value_proposed = get_value_pending_at(p->pending_client_values, chosen->instance, NULL);
 
     if (client_value_proposed) {
-        remove_pending_value(p->pending_client_values, chosen->instance, NULL);
 
-        if (is_values_equal(*inst->common_info.proposing_value, chosen->chosen_value)){
+       if (is_values_equal(*inst->common_info.proposing_value, chosen->chosen_value)){
+           remove_pending_value_at(p->pending_client_values, chosen->instance, NULL);
+
+         close_pending_value_if_open(p->pending_client_values, &chosen->chosen_value);
             paxos_log_debug("Pending Client Value was Chosen in Instance %u at Epoch Ballot %u.%u.%u",
                     chosen->instance,
                     chosen->chosen_epoch_ballot.epoch,
                     chosen->chosen_epoch_ballot.ballot.number,
                     chosen->chosen_epoch_ballot.ballot.proposer_id);
         } else {
+           remove_pending_value_at(p->pending_client_values, chosen->instance, NULL);
             paxos_log_debug("Pending Client Value was not Chosen for Instance %u. Pushing Client Value back to Queue.",
                     chosen->instance);
             carray_push_back(p->client_values_to_propose, inst->common_info.proposing_value);
@@ -728,12 +769,12 @@ void set_epoch_ballot_prepare_from_instance_info(struct epoch_ballot_prepare *pr
 }
 
 void epoch_proposer_check_and_requeue_client_value_if_was_proposed(struct epoch_proposer* p, struct epoch_proposer_instance_info* inst) {
-    struct paxos_value proposed_value;
-    bool inst_has_pending_client_value = get_value_pending_at(p->pending_client_values, inst->common_info.iid, &proposed_value);
+   // struct paxos_value proposed_value;
+    bool inst_has_pending_client_value = get_value_pending_at(p->pending_client_values, inst->common_info.iid, NULL);
     if (inst_has_pending_client_value) {
         carray_push_front(p->client_values_to_propose, inst->common_info.proposing_value);
         inst->common_info.proposing_value = NULL;
-        remove_pending_value(p->pending_client_values, inst->common_info.iid, NULL);
+        remove_pending_value_at(p->pending_client_values, inst->common_info.iid, NULL);
     }
 }
 
@@ -776,11 +817,16 @@ enum epoch_paxos_message_return_codes epoch_proposer_receive_preempted(struct ep
 
                  //  prepare_instance_info->common_info.ballot = preempted->requested_epoch_ballot.ballot; //reset the ballot to see if should backoff too
                    return_code = EPOCH_PREEMPTED;
+                   paxos_log_debug("Instance %u epoch preempted in prepare phase. Was on epoch %u, now on epoch %u", preempted->instance, preempted->requested_epoch_ballot.epoch, preempted->acceptors_current_epoch_ballot.epoch);
                 }
 
                 if (epoch_ballot_greater_than(preempted->acceptors_current_epoch_ballot, epoch_proposer_instance_info_get_current_epoch_ballot(prepare_instance_info))){
                     epoch_proposer_update_instance_info_from_ballot_preempted(prepare_instance_info, preempted, p->id, p->ballot_increment);
                     return_code = BALLOT_PREEMPTED;
+                    paxos_log_debug("Instance %u epoch ballot preempted in prepare phase. Was on %u.%u.%u, now on %u.%u.%u",
+                            preempted->instance,
+                            preempted->requested_epoch_ballot.epoch, preempted->requested_epoch_ballot.ballot.number, preempted->requested_epoch_ballot.ballot.proposer_id,
+                            preempted->acceptors_current_epoch_ballot.epoch, preempted->acceptors_current_epoch_ballot.ballot.number, preempted->acceptors_current_epoch_ballot.ballot.proposer_id);
                 }
 
                 set_epoch_ballot_prepare_from_instance_info(next_prepare, prepare_instance_info);
@@ -810,11 +856,18 @@ enum epoch_paxos_message_return_codes epoch_proposer_receive_preempted(struct ep
                    // epoch_proposer_instance_info_update_info_from_epoch_preemption(acceptnce_instance_info, preempted,
                     //                                                               p->id, p->ballot_increment);
                     return_code = EPOCH_PREEMPTED;
+
+                    paxos_log_debug("Instance %u epoch preempted in acceptance phase. Was on epoch %u, now on epoch %u", preempted->instance, preempted->requested_epoch_ballot.epoch, preempted->acceptors_current_epoch_ballot.epoch);
                 }
 
                 if (epoch_ballot_greater_than(preempted->acceptors_current_epoch_ballot, epoch_proposer_instance_info_get_current_epoch_ballot(acceptnce_instance_info))){
                     epoch_proposer_update_instance_info_from_ballot_preempted(acceptnce_instance_info, preempted, p->id, p->ballot_increment);
                     return_code = BALLOT_PREEMPTED;
+
+                    paxos_log_debug("Instance %u epoch ballot preempted in acceptance phase. Was on %u.%u.%u, now on %u.%u.%u",
+                                    preempted->instance,
+                                    preempted->requested_epoch_ballot.epoch, preempted->requested_epoch_ballot.ballot.number, preempted->requested_epoch_ballot.ballot.proposer_id,
+                                    preempted->acceptors_current_epoch_ballot.epoch, preempted->acceptors_current_epoch_ballot.ballot.number, preempted->acceptors_current_epoch_ballot.ballot.proposer_id);
                 }
 
 
