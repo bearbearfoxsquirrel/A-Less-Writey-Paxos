@@ -511,11 +511,15 @@ static bool get_min_instance_to_begin_accept_phase(struct epoch_proposer *p,
     }
 }
 
-iid_t* epoch_proposer_get_iids_in_acceptances_phase_with_val(struct epoch_proposer* proposer, int* num_instances) {
+
+
+bool epoch_proposer_get_oldest_instance_proposed_in(struct epoch_proposer* proposer, iid_t* oldest_instance) {
     khash_t(instance_info)* hash_table = proposer->prepare_proposer_instance_infos;
     khiter_t key;
-    *num_instances = 0;
-    iid_t* iids_found;
+  //  *num_instances = 0;
+  //  iid_t* iids_found;
+  struct timeval oldest_time;
+  gettimeofday(&oldest_time, NULL);
 
     for (key = kh_begin(hash_table); key != kh_end(hash_table); ++key) {
         if (kh_exist(hash_table, key) == 0) {
@@ -523,13 +527,20 @@ iid_t* epoch_proposer_get_iids_in_acceptances_phase_with_val(struct epoch_propos
         } else {
            struct epoch_proposer_instance_info* current_inst = kh_value(hash_table, key);
            if (current_inst->common_info.proposing_value != NULL) {
-               (*num_instances)++;
-               iids_found = realloc(iids_found, sizeof(iid_t) * (*num_instances));
-               iids_found[(*num_instances) - 1] = current_inst->common_info.iid;
+               if (timevalcmp(&current_inst->common_info.created_at, &oldest_time, <)){
+                   oldest_time = current_inst->common_info.created_at;
+                   *oldest_instance = current_inst->common_info.iid;
+               }
+
+          //     (*num_instances)++;
+          //     iids_found = realloc(iids_found, sizeof(iid_t) * (*num_instances));
+          //     iids_found[(*num_instances) - 1] = current_inst->common_info.iid;
            }
         }
     }
 }
+
+
 
 //void epoch_proposer_is_pending_client_values()
 // I know bad practice to copy code but I'm too lazy to work out nice way to do this
@@ -546,9 +557,10 @@ bool epoch_proposer_try_determine_value_to_propose(struct epoch_proposer* propos
         } else {
             // check if other outstanding values to repropose
               int num_instances_with_outstnaind_values;
-            iid_t* instances_with_outstanding_values = epoch_proposer_get_iids_in_acceptances_phase_with_val(proposer, &num_instances_with_outstnaind_values);
+            iid_t* instances_with_outstanding_values = epoch_proposer_get_oldest_instance_proposed_in(proposer,
+                                                                                                      &num_instances_with_outstnaind_values);
             if (num_instances_with_outstnaind_values > 0){
-               iid_t instance_to_repropose_val =instances_with_outstanding_values[random_between(0, num_instances_with_outstnaind_values - 1)];
+               iid_t instance_to_repropose_val = min// instances_with_outstanding_values[random_between(0, num_instances_with_outstnaind_values - 1)];
                struct paxos_value* value;
                bool value_found = get_value_pending_at(proposer->pending_client_values, instance_to_repropose_val, value);
                assert(value_found);
