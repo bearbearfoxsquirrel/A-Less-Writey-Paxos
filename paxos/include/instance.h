@@ -31,7 +31,7 @@ struct standard_proposer_instance_info
 struct epoch_proposer_instance_info {
     struct proposer_common_instance_info common_info;
     struct quorum quorum;
-    unsigned int promised_epoch;
+    unsigned int current_epoch;
     unsigned int last_accepted_epoch_ballot_epoch;
    // struct epoch_quorum epoch_quorum;
 };

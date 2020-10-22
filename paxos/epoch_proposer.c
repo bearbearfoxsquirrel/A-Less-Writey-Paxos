@@ -139,7 +139,7 @@ static void epoch_proposer_remove_instance_from_phase(khash_t(instance_info)* ph
 static struct epoch_proposer_instance_info* epoch_proposer_instance_info_new(iid_t instance, struct epoch_ballot inital_epoch_ballot, int num_acceptors, int quorum_size) {
     struct epoch_proposer_instance_info* inst = malloc(sizeof(struct epoch_proposer_instance_info));
     inst->common_info = proposer_common_info_new(instance, inital_epoch_ballot.ballot);
-    inst->promised_epoch = INVALID_EPOCH;
+    inst->current_epoch = inital_epoch_ballot.epoch;
     inst->last_accepted_epoch_ballot_epoch = INVALID_EPOCH;
     quorum_init(&inst->quorum, num_acceptors, quorum_size);
     assert(inst->common_info.iid > 0);
@@ -150,7 +150,7 @@ static struct epoch_proposer_instance_info* epoch_proposer_instance_info_new(iid
 
 struct epoch_ballot
 epoch_proposer_instance_info_get_current_epoch_ballot(const struct epoch_proposer_instance_info *inst) {
-    return (struct epoch_ballot){inst->promised_epoch , inst->common_info.ballot};
+    return (struct epoch_ballot){inst->current_epoch , inst->common_info.ballot};
 }
 
 struct epoch_ballot epoch_proposer_instance_info_get_last_accepted_epoch_ballot (const struct epoch_proposer_instance_info* inst){
@@ -159,7 +159,7 @@ struct epoch_ballot epoch_proposer_instance_info_get_last_accepted_epoch_ballot 
 
 void epoch_proposer_instance_info_set_current_epoch_ballot(struct epoch_proposer_instance_info* inst, struct epoch_ballot new_epoch_ballot) {
     assert(epoch_ballot_greater_than(new_epoch_ballot, epoch_proposer_instance_info_get_current_epoch_ballot(inst)));
-    inst->promised_epoch = new_epoch_ballot.epoch;
+    inst->current_epoch = new_epoch_ballot.epoch;
     inst->common_info.ballot = new_epoch_ballot.ballot;
 }
 
@@ -336,6 +336,7 @@ bool epoch_proposer_try_to_start_preparing_instance(struct epoch_proposer* p, ii
         assert(begining_epoch_ballot.ballot.number > 0);
         struct epoch_proposer_instance_info* inst = epoch_proposer_instance_info_new(instance, begining_epoch_ballot, p->acceptors, p->q1);
 
+
         int rv = -1;
         key = kh_put_instance_info(p->prepare_proposer_instance_infos, instance, &rv);
         assert(rv > 0);
@@ -352,7 +353,7 @@ bool
 is_current_epoch_ballot(const struct epoch_ballot_promise *ack,
                         const struct epoch_proposer_instance_info *inst) {
     return epoch_ballot_equal(epoch_proposer_instance_info_get_current_epoch_ballot(inst), ack->promised_epoch_ballot)
-        || (inst->promised_epoch == INVALID_EPOCH && ballot_equal(inst->common_info.ballot, ack->promised_epoch_ballot.ballot));
+        || (inst->current_epoch == INVALID_EPOCH && ballot_equal(inst->common_info.ballot, ack->promised_epoch_ballot.ballot));
 }
 
 
@@ -418,8 +419,8 @@ enum epoch_paxos_message_return_codes epoch_proposer_receive_promise(struct epoc
         paxos_log_debug("Promise dropped, too old");
         return MESSAGE_IGNORED;
     } else if (is_current_epoch_ballot(ack, inst)) {
-        if (inst->promised_epoch == INVALID_EPOCH) {
-            inst->promised_epoch = ack->promised_epoch_ballot.epoch;
+        if (inst->current_epoch == INVALID_EPOCH) {
+            inst->current_epoch = ack->promised_epoch_ballot.epoch;
         }
 
         int new_promise = quorum_add(&inst->quorum, ack->acceptor_id);
@@ -817,7 +818,7 @@ enum epoch_paxos_message_return_codes epoch_proposer_receive_preempted(struct ep
         struct epoch_proposer_instance_info* prepare_instance_info;
         bool in_promise_phase = epoch_proposer_get_instance_info_in_phase(p->prepare_proposer_instance_infos, preempted->instance, &prepare_instance_info);
         if (in_promise_phase) {
-            if (epoch_ballot_equal(preempted->requested_epoch_ballot, epoch_proposer_instance_info_get_current_epoch_ballot(prepare_instance_info)) || (ballot_equal(preempted->requested_epoch_ballot.ballot, prepare_instance_info->common_info.ballot) && prepare_instance_info->promised_epoch == INVALID_EPOCH)) {
+            if (epoch_ballot_equal(preempted->requested_epoch_ballot, epoch_proposer_instance_info_get_current_epoch_ballot(prepare_instance_info)) || (ballot_equal(preempted->requested_epoch_ballot.ballot, prepare_instance_info->common_info.ballot) && prepare_instance_info->current_epoch == INVALID_EPOCH)) {
 
                 if(epoch_greater_than(preempted->acceptors_current_epoch_ballot, epoch_proposer_instance_info_get_current_epoch_ballot(prepare_instance_info))){
                     // also increases ballot
@@ -840,9 +841,9 @@ enum epoch_paxos_message_return_codes epoch_proposer_receive_preempted(struct ep
                     epoch_proposer_update_instance_info_from_ballot_preempted(prepare_instance_info, preempted, p->id, p->ballot_increment);
                     return_code = BALLOT_PREEMPTED;
                     paxos_log_debug("Instance %u epoch ballot preempted in prepare phase. Was on %u.%u.%u, now on %u.%u.%u",
-                            preempted->instance,
-                            preempted->requested_epoch_ballot.epoch, preempted->requested_epoch_ballot.ballot.number, preempted->requested_epoch_ballot.ballot.proposer_id,
-                            preempted->acceptors_current_epoch_ballot.epoch, preempted->acceptors_current_epoch_ballot.ballot.number, preempted->acceptors_current_epoch_ballot.ballot.proposer_id);
+                                    preempted->instance,
+                                    preempted->requested_epoch_ballot.epoch, preempted->requested_epoch_ballot.ballot.number, preempted->requested_epoch_ballot.ballot.proposer_id,
+                                    prepare_instance_info->current_epoch, prepare_instance_info->common_info.ballot.number, prepare_instance_info->common_info.ballot.proposer_id);
                 }
 
                 set_epoch_ballot_prepare_from_instance_info(next_prepare, prepare_instance_info);
@@ -883,7 +884,7 @@ enum epoch_paxos_message_return_codes epoch_proposer_receive_preempted(struct ep
                     paxos_log_debug("Instance %u epoch ballot preempted in acceptance phase. Was on %u.%u.%u, now on %u.%u.%u",
                                     preempted->instance,
                                     preempted->requested_epoch_ballot.epoch, preempted->requested_epoch_ballot.ballot.number, preempted->requested_epoch_ballot.ballot.proposer_id,
-                                    preempted->acceptors_current_epoch_ballot.epoch, preempted->acceptors_current_epoch_ballot.ballot.number, preempted->acceptors_current_epoch_ballot.ballot.proposer_id);
+                                    acceptnce_instance_info->current_epoch, acceptnce_instance_info->common_info.ballot.number, acceptnce_instance_info->common_info.ballot.proposer_id);
                 }
 
 

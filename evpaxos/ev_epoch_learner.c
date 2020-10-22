@@ -41,14 +41,16 @@ static void ev_epoch_learner_check_holes(evutil_socket_t fd, short event, void *
     struct writeahead_epoch_paxos_message msg;
     struct ev_epoch_learner* l = arg;
 
-    unsigned int chunks = l->min_chunks_missing;
+    uint32_t chunks = l->min_chunks_missing;
     msg.type = WRITEAHEAD_REPEAT;
 
     if (epoch_learner_has_holes(l->learner, &msg.message_contents.repeat.from, &msg.message_contents.repeat.to)) {
-        if ((msg.message_contents.repeat.to - msg.message_contents.repeat.from) > chunks)
+        if ((msg.message_contents.repeat.to - msg.message_contents.repeat.from) > chunks) {
             msg.message_contents.repeat.to = msg.message_contents.repeat.from + chunks;
-        paxos_log_debug("Sending Repeat for Instances %u-%u", msg.message_contents.repeat.from, msg.message_contents.repeat.to);
-        writeahead_epoch_paxos_peers_foreach_acceptor(l->peers, peer_send_epoch_paxos_message, &msg);
+            paxos_log_debug("Sending Repeat for Instances %u-%u", msg.message_contents.repeat.from,
+                            msg.message_contents.repeat.to);
+            writeahead_epoch_paxos_peers_foreach_acceptor(l->peers, peer_send_epoch_paxos_message, &msg);
+        }
     } else {
             iid_t next_trim = epoch_learner_get_instance_to_trim(l->learner);
             iid_t current_trim =  epoch_learner_get_trim_instance(l->learner);
