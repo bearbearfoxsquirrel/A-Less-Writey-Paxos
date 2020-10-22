@@ -87,14 +87,6 @@ bool remove_pending_value_at(struct pending_client_values* array_list, unsigned 
 }
 
 
-static void close_instance_if_open(struct pending_client_values* array_list, iid_t key, struct pending_value* pending_val, struct paxos_value* cmp, bool* closed){
-    if (is_values_equal(pending_val->client_value_pending, *cmp)){
-        kh_del_pending_instances(array_list->pending_instances, key);
-        free(pending_val->client_value_pending.paxos_value_val);
-        free(pending_val);
-        *closed = true;
-    }
-}
 
 bool close_pending_value_if_open(struct pending_client_values* array_list, struct paxos_value* value){
     iid_t key;

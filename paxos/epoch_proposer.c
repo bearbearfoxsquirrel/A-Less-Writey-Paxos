@@ -17,6 +17,7 @@
 #include <assert.h>
 #include <random.h>
 #include <epoch_proposer.h>
+#include "sys/time.h"
 #include "timeout.h"
 
 KHASH_MAP_INIT_INT(instance_info, struct epoch_proposer_instance_info*)
@@ -519,6 +520,7 @@ bool epoch_proposer_get_oldest_instance_proposed_in(struct epoch_proposer* propo
   //  *num_instances = 0;
   //  iid_t* iids_found;
   struct timeval oldest_time;
+  *oldest_instance = INVALID_INSTANCE;
   gettimeofday(&oldest_time, NULL);
 
     for (key = kh_begin(hash_table); key != kh_end(hash_table); ++key) {
@@ -527,7 +529,7 @@ bool epoch_proposer_get_oldest_instance_proposed_in(struct epoch_proposer* propo
         } else {
            struct epoch_proposer_instance_info* current_inst = kh_value(hash_table, key);
            if (current_inst->common_info.proposing_value != NULL) {
-               if (timevalcmp(&current_inst->common_info.created_at, &oldest_time, <)){
+               if (timercmp(&current_inst->common_info.created_at, &oldest_time, <)){
                    oldest_time = current_inst->common_info.created_at;
                    *oldest_instance = current_inst->common_info.iid;
                }
@@ -538,6 +540,7 @@ bool epoch_proposer_get_oldest_instance_proposed_in(struct epoch_proposer* propo
            }
         }
     }
+    return *oldest_instance != INVALID_INSTANCE;
 }
 
 
@@ -560,6 +563,7 @@ bool epoch_proposer_try_determine_value_to_propose(struct epoch_proposer* propos
             bool is_any_proposed_instances= epoch_proposer_get_oldest_instance_proposed_in(proposer,
                                                                                                       &oldest_instance);
             if (is_any_proposed_instances){
+                assert(oldest_instance != INVALID_INSTANCE);
 //               iid_t instance_to_repropose_val = // instances_with_outstanding_values[random_between(0, num_instances_with_outstnaind_values - 1)];
                struct paxos_value* value;
                bool value_found = get_value_pending_at(proposer->pending_client_values, oldest_instance, value);
