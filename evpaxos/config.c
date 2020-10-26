@@ -110,6 +110,9 @@ struct option options[] =
 
         {"lnr-min-chunks-missing-before-repeats", &paxos_config.lnr_missing_chunks_before_repeats, option_integer},
 
+        {"proposer-propose-values-in-parallel-instances", &paxos_config.repropose_values, option_boolean},
+        {"proposer-reproposal-rate-microseconds", &paxos_config.reproposal_rate, option_integer},
+
         {"stable-storage-backend",  &paxos_config.storage_backend,         option_backend},
         {"acceptor-trash-files",    &paxos_config.trash_files,             option_boolean },
         {"lmdb-sync",               &paxos_config.lmdb_sync,               option_boolean },

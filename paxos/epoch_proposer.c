@@ -609,7 +609,12 @@ bool epoch_proposer_get_oldest_instance_client_val_proposed_in(struct epoch_prop
 
 //void epoch_proposer_is_pending_client_values()
 // I know bad practice to copy code but I'm too lazy to work out nice way to do this
-bool epoch_proposer_try_determine_value_to_propose(struct epoch_proposer* proposer, struct epoch_proposer_instance_info* inst) {
+
+bool rate_limiter_okay(const struct epoch_proposer *proposer, struct timeval *time_diff) {
+    return (timercmp(time_diff, &proposer->reproposing_rate, >) && paxos_config.repropose_values);
+}
+
+epoch_proposer_try_determine_value_to_propose(struct epoch_proposer* proposer, struct epoch_proposer_instance_info* inst) {
     if (!proposer_instance_info_has_promised_value(&inst->common_info)) {
         if (!carray_empty(proposer->client_values_to_propose)) {
             // Client value to propose
@@ -630,9 +635,9 @@ bool epoch_proposer_try_determine_value_to_propose(struct epoch_proposer* propos
             timersub(&current_time, &proposer->last_reproposal_time, &time_diff);
 
 
-           if (!carray_empty(proposer->values_to_repropose) && timercmp(&time_diff, &proposer->reproposing_rate, >)) {
+           if (!carray_empty(proposer->values_to_repropose) && (rate_limiter_okay(proposer, &time_diff) || proposer->max_chosen_instance > inst->common_info.iid)) {
                proposer->last_reproposal_time = current_time;
-               
+
                 paxos_log_debug("Reproposing client value");
                 struct paxos_value* value_to_propose = carray_pop_front(proposer->values_to_repropose);
                 assert(value_to_propose != NULL);

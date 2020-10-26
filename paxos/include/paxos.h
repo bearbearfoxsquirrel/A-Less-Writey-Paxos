@@ -112,6 +112,8 @@ struct paxos_config
 
     char* backoff_type;
     bool pessimistic_proposing;
+    int reproposal_rate;
+    bool repropose_values;
 };
 
 extern struct paxos_config paxos_config;
