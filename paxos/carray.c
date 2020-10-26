@@ -26,7 +26,7 @@
  */
 
 
-#include "client_value_queue.h"
+#include "carray.h"
 #include "paxos_types.h"
 #include <stdlib.h>
 #include <assert.h>
@@ -35,7 +35,7 @@
 #include "string.h"
 #include "paxos_value.h"
 
-struct client_value_queue
+struct carray
 {
 	int head;
 	int tail;
@@ -44,9 +44,9 @@ struct client_value_queue
 	void** array;
 };
 
-static int carray_full(struct client_value_queue* a);
-static void carray_grow(struct client_value_queue* a);
-static void* carray_at(struct client_value_queue* a, int i);
+static int carray_full(struct carray* a);
+static void carray_grow(struct carray* a);
+static void* carray_at(struct carray* a, int i);
 
 
 static void print_bytes_of_value_to_submit(char * ty, char * val, unsigned char * bytes, size_t num_bytes) {
@@ -65,11 +65,11 @@ static void print_bytes_of_value_to_submit(char * ty, char * val, unsigned char 
 
 
 
-struct client_value_queue*
+struct carray*
 carray_new(int size)
 {
-	struct client_value_queue* a;
-	a = malloc(sizeof(struct client_value_queue));
+	struct carray* a;
+	a = malloc(sizeof(struct carray));
 	assert(a != NULL);
 	a->head = 0;
 	a->tail = size - 1;
@@ -81,25 +81,25 @@ carray_new(int size)
 }
 
 void
-carray_free(struct client_value_queue* a)
+carray_free(struct carray* a)
 {
 	free(a->array);
 	free(a);
 }
 
 int
-carray_empty(struct client_value_queue* a)
+carray_empty(struct carray* a)
 {
 	return a->count == 0;
 }
 
 int
-carray_size(struct client_value_queue* a)
+carray_size(struct carray* a)
 {
 	return a->size;
 }
 
-void print(struct client_value_queue* a) {
+void print(struct carray* a) {
     if (a->count!=0) {
         paxos_log_debug("Printing all queued client values:");
         int i = a->head;
@@ -115,7 +115,7 @@ void print(struct client_value_queue* a) {
 
 
 int
-carray_push_back(struct client_value_queue* a, void* p)
+carray_push_back(struct carray* a, void* p)
 {
    // struct paxos_value* test = p;
 //    assert(test->paxos_value_len > 0);
@@ -137,7 +137,7 @@ carray_push_back(struct client_value_queue* a, void* p)
 
 
 void*
-carray_pop_front(struct client_value_queue* a)
+carray_pop_front(struct carray* a)
 {
 	if (carray_empty(a)) return NULL;
 
@@ -153,7 +153,7 @@ carray_pop_front(struct client_value_queue* a)
 }
 
 void
-carray_foreach(struct client_value_queue* a, void (*carray_cb)(void*))
+carray_foreach(struct carray* a, void (*carray_cb)(void*))
 {
 	int i;
 	for (i = 0; i < a->count; ++i)
@@ -161,16 +161,16 @@ carray_foreach(struct client_value_queue* a, void (*carray_cb)(void*))
 }
 
 static int
-carray_full(struct client_value_queue* a)
+carray_full(struct carray* a)
 {
 	return a->count == a->size;
 }
 
 static void
-carray_grow(struct client_value_queue* a)
+carray_grow(struct carray* a)
 {
 	int i;
-	struct client_value_queue* tmp = carray_new(a->size * 2);
+	struct carray* tmp = carray_new(a->size * 2);
 	for (i = 0; i < a->count; i++)
 		carray_push_back(tmp, carray_at(a, i));
 	free(a->array);
@@ -182,13 +182,27 @@ carray_grow(struct client_value_queue* a)
 }
 
 static void*
-carray_at(struct client_value_queue* a, int i)
+carray_at(struct carray* a, int i)
 {
 	return a->array[(a->head+i) % a->size];
 }
 
+bool carray_is_in(struct carray* a, void* cmp, bool (*chk_fcn)(const void *, const void*)) {
+    for (int i = 0; i < carray_size(a); i++) {
 
-int carray_push_front(struct client_value_queue* a, void* p){
+        if (chk_fcn(carray_at(a, i), cmp)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+void remove_all_because(){
+
+}
+
+
+int carray_push_front(struct carray* a, void* p){
 
     if (carray_full(a))
         carray_grow(a);

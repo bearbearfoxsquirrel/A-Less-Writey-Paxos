@@ -171,6 +171,8 @@ on_deliver(char* value, size_t size, void* arg)
         c->current_outstanding--;
         client_submit_value(c);
 
+    } else {
+        paxos_log_debug("Delivered value either out of date or pending for another client.");
     }
 
 }

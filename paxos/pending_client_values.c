@@ -87,11 +87,15 @@ bool remove_pending_value_at(struct pending_client_values* array_list, unsigned 
 }
 
 
+int get_and_close_pending_value_and_its_instances_if_open(struct pending_client_values *array_list, struct paxos_value *value,
+                                                          iid_t **instances_with_values_closed) {
 
-bool close_pending_value_if_open(struct pending_client_values* array_list, struct paxos_value* value){
+
     iid_t key;
-    bool closed_any = false;
 
+    int num_instances_vals_closed = 0;
+
+    paxos_log_debug("Closing all instances with same value proposed:");
 
 
 
@@ -101,15 +105,21 @@ bool close_pending_value_if_open(struct pending_client_values* array_list, struc
         } else {
             struct pending_value* pending_val = kh_value(array_list->pending_instances, key);
             if (is_values_equal(pending_val->client_value_pending, *value)){
+                paxos_log_debug("Closing instance %u", key);
+
+                *instances_with_values_closed = realloc(*instances_with_values_closed, num_instances_vals_closed);
+                (*instances_with_values_closed)[num_instances_vals_closed - 1] = key;
+
                 kh_del_pending_instances(array_list->pending_instances, key);
                 free(pending_val->client_value_pending.paxos_value_val);
                 free(pending_val);
-                closed_any = true;
+                num_instances_vals_closed++;
+//                closed_any = true;
             }
         }
     }
 
-    return closed_any;
+    return num_instances_vals_closed;
 
 
     //kh_foreach(array_list->pending_instances, key, val, close_instance_if_open(array_list, key, val, value, &closed_any))

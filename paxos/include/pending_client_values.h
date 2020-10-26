@@ -22,6 +22,7 @@ bool get_value_pending_at(struct pending_client_values* array_list, unsigned int
 
 bool remove_pending_value_at(struct pending_client_values* array_list, unsigned int index, struct paxos_value* pending_value_copy);
 
-bool close_pending_value_if_open(struct pending_client_values* array_list, struct paxos_value* value);
+int get_and_close_pending_value_and_its_instances_if_open(struct pending_client_values *array_list, struct paxos_value *value,
+                                                          iid_t **instances_with_values_closed);
 
 #endif //A_LESS_WRITEY_PAXOS_PENDING_CLIENT_VALUES_H

@@ -31,7 +31,7 @@
 #include <paxos_types.h>
 #include "proposer.h"
 #include <instance.h>
-#include "client_value_queue.h"
+#include "carray.h"
 #include "quorum.h"
 #include "khash.h"
 #include "ballot.h"
@@ -64,7 +64,7 @@ struct proposer
 
 
 	// Stuff to handle client values
-    struct client_value_queue *client_values_to_propose;
+    struct carray *client_values_to_propose;
     // new pending_instances
     // key is the paxos_value, value is the index in the array;
 

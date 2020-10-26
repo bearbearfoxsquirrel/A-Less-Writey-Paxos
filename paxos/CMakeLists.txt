@@ -1,6 +1,6 @@
 INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/paxos/include)
 
-SET(SRCS paxos.c standard_acceptor.c learner.c standard_proposer.c client_value_queue.c quorum.c ballot.c paxos_value.c
+SET(SRCS paxos.c standard_acceptor.c learner.c standard_proposer.c carray.c quorum.c ballot.c paxos_value.c
         standard_stable_storage.c storage_utils.c stable_storage_but_not_really.c paxos_storage.c hash_mapped_memory.c
 		writeahead_ballot_acceptor.c paxos_message_conversion.c include/epoch_stable_storage.h epoch_stable_storage.c
 		include/writeahead_epoch_acceptor.h writeahead_epoch_acceptor.c include/epoch_paxos_storage.h epoch_paxos_storage.c

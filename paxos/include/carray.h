@@ -29,20 +29,24 @@
 #ifndef _CARRAY_H_
 #define _CARRAY_H_
 
+#include <stdbool.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-struct client_value_queue;
+struct carray;
 
-struct client_value_queue* carray_new(int size);
-void carray_free(struct client_value_queue* a);
-int carray_empty(struct client_value_queue* a);
-int carray_size(struct client_value_queue* a);
-int carray_push_back(struct client_value_queue* a, void* p);
-int carray_push_front(struct client_value_queue* a, void* p);
-void carray_foreach(struct client_value_queue* a, void (*carray_cb)(void*));
-void* carray_pop_front(struct client_value_queue* a);
+struct carray* carray_new(int size);
+void carray_free(struct carray* a);
+int carray_empty(struct carray* a);
+int carray_size(struct carray* a);
+int carray_push_back(struct carray* a, void* p);
+int carray_push_front(struct carray* a, void* p);
+void carray_foreach(struct carray* a, void (*carray_cb)(void*));
+void* carray_pop_front(struct carray* a);
+
+bool carray_is_in(struct carray* a, void* cmp, bool (*chk_fcn)(const void *, const void*));
 
 #ifdef __cplusplus
 }

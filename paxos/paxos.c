@@ -223,8 +223,8 @@ paxos_log(unsigned int level, const char* format, va_list ap)
 	gettimeofday(&tv,NULL);
 	off = strftime(msg, sizeof(msg), "%d %b %H:%M:%S", localtime(&tv.tv_sec));
 	tv.tv_usec %= 1000;
-    sprintf(&msg[off],":%u. ", tv.tv_usec);
-    off += 6;
+    sprintf(&msg[off],":%06ld. ", tv.tv_usec);
+    off += 9;
 //	strcat(off, )
 	vsnprintf(msg+off, sizeof(msg)-off, format, ap);
 	fprintf(stdout,"%s\n", msg);
