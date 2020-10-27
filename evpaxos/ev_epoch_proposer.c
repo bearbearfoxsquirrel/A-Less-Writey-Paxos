@@ -53,7 +53,11 @@ struct ev_epoch_proposer {
     struct performance_threshold_timer* preempt_timer;
     struct performance_threshold_timer* accepted_timer;
     struct performance_threshold_timer *chosen_timer;
+    
+    
     struct performance_threshold_timer *promise_timer;
+    int proposer_count;
+    int id;
 };
 
 
@@ -159,7 +163,29 @@ static void ev_epoch_proposer_try_higher_ballot( evutil_socket_t fd,  short even
 }
 
 
+static bool ev_epoch_proposer_is_round_robin_backoff(struct ev_epoch_proposer* p, iid_t instance) {
+    return paxos_config.round_robin && instance % p->proposer_count == p->id;
+}
 
+
+static bool ev_epoch_proposer_check_create_biased_prepare(struct ev_epoch_proposer* p, struct epoch_paxos_prepares* prepare){
+    if (ev_epoch_proposer_is_round_robin_backoff(p, prepare->standard_prepare.iid) ) {
+        struct epoch_ballot_preempted preempted = (struct epoch_ballot_preempted) {
+                .instance = prepare->standard_prepare.iid,
+                .requested_epoch_ballot = (struct epoch_ballot) {INVALID_EPOCH,
+                                                                 prepare->standard_prepare.ballot},
+                .acceptors_current_epoch_ballot = (struct epoch_ballot) {
+                        epoch_proposer_get_current_known_epoch(p->proposer),
+                        (struct ballot) {paxos_config.max_ballot_increment, p->id}},
+                .acceptor_id = 0
+        };
+
+
+        epoch_proposer_receive_preempted(p->proposer, &preempted, &prepare->explicit_epoch_prepare);
+        return true;
+    }
+    return false;
+}
 
 
 static void ev_epoch_proposer_try_begin_new_instances(struct ev_epoch_proposer* p) {
@@ -183,15 +209,24 @@ static void ev_epoch_proposer_try_begin_new_instances(struct ev_epoch_proposer* 
 
         if (new_instance_to_prepare) {
            number_of_instances_to_open--;
-
            bool delay = false;
            iid_t instance_to_delay;
             switch (prepare.type) {
                 case STANDARD_PREPARE:
-                    if (paxos_config.pessimistic_proposing) {
+                    if (paxos_config.pessimistic_proposing || !ev_epoch_proposer_is_round_robin_backoff(p, prepare.standard_prepare.iid)) {
                         delay = true;
                         instance_to_delay = prepare.standard_prepare.iid;
                     } else {
+                        if (ev_epoch_proposer_check_create_biased_prepare(p, &prepare)) {
+                            prepare.standard_prepare = (struct paxos_prepare) {
+                                    .iid = prepare.explicit_epoch_prepare.instance,
+                                    .ballot = prepare.explicit_epoch_prepare.epoch_ballot_requested.ballot
+                            };
+
+                            paxos_log_debug("Instance %u is biased for Proposer %u", prepare.standard_prepare.iid, p->id);
+
+                        }
+
                         paxos_log_debug("Sending Standard Prepare for Instance %u, Ballot %u.%u",
                                         prepare.standard_prepare.iid, prepare.standard_prepare.ballot.number,
                                         prepare.standard_prepare.ballot.proposer_id);
@@ -202,10 +237,14 @@ static void ev_epoch_proposer_try_begin_new_instances(struct ev_epoch_proposer* 
                     break;
 
                 case EXPLICIT_EPOCH_PREPARE:
-                    if (paxos_config.pessimistic_proposing){
+                    if (paxos_config.pessimistic_proposing || ev_epoch_proposer_is_round_robin_backoff(p, prepare.explicit_epoch_prepare.instance)){
                         delay = true;
                         instance_to_delay = prepare.explicit_epoch_prepare.instance;
                     } else {
+                        bool prepare_biased = ev_epoch_proposer_check_create_biased_prepare(p, &prepare);
+                        if (prepare_biased) {
+                            paxos_log_debug("Instance %u is biased for Proposer %u", prepare.explicit_epoch_prepare.instance, p->id);
+                        }
                         paxos_log_debug("Sending Epoch Ballot Prepare for Instance %u, Epoch Ballot %u.%u.%u",
                                         prepare.explicit_epoch_prepare.instance,
                                         prepare.explicit_epoch_prepare.epoch_ballot_requested.epoch,
@@ -452,12 +491,16 @@ static void ev_epoch_proposer_gen_random_seed( evutil_socket_t fd,  short event,
     event_add(p->random_seed_event, &p->random_seed_time);
 }
 
-struct ev_epoch_proposer* ev_epoch_proposer_init_internal(int id, struct evpaxos_config* c, struct writeahead_epoch_paxos_peers* peers, struct backoff_manager* backoff_manager) {
+struct ev_epoch_proposer *
+ev_epoch_proposer_init_internal(int id, struct evpaxos_config *c, struct writeahead_epoch_paxos_peers *peers,
+                                struct backoff_manager *backoff_manager, int proposer_count) {
     struct ev_epoch_proposer* proposer = malloc(sizeof(struct ev_epoch_proposer));
+    proposer->id = id;
     proposer->proposer = epoch_proposer_new(id, evpaxos_acceptor_count(c), paxos_config.quorum_1, paxos_config.quorum_2,
                                             paxos_config.max_ballot_increment);
     epoch_proposer_set_current_instance(proposer->proposer, 1);
     proposer->max_num_open_instances = paxos_config.proposer_preexec_window;
+    proposer->proposer_count = proposer_count;
 
     writeahead_epoch_paxos_peers_subscribe(peers, WRITEAHEAD_EPOCH_BALLOT_PROMISE, ev_epoch_proposer_handle_promise, proposer);
     writeahead_epoch_paxos_peers_subscribe(peers, WRITEAHEAD_EPOCH_BALLOT_ACCEPTED, ev_epoch_proposer_handle_accepted, proposer);
@@ -529,7 +572,7 @@ struct ev_epoch_proposer* ev_epoch_proposer_init(int id, const char* config_file
     }
     struct backoff_manager* backoff_manager = backoff_manager_new(backoff);
 
-    struct ev_epoch_proposer* p = ev_epoch_proposer_init_internal(id, config, peers, backoff_manager);
+    struct ev_epoch_proposer* p = ev_epoch_proposer_init_internal(id, config, peers, backoff_manager, evpaxos_proposer_count(config));
     evpaxos_config_free(config);
     return p;
 }

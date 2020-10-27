@@ -49,7 +49,8 @@ static void ev_epoch_learner_check_holes(evutil_socket_t fd, short event, void *
             msg.message_contents.repeat.to = msg.message_contents.repeat.from + chunks;
             paxos_log_debug("Sending Repeat for Instances %u-%u", msg.message_contents.repeat.from,
                             msg.message_contents.repeat.to);
-            writeahead_epoch_paxos_peers_foreach_acceptor(l->peers, peer_send_epoch_paxos_message, &msg);
+            writeahead_epoch_paxos_peers_for_a_random_acceptor(l->peers, peer_send_epoch_paxos_message, &msg);
+
         }
     } else {
             iid_t next_trim = epoch_learner_get_instance_to_trim(l->learner);

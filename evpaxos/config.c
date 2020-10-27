@@ -109,6 +109,7 @@ struct option options[] =
         {"lnr-comm-all-proposers-chosen", &paxos_config.lnr_comm_all_prop_chosen, option_boolean},
 
         {"lnr-min-chunks-missing-before-repeats", &paxos_config.lnr_missing_chunks_before_repeats, option_integer},
+        {"proposer-use-round-robin", &paxos_config.round_robin, option_boolean},
 
         {"proposer-propose-values-in-parallel-instances", &paxos_config.repropose_values, option_boolean},
         {"proposer-reproposal-rate-microseconds", &paxos_config.reproposal_rate, option_integer},

@@ -81,7 +81,7 @@ static void ev_epoch_acceptor_handle_epoch_ballot_accept(struct writeahead_epoch
                     accept->epoch_ballot_requested.epoch,
                     accept->epoch_ballot_requested.ballot.number, accept->epoch_ballot_requested.ballot.proposer_id);
 
-    performance_threshold_timer_begin_timing(acceptor->acceptance_timer);
+ //   performance_threshold_timer_begin_timing(acceptor->acceptance_timer);
 
     if (writeahead_epoch_acceptor_receive_epoch_ballot_accept(acceptor->acceptor, accept, &out)) {
         if (out.type == WRITEAHEAD_EPOCH_BALLOT_ACCEPTED) {
@@ -95,7 +95,7 @@ static void ev_epoch_acceptor_handle_epoch_ballot_accept(struct writeahead_epoch
         }
         writeahead_epoch_paxos_message_destroy_contents(&out);
     }
-    ev_performance_timer_stop_check_and_clear_timer(acceptor->acceptance_timer, "Acceptance");
+  //  ev_performance_timer_stop_check_and_clear_timer(acceptor->acceptance_timer, "Acceptance");
 
 }
 

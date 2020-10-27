@@ -136,11 +136,15 @@ static bool epoch_proposer_remove_client_value_from_queue(struct epoch_proposer*
     while(!carray_empty(p->values_to_repropose)){
         struct paxos_value* cur_val = carray_pop_front(p->values_to_repropose);
         if (is_values_equal(*cur_val, *v)) {
-            paxos_value_free(&cur_val);
+            if (found == true ) {
+                paxos_log_debug("Duplicate value found in queue");
+            }
+      //      paxos_value_free(&cur_val);
             found = true;
-            break;
+           // break;
+        } else {
+            carray_push_front(tmp, cur_val);
         }
-        carray_push_front(tmp, cur_val);
     }
 
     while (!carray_empty(tmp)) {
@@ -610,11 +614,15 @@ bool epoch_proposer_get_oldest_instance_client_val_proposed_in(struct epoch_prop
 //void epoch_proposer_is_pending_client_values()
 // I know bad practice to copy code but I'm too lazy to work out nice way to do this
 
-bool rate_limiter_okay(const struct epoch_proposer *proposer, struct timeval *time_diff) {
-    return (timercmp(time_diff, &proposer->reproposing_rate, >) && paxos_config.repropose_values);
+bool rate_limiter_okay(const struct epoch_proposer *proposer) {
+    struct timeval current_time;
+    gettimeofday(&current_time, NULL);
+    struct timeval time_diff;
+    timersub(&current_time, &proposer->last_reproposal_time, &time_diff);
+    return (timercmp(&time_diff, &proposer->reproposing_rate, >) && paxos_config.repropose_values);
 }
 
-epoch_proposer_try_determine_value_to_propose(struct epoch_proposer* proposer, struct epoch_proposer_instance_info* inst) {
+bool epoch_proposer_try_determine_value_to_propose(struct epoch_proposer* proposer, struct epoch_proposer_instance_info* inst) {
     if (!proposer_instance_info_has_promised_value(&inst->common_info)) {
         if (!carray_empty(proposer->client_values_to_propose)) {
             // Client value to propose
@@ -625,18 +633,15 @@ epoch_proposer_try_determine_value_to_propose(struct epoch_proposer* proposer, s
 
             inst->common_info.proposing_value = malloc(sizeof(struct paxos_value));
             paxos_value_copy(inst->common_info.proposing_value, value_to_propose);
+            
             carray_push_back(proposer->values_to_repropose, value_to_propose);
 
-       //     client_value_now_pending_at(proposer->pending_client_values, inst->common_info.iid, value_to_propose);// value_to_propose);
+
+            client_value_now_pending_at(proposer->pending_client_values, inst->common_info.iid, value_to_propose);// value_to_propose);
         } else {
-            struct timeval current_time;
-            gettimeofday(&current_time, NULL);
-            struct timeval time_diff;
-            timersub(&current_time, &proposer->last_reproposal_time, &time_diff);
-
-
-           if (!carray_empty(proposer->values_to_repropose) && (rate_limiter_okay(proposer, &time_diff) || proposer->max_chosen_instance > inst->common_info.iid)) {
-               proposer->last_reproposal_time = current_time;
+            // (rate_limiter_okay(proposer) || 
+           if (!carray_empty(proposer->values_to_repropose) && proposer->max_chosen_instance > inst->common_info.iid) {
+                gettimeofday(&proposer->last_reproposal_time, NULL);
 
                 paxos_log_debug("Reproposing client value");
                 struct paxos_value* value_to_propose = carray_pop_front(proposer->values_to_repropose);
@@ -646,45 +651,6 @@ epoch_proposer_try_determine_value_to_propose(struct epoch_proposer* proposer, s
                 paxos_value_copy(inst->common_info.proposing_value, value_to_propose);
                 carray_push_back(proposer->values_to_repropose, value_to_propose);
                 
-            /*
-            // check if other outstanding values to repropose
-             iid_t oldest_instance;
-
-              struct timeval from = {0};
-              struct timeval oldest_time = {0};
-            bool is_any_proposed_instances = false;
-            bool value_found = false;
-
-            // find the oldest pending value and submit it
-
-       //     do {
-      //          is_any_proposed_instances = epoch_proposer_get_oldest_instance_client_val_proposed_in(proposer, &oldest_instance, from, &oldest_time);
-                // find if it is pending, if not
-
-                struct epoch_proposer_instance_info* oldest_inst_info;
-                epoch_proposer_get_instance_info_in_phase(proposer->accept_proposer_instance_infos, oldest_instance, &oldest_inst_info);
-
-                struct paxos_value* value = malloc(sizeof(value));
-
-                bool value_found = get_value_pending_at(proposer->pending_client_values, oldest_instance, value);
-
-            } while (!value_found || is_any_proposed_instances);
-
-            do {
-                is_any_proposed_instances = epoch_proposer_get_oldest_instance_client_val_proposed_in(proposer, &oldest_instance, from, &oldest_time);
-
-
-            } while(is_any_proposed_instances);
-
-            if (is_any_proposed_instances && epoch_proposer_is_val_already_closed(proposer, oldest_instance)){
-                assert(oldest_instance != INVALID_INSTANCE);
-//               iid_t instance_to_repropose_val = // instances_with_outstanding_values[random_between(0, num_instances_with_outstnaind_values - 1)];
-               //assert(value_found);
-
-               client_value_now_pending_at(proposer->pending_client_values, inst->common_info.iid, value);
-                inst->common_info.proposing_value = value;//paxos_value_new(value_to_propose->paxos_value_val, value_to_propose->paxos_value_len);
-                paxos_log_debug("Reproposing client value from instance %u to this instance", oldest_instance);
-                */
             } else {
 
                 // Fill holes
@@ -704,6 +670,10 @@ epoch_proposer_try_determine_value_to_propose(struct epoch_proposer* proposer, s
         paxos_log_debug("Instance has a previously proposed Value. Proposing it.");
         inst->common_info.proposing_value = inst->common_info.last_accepted_value;
         inst->common_info.last_accepted_value = NULL;
+
+        // should consider own value and help to get chosen?
+
+
         // If not a NOP then consider it as own client value
    //     if (strncmp(inst->common_info.proposing_value->paxos_value_val, "NOP.", 5) != 0){
       //      client_value_now_pending_at(proposer->pending_client_values, inst->common_info.iid, inst->common_info.proposing_value);
@@ -803,43 +773,45 @@ enum epoch_paxos_message_return_codes epoch_proposer_receive_accepted(struct epo
 }
 
 void epoch_proposer_check_and_handle_client_value_from_chosen(struct epoch_proposer* p, struct epoch_proposer_instance_info* inst, struct epoch_ballot_chosen* chosen){
-   // struct paxos_value proposed_client_value;
-    //bool client_value_proposed = get_value_pending_at(p->pending_client_values, chosen->instance, NULL);
-    bool client_value_proposed = epoch_proposer_remove_client_value_from_queue(p, &chosen->chosen_value);
+    struct paxos_value proposed_client_value;
+    bool client_value_proposed = get_value_pending_at(p->pending_client_values, chosen->instance, &proposed_client_value);
+    epoch_proposer_remove_client_value_from_queue(p, &chosen->chosen_value);
 
     if (client_value_proposed) {
 
         if (inst != NULL && inst->common_info.proposing_value != NULL) {
-       if (is_values_equal(*inst->common_info.proposing_value, chosen->chosen_value)) {
-//           remove_pending_value_at(p->pending_client_values, chosen->instance, NULL);
+            if (is_values_equal(*inst->common_info.proposing_value, chosen->chosen_value)) {
+                remove_pending_value_at(p->pending_client_values, chosen->instance, NULL);
 
-           paxos_log_debug("Pending Client Value was Chosen in Instance %u at Epoch Ballot %u.%u.%u",
-                           chosen->instance,
-                           chosen->chosen_epoch_ballot.epoch,
-                           chosen->chosen_epoch_ballot.ballot.number,
-                           chosen->chosen_epoch_ballot.ballot.proposer_id);
-           //  iid_t* instances_with_vals_closed = malloc(sizeof(instances_with_vals_closed));
-           //  int num_instanes_that_dont_need_value = get_and_close_pending_value_and_its_instances_if_open(
-           //         p->pending_client_values, &chosen->chosen_value, &instances_with_vals_closed);
+                paxos_log_debug("Pending Client Value was Chosen in Instance %u at Epoch Ballot %u.%u.%u",
+                                chosen->instance,
+                                chosen->chosen_epoch_ballot.epoch,
+                                chosen->chosen_epoch_ballot.ballot.number,
+                                chosen->chosen_epoch_ballot.ballot.proposer_id);
+                //  iid_t* instances_with_vals_closed = malloc(sizeof(instances_with_vals_closed));
+                //  int num_instanes_that_dont_need_value = get_and_close_pending_value_and_its_instances_if_open(
+                //         p->pending_client_values, &chosen->chosen_value, &instances_with_vals_closed);
 
-           //    for (int i = 0; i < num_instanes_that_dont_need_value; i++){
-           //        carray_push_back(p->instances_with_client_vals_closed, &instances_with_vals_closed[i]);
-           //    }
+                //    for (int i = 0; i < num_instanes_that_dont_need_value; i++){
+                //        carray_push_back(p->instances_with_client_vals_closed, &instances_with_vals_closed[i]);
+                //    }
 
-           //   free(instances_with_vals_closed);
+                //   free(instances_with_vals_closed);
 
-           //todo add all closed instances to ones to ignore
-       }
-       } else {
-           // Client's value chosen within another instance
+                //todo add all closed instances to ones to ignore
 
-          // assert(1 == 2);
-     //   } else {
-      //     remove_pending_value_at(p->pending_client_values, chosen->instance, NULL);
-    //        paxos_log_debug("Pending Client Value was not Chosen for Instance %u. Pushing Client Value back to Queue.",
-       //             chosen->instance);
-      //      carray_push_back(p->client_values_to_propose, inst->common_info.proposing_value);
-      //      inst->common_info.proposing_value = NULL; // do not delete because it has been moved to the queue
+            } else {
+                // Client's value chosen within another instance
+
+                // assert(1 == 2);
+                //   } else {
+                remove_pending_value_at(p->pending_client_values, chosen->instance, NULL);
+                paxos_log_debug(
+                        "Pending Client Value was not Chosen for Instance %u. Pushing Client Value back to Queue.",
+                        chosen->instance);
+                carray_push_back(p->client_values_to_propose, inst->common_info.proposing_value);
+                inst->common_info.proposing_value = NULL; // do not delete because it has been moved to the queue
+            }
         }
     }
 }
@@ -849,10 +821,10 @@ enum epoch_paxos_message_return_codes epoch_proposer_receive_chosen(struct epoch
     assert(ack->instance > INVALID_INSTANCE);
     assert(epoch_ballot_greater_than(ack->chosen_epoch_ballot, INVALID_EPOCH_BALLOT));
 
-   // if (ack->instance <= p->trim_instance) {
-  //      paxos_log_debug("Chosen dropped, Instance trimed");
-   //     return MESSAGE_IGNORED;
-   // }
+    if (ack->instance <= p->trim_instance) {
+        paxos_log_debug("Chosen dropped, Instance trimed");
+        return MESSAGE_IGNORED;
+    }
 
     if (epoch_proposer_is_instance_chosen(p, ack->instance)){
         paxos_log_debug("Chosen dropped, Instance %u known to be chosen", ack->instance);
@@ -1043,6 +1015,8 @@ enum epoch_paxos_message_return_codes epoch_proposer_receive_preempted(struct ep
                 }
 
                 if (epoch_ballot_greater_than(preempted->acceptors_current_epoch_ballot, epoch_proposer_instance_info_get_current_epoch_ballot(acceptnce_instance_info))){
+                    epoch_proposer_check_and_requeue_client_value_if_was_proposed(p, acceptnce_instance_info);
+
                     epoch_proposer_update_instance_info_from_ballot_preempted(acceptnce_instance_info, preempted, p->id, p->ballot_increment);
                     return_code = BALLOT_PREEMPTED;
 
@@ -1053,8 +1027,7 @@ enum epoch_paxos_message_return_codes epoch_proposer_receive_preempted(struct ep
                 }
 
 
-
-                epoch_proposer_move_instance_between_phase(p->accept_proposer_instance_infos, p->prepare_proposer_instance_infos, acceptnce_instance_info, p->q1);
+                    epoch_proposer_move_instance_between_phase(p->accept_proposer_instance_infos, p->prepare_proposer_instance_infos, acceptnce_instance_info, p->q1);
                 set_epoch_ballot_prepare_from_instance_info(next_prepare, acceptnce_instance_info);
                 // check if the ballot was preempted
                 // check if the epoch was preempted
@@ -1076,7 +1049,7 @@ static void epoch_proposer_trim_instances_pending_in_phase(struct epoch_proposer
         if (inst->common_info.iid <= instance) {
             if (proposer_instance_info_has_value(&inst->common_info)) {
                 paxos_value_free(&inst->common_info.proposing_value);
-            //    epoch_proposer_check_and_requeue_client_value_if_was_proposed(p, inst);
+                epoch_proposer_check_and_requeue_client_value_if_was_proposed(p, inst);
             }
             kh_del_instance_info(h, k);
             epoch_proposer_instance_info_free(&inst);
@@ -1102,11 +1075,21 @@ enum epoch_paxos_message_return_codes epoch_proposer_receive_acceptor_state(stru
 
 enum epoch_paxos_message_return_codes epoch_proposer_receive_trim(struct epoch_proposer* p,
                                                                   struct paxos_trim* trim_msg){
+    
+    int last_trim = p->trim_instance;
     if (trim_msg->iid > p->trim_instance) {
         paxos_log_debug("Received new Trim Message for Instance %u", trim_msg->iid);
         p->trim_instance = trim_msg->iid;
         epoch_proposer_trim_instances_pending_in_phase(p, p->prepare_proposer_instance_infos, trim_msg->iid);
         epoch_proposer_trim_instances_pending_in_phase(p, p->accept_proposer_instance_infos, trim_msg->iid);
+        
+        //clear values to repropose
+        
+        int count = p->trim_instance - last_trim;
+        while(!carray_empty(p->values_to_repropose) && count > 0) {
+            carray_pop_front(p->values_to_repropose);
+            count--;
+        }
         return MESSAGE_ACKNOWLEDGED;
     } else {
         return MESSAGE_IGNORED;

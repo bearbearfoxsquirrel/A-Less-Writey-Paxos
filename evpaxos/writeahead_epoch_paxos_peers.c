@@ -40,6 +40,7 @@
 #include <netinet/tcp.h>
 #include <epoch_paxos_message.h>
 #include <paxos.h>
+#include <random.h>
 
 
 struct writeahead_epoch_paxos_peer
@@ -249,6 +250,11 @@ writeahead_epoch_paxos_peers_for_n_acceptor(struct writeahead_epoch_paxos_peers*
 
     for (int i = 0; i < n; ++i)
         cb(p->peers[i], arg);
+}
+
+void writeahead_epoch_paxos_peers_for_a_random_acceptor(struct writeahead_epoch_paxos_peers* p, writeahead_epoch_paxos_peer_iter_cb cb, void* arg) {
+    cb(p->peers[random_between(0, p->peers_count - 1)], arg);
+
 }
 
 void

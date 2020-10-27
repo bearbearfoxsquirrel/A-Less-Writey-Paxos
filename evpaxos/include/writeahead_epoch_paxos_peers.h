@@ -32,6 +32,7 @@ void writeahead_epoch_paxos_peers_subscribe(struct writeahead_epoch_paxos_peers*
 void writeahead_epoch_paxos_peers_foreach_acceptor(struct writeahead_epoch_paxos_peers* p, writeahead_epoch_paxos_peer_iter_cb cb, void* arg);
 void writeahead_epoch_paxos_peers_for_n_proposers(struct writeahead_epoch_paxos_peers* p, writeahead_epoch_paxos_peer_iter_cb cb, void* arg, int n);
 void writeahead_epoch_paxos_peers_for_n_acceptor(struct writeahead_epoch_paxos_peers* p, writeahead_epoch_paxos_peer_iter_cb cb, void* arg, int n);
+void writeahead_epoch_paxos_peers_for_a_random_acceptor(struct writeahead_epoch_paxos_peers* p, writeahead_epoch_paxos_peer_iter_cb cb, void* arg);
 void writeahead_epoch_paxos_peers_foreach_client(struct writeahead_epoch_paxos_peers* p, writeahead_epoch_paxos_peer_iter_cb cb, void* arg);
 struct writeahead_epoch_paxos_peer* writeahead_epoch_paxos_peers_get_acceptor(struct writeahead_epoch_paxos_peers* p, int id);
 struct event_base* writeahead_epoch_paxos_peers_get_event_base(struct writeahead_epoch_paxos_peers* p);

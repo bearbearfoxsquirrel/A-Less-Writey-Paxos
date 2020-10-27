@@ -172,7 +172,11 @@ on_deliver(char* value, size_t size, void* arg)
         client_submit_value(c);
 
     } else {
-        paxos_log_debug("Delivered value either out of date or pending for another client.");
+        if (v->client_id == c->id) {
+            paxos_log_debug("Delivered value out of date.");
+        } else {
+            paxos_log_debug("Delivered value of another client.");
+        }
     }
 
 }

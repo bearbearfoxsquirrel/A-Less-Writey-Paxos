@@ -494,6 +494,11 @@ int writeahead_epoch_acceptor_receive_instance_chosen(struct writeahead_epoch_ac
             .value_to_accept = chosen_message->chosen_value
         };
         writeahead_epoch_acceptor_transaction_to_store_accept(acceptor, &new_accept, true);
+
+        bool was_last_accept = epoch_paxos_storage_get_last_accept(&acceptor->volatile_storage, chosen_message->instance,
+                                                                   &last_accept);
+
+        assert(was_last_accept);
     } else {
         paxos_log_debug("Ignoring Chosen as it is an old Chosen message");
     }
