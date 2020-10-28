@@ -76,7 +76,7 @@ bool lazy_store_of_epoch_ballot_accept(const struct epoch_paxos_storage *paxos_s
     paxos_accept_from_epoch_ballot_accept(epoch_ballot_accept, &converted_accept);
     int sucess_epoch = paxos_storage->extended_api.store_accept_epoch(paxos_storage->extended_handle, epoch_ballot_accept->instance, epoch_ballot_accept->epoch_ballot_requested.epoch);
     int success_accept = paxos_storage->paxos_storage.api.store_last_accepted(paxos_storage->paxos_storage.handle, &converted_accept);
-    return success_accept == 1 && sucess_epoch == 0;
+    return success_accept == 0 && sucess_epoch == 0;
 }
 
 
