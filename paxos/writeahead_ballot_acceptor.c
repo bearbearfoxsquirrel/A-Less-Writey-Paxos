@@ -763,7 +763,10 @@ write_ahead_window_acceptor_receive_trim(struct writeahead_ballot_acceptor* a, p
             return 0;
         write_ahead_window_acceptor_store_trim(a, trim->iid); // this does not trim any instances from stable storage
         //write_ahead_window_acceptor_store_trim()
-        storage_store_trim_instance(&a->stable_storage, trim->iid);
+        int to_trim_from = trim->iid - 10000;
+        if (to_trim_from > INVALID_INSTANCE) {
+            storage_store_trim_instance(&a->stable_storage, trim->iid);
+        }
         if (storage_tx_commit(&a->stable_storage) != 0)
             return 0;
         return 1;

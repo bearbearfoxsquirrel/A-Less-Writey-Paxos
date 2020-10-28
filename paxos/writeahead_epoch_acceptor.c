@@ -35,6 +35,7 @@ static void writeahead_epoch_acceptor_store_trim(struct writeahead_epoch_accepto
     assert(trim >= acceptor->trim_instance);
     acceptor->trim_instance = trim;
     epoch_stable_storage_store_trim_instance(&acceptor->stable_storage, trim);
+
     epoch_paxos_storage_store_trim_instance(&acceptor->volatile_storage, trim);
 }
 /*
@@ -454,6 +455,8 @@ int  writeahead_epoch_acceptor_receive_trim(struct writeahead_epoch_acceptor* ac
         paxos_log_debug("Storing new Trim to Instance %u", trim->iid);
         epoch_stable_storage_tx_begin(&acceptor->stable_storage);
         writeahead_epoch_acceptor_store_trim(acceptor, trim->iid);
+        epoch_paxos_storage_trim_instances_less_than(&acceptor->volatile_storage, trim->iid);
+
         epoch_stable_storage_tx_commit(&acceptor->stable_storage);
         return 1;
     } else {

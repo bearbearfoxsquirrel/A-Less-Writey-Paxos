@@ -59,6 +59,9 @@ struct paxos_storage {
                                                 int *number_of_instances_retrieved);
 
         int (*get_max_inited_instance)(void *paxos_storage, iid_t* returned_max_inited_instance);
+
+
+        int (*trim_instances_less_than)(void *paxos_storage, iid_t cmp);
     } api;
 };
 
@@ -105,6 +108,8 @@ int get_all_untrimmed_instances_info(struct paxos_storage *paxos_storage, paxos_
 int store_instance_info(struct paxos_storage* paxos_storage, const struct paxos_accepted* instance_info);
 
 int get_instance_info(struct paxos_storage *paxos_storage, iid_t instance_id, paxos_accepted *instance_info_retrieved);
+
+int trim_instances_less_than(struct paxos_storage* paxos_storage, iid_t cmp);
 
 
 void paxos_storage_init(struct paxos_storage *paxos_storage, int aid);

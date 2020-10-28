@@ -237,6 +237,66 @@ hash_mapped_memory_store_trim_instance(struct hash_mapped_memory *volatile_stora
     return 0;
 }
 
+static int hash_mapped_memory_close_promise_instance_if_less_than(struct hash_mapped_memory* mem, iid_t instance, struct paxos_prepare* prepare, iid_t cmp){
+    if (instance < cmp) {
+        khiter_t key =  kh_get_last_prepares(mem->last_prepares, instance);
+        if (key != kh_end(mem->last_prepares) && kh_exist(mem->last_prepares, key) == 1) {
+            struct paxos_prepare* val = kh_value(mem->last_prepares, key);
+            paxos_prepare_free(val);
+
+            kh_del_last_prepares(mem->last_prepares, key);
+            return 1;
+        }
+    }
+    return 0;
+}
+
+static int hash_mapped_memory_close_accept_instance_if_less_than(struct hash_mapped_memory* mem, iid_t instance, struct paxos_accept* accept, iid_t cmp){
+    if (instance < cmp) {
+        khiter_t key =  kh_get_last_accepts(mem->last_accepts, instance);
+        if (key != kh_end(mem->last_accepts) && kh_exist(mem->last_accepts, key) == 1) {
+
+            paxos_accept_free(kh_value(mem->last_accepts, key));
+//            paxos_value_destroy(&accept->value);
+            kh_del_last_accepts(mem->last_accepts, key);
+            return 1;
+        }
+    }
+    return 0;
+}
+
+
+static int hash_mapped_memory_close_accepted_epoch_instance_if_less_than(struct epoch_hash_mapped_memory* mem, iid_t instance, uint32_t* epoch, iid_t cmp) {
+    if (instance < cmp) {
+        khiter_t key = kh_get_accepts_epochs(mem->accepts_epochs, instance);
+        if (key != kh_end(mem->accepts_epochs) && kh_exist(mem->accepts_epochs, key) == 1) {
+            free(kh_value(mem->accepts_epochs, key));
+
+            kh_del_accepts_epochs(mem->accepts_epochs, key);
+            return 1;
+        }
+    }
+    return 0;
+}
+
+static int hash_mapped_memory_trim_storage(struct hash_mapped_memory *volatile_storage, iid_t trim) {
+    iid_t key;
+    struct paxos_prepare* prepare_val;
+    kh_foreach(volatile_storage->last_prepares, key, prepare_val,
+               hash_mapped_memory_close_promise_instance_if_less_than(volatile_storage, key, prepare_val, trim));
+    struct paxos_accept* accept_val;
+    kh_foreach(volatile_storage->last_accepts, key, accept_val, hash_mapped_memory_close_accept_instance_if_less_than(volatile_storage, key,  accept_val, trim));
+    return 1;
+}
+
+static int epoch_hash_mapped_memory_accepted_epochs(struct epoch_hash_mapped_memory *volatile_storage, iid_t trim) {
+    iid_t key;
+    uint32_t* val;
+    kh_foreach(volatile_storage->accepts_epochs, key, val, hash_mapped_memory_close_accepted_epoch_instance_if_less_than(volatile_storage, key, val, trim));
+    return 1;
+}
+
+
 static int
 hash_mapped_memory_get_trim_instance(struct hash_mapped_memory *volatile_storage, iid_t *trim_instance_id_retrieved) {
     *trim_instance_id_retrieved = volatile_storage->trim_instance_id;
@@ -382,6 +442,7 @@ initialise_hash_mapped_memory_function_pointers(struct paxos_storage *volatile_s
     volatile_storage->api.store_last_accepted = (int (*) (void *, struct paxos_accept* )) hash_mapped_memory_store_last_accepted;
     volatile_storage->api.store_last_accepteds = (int (*) (void *, struct paxos_accept **, int)) hash_mapped_memory_store_last_accepteds;
 
+    volatile_storage->api.trim_instances_less_than= (int (*) (void *, iid_t)) hash_mapped_memory_trim_storage;
     volatile_storage->api.get_last_promise = (int (*) (void *, iid_t, struct paxos_prepare *)) hash_mapped_memory_get_last_promise;
     volatile_storage->api.get_last_promises = (int (*) (void *, iid_t *, int, struct paxos_prepare **, int *)) hash_mapped_memory_get_last_prepares;
     volatile_storage->api.store_last_promise = (int (*) (void *, const struct paxos_prepare *)) hash_mapped_memory_store_last_promise;
@@ -447,5 +508,6 @@ void epoch_hash_mapped_memory_init(struct epoch_paxos_storage* memory, int aid){
 
     memory->extended_api.get_accept_epoch = (int (*) (void*, iid_t, uint32_t *)) epoch_hash_mapped_memory_get_accept_epoch;
     memory->extended_api.store_accept_epoch = (int (*) (void*, iid_t, uint32_t)) epoch_hash_mapped_memory_store_accept_epoch; // set pointers
+    memory->extended_api.trim_accepted_epochs_less_than = (int (*) (void*, iid_t)) epoch_hash_mapped_memory_accepted_epochs;
 }
 

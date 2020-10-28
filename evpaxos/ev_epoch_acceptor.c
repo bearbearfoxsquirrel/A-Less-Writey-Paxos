@@ -90,6 +90,7 @@ static void ev_epoch_acceptor_handle_epoch_ballot_accept(struct writeahead_epoch
             assert(strncmp(out.message_contents.epoch_ballot_accepted.accepted_value.paxos_value_val, "", 2));
 
             writeahead_epoch_paxos_peers_foreach_client(acceptor->peers, peer_send_epoch_paxos_message, &out);
+            paxos_log_debug("sent message");
         } else {
             send_epoch_paxos_message(writeahead_epoch_paxos_peer_get_buffer(p), &out);
         }

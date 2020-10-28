@@ -13,6 +13,7 @@ struct epoch_paxos_storage {
     struct {
         int (*get_accept_epoch)(void* paxos_storage, iid_t instance, uint32_t* retreived_epoch);
         int (*store_accept_epoch)(void* paxos_storage, iid_t instance, uint32_t epoch);
+        int (*trim_accepted_epochs_less_than)(void* paxos_storage, iid_t cmp);
 
     } extended_api;
     struct paxos_storage paxos_storage;
@@ -35,6 +36,7 @@ void epoch_paxos_storage_init_with_prepares_and_accepts(struct epoch_paxos_stora
 
 void epoch_paxos_storage_get_min_unchosen_instance(struct epoch_paxos_storage* ep_storage, iid_t* min_unchosen_instane);
 
+bool epoch_paxos_storage_trim_instances_less_than (struct epoch_paxos_storage* ep_storage, iid_t cmp) ;
 
 // EPOCH METHODS
 //int epoch_paxos_storage_get_instance_last_accepted_epoch(struct epoch_paxos_storage* storage, const iid_t instance, uint32_t* retreived_)

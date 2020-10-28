@@ -67,6 +67,10 @@ int get_trim_instance(struct paxos_storage *paxos_storage, iid_t *trim_instance_
     return paxos_storage->api.get_trim_instance(paxos_storage->handle, trim_instance_id_retrieved);
 }
 
+int trim_instances_less_than(struct paxos_storage* paxos_storage, iid_t cmp) {
+    return paxos_storage->api.trim_instances_less_than(paxos_storage->handle, cmp);
+}
+
 
 int
 get_instance_info(struct paxos_storage *paxos_storage, iid_t instance_id, paxos_accepted *instance_info_retrieved) {

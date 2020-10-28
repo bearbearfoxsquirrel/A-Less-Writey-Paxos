@@ -68,7 +68,6 @@ int epoch_paxos_storage_get_last_prepares(struct epoch_paxos_storage* paxos_stor
     return paxos_storage->paxos_storage.api.get_last_promises(paxos_storage->paxos_storage.handle, instance_ids, number_of_instances_to_retrieve, last_promises_retrieved, number_of_instances_retrieved);
 }
 
-
 // HANDY METHODS FOR STORING EPOCH BALLOT ACCEPTS EASILY
 bool lazy_store_of_epoch_ballot_accept(const struct epoch_paxos_storage *paxos_storage,
                                       const struct epoch_ballot_accept *epoch_ballot_accept) {
@@ -92,6 +91,13 @@ int lazy_get_of_epoch_ballot_accept(const struct epoch_paxos_storage *epoch_paxo
     assert(found_accept == found_epoch);
     return found_accept;
 }
+
+bool epoch_paxos_storage_trim_instances_less_than (struct epoch_paxos_storage* ep_storage, iid_t cmp){
+    int trimmed_prepares_and_accepts = ep_storage->paxos_storage.api.trim_instances_less_than(ep_storage->paxos_storage.handle, cmp);
+    int trimmed_accepted_epochs = ep_storage->extended_api.trim_accepted_epochs_less_than(ep_storage->extended_handle, cmp);
+    return trimmed_accepted_epochs == 0 && trimmed_prepares_and_accepts == 0;
+}
+
 
 
 bool epoch_paxos_storage_store_accept(struct epoch_paxos_storage *paxos_storage, struct epoch_ballot_accept *epoch_ballot_accept){
