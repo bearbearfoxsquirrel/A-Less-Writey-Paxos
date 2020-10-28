@@ -174,6 +174,7 @@ int handle_making_premepted(const struct writeahead_epoch_acceptor *acceptor, ii
 }
 
 int writeahead_epoch_acceptor_receive_prepare(struct writeahead_epoch_acceptor* acceptor, struct paxos_prepare* request, struct writeahead_epoch_paxos_message* returned_message){
+    paxos_log_debug("Entering std prepare");
     int is_a_message_returned = 0;
 
     if (request->iid <= acceptor->trim_instance) {
@@ -229,6 +230,7 @@ int writeahead_epoch_acceptor_receive_prepare(struct writeahead_epoch_acceptor* 
                                                         returned_message, &last_prepare, "Promise");
 
     }
+    paxos_log_debug("Leaving std prepare");
     return is_a_message_returned;
 }
 

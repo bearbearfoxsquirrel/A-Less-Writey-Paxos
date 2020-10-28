@@ -43,13 +43,16 @@ static void ev_epoch_acceptor_handle_standard_prepare(struct writeahead_epoch_pa
     paxos_log_debug("Handing Standard Prepare for Instance %u, Ballot %u.%u",
             prepare->iid, prepare->ballot.number, prepare->ballot.proposer_id);
 
-    performance_threshold_timer_begin_timing(acceptor->promise_timer);
+ //   performance_threshold_timer_begin_timing(acceptor->promise_timer);
 
     if (writeahead_epoch_acceptor_receive_prepare(acceptor->acceptor, prepare, &out)){
+        if (out.type == WRITEAHEAD_INSTANCE_TRIM) {
+            paxos_log_debug("Sending trim to proposer");
+        }
         send_epoch_paxos_message(writeahead_epoch_paxos_peer_get_buffer(p), &out);
       //  writeahead_epoch_paxos_message_destroy_contents(&out);
     }
-    ev_performance_timer_stop_check_and_clear_timer(acceptor->promise_timer, "Promise");
+  //  ev_performance_timer_stop_check_and_clear_timer(acceptor->promise_timer, "Promise");
 }
 
 static void ev_epoch_acceptor_handle_epoch_ballot_prepare(struct writeahead_epoch_paxos_peer* p, struct writeahead_epoch_paxos_message* msg, void* arg) {
@@ -62,13 +65,13 @@ static void ev_epoch_acceptor_handle_epoch_ballot_prepare(struct writeahead_epoc
                     prepare->epoch_ballot_requested.epoch,
                     prepare->epoch_ballot_requested.ballot.number, prepare->epoch_ballot_requested.ballot.proposer_id);
 
-    performance_threshold_timer_begin_timing(acceptor->promise_timer);
+   // performance_threshold_timer_begin_timing(acceptor->promise_timer);
 
     if (writeahead_epoch_acceptor_receive_epoch_ballot_prepare(acceptor->acceptor, prepare, &out)){
         send_epoch_paxos_message(writeahead_epoch_paxos_peer_get_buffer(p), &out);
         writeahead_epoch_paxos_message_destroy_contents(&out);
     }
-    ev_performance_timer_stop_check_and_clear_timer(acceptor->promise_timer, "Promise");
+  //  ev_performance_timer_stop_check_and_clear_timer(acceptor->promise_timer, "Promise");
 
 }
 
