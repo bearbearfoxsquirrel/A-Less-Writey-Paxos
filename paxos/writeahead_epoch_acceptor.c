@@ -424,7 +424,7 @@ int  writeahead_epoch_acceptor_receive_repeat(struct writeahead_epoch_acceptor* 
     struct epoch_ballot_accept last_accept;
     bool was_accept =epoch_paxos_storage_get_last_accept(&acceptor->volatile_storage, iid, &last_accept);
 
-    
+
     if (chosen) {
         assert(was_accept);
         response->type = WRITEAHEAD_INSTANCE_CHOSEN_AT_EPOCH_BALLOT;
@@ -442,7 +442,7 @@ int  writeahead_epoch_acceptor_receive_repeat(struct writeahead_epoch_acceptor* 
             .accepted_epoch_ballot = last_accept.epoch_ballot_requested,
             .accepted_value = last_accept.value_to_accept
         };
-        assert(was_accept);
+        //assert(was_accept);
         // would add functionailty to check slower stable info but too lazy, so just assert this doesn't happen
         return was_accept && ballot_greater_than(last_accept.epoch_ballot_requested.ballot, INVALID_BALLOT) ;
     }
