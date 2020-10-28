@@ -248,6 +248,7 @@ int write_ahead_epoch_acceptor_transaction_to_increment_epoch(struct writeahead_
 }
 
 int writeahead_epoch_acceptor_receive_epoch_ballot_prepare(struct writeahead_epoch_acceptor* acceptor, struct epoch_ballot_prepare* request, struct writeahead_epoch_paxos_message* returned_message){
+    paxos_log_debug("Entering prepare");
     int is_a_message_returned = 0;
 
     if (request->instance <= acceptor->trim_instance) {
@@ -312,6 +313,7 @@ int writeahead_epoch_acceptor_receive_epoch_ballot_prepare(struct writeahead_epo
         is_a_message_returned = handle_making_premepted(acceptor, request->instance, request->epoch_ballot_requested,
                                                         returned_message, &last_prepare, "Promise");
     }
+    paxos_log_debug("Leaving prepare");
     return is_a_message_returned;
 }
 
@@ -339,6 +341,7 @@ void writeahead_epoch_acceptor_transaction_to_store_accept(struct writeahead_epo
 
 
 int writeahead_epoch_acceptor_receive_epoch_ballot_accept(struct writeahead_epoch_acceptor* acceptor, struct epoch_ballot_accept* request, struct writeahead_epoch_paxos_message* response) {
+    paxos_log_debug("Entering accept");
     int is_a_message_returned = 0;
 
     if (request->instance <= acceptor->trim_instance) {
@@ -413,11 +416,13 @@ int writeahead_epoch_acceptor_receive_epoch_ballot_accept(struct writeahead_epoc
         is_a_message_returned = handle_making_premepted(acceptor, request->instance, request->epoch_ballot_requested,
                                                         response, &last_prepare, "Acceptance");
     }
+    paxos_log_debug("Leaving accept");
     return is_a_message_returned;
 }
 
 
 int  writeahead_epoch_acceptor_receive_repeat(struct writeahead_epoch_acceptor* acceptor, iid_t iid, struct writeahead_epoch_paxos_message* response){
+    paxos_log_debug("Entering repeat");
     bool chosen = false;
     epoch_paxos_storage_is_instance_chosen(&acceptor->volatile_storage, iid, &chosen);
 
@@ -433,6 +438,7 @@ int  writeahead_epoch_acceptor_receive_repeat(struct writeahead_epoch_acceptor* 
             .chosen_epoch_ballot = last_accept.epoch_ballot_requested,
             .chosen_value = last_accept.value_to_accept
         };
+        paxos_log_debug("Leaving repeat");
         return 1;
     } else {
         response->type = WRITEAHEAD_EPOCH_BALLOT_ACCEPTED;
@@ -444,11 +450,13 @@ int  writeahead_epoch_acceptor_receive_repeat(struct writeahead_epoch_acceptor* 
         };
         //assert(was_accept);
         // would add functionailty to check slower stable info but too lazy, so just assert this doesn't happen
+        paxos_log_debug("Leaving repeat");
         return was_accept && ballot_greater_than(last_accept.epoch_ballot_requested.ballot, INVALID_BALLOT) ;
     }
 }
 
 int  writeahead_epoch_acceptor_receive_trim(struct writeahead_epoch_acceptor* acceptor, struct paxos_trim* trim){
+    paxos_log_debug("Entering trim");
     iid_t  min_unchosen_instance;
     epoch_paxos_storage_get_min_unchosen_instance(&acceptor->volatile_storage, &min_unchosen_instance);
     bool new_trim = trim->iid > acceptor->trim_instance;
@@ -465,6 +473,7 @@ int  writeahead_epoch_acceptor_receive_trim(struct writeahead_epoch_acceptor* ac
         }
 
         epoch_stable_storage_tx_commit(&acceptor->stable_storage);
+        paxos_log_debug("Leaving trim");
         return 1;
     } else {
         if (!new_trim) {
@@ -472,6 +481,7 @@ int  writeahead_epoch_acceptor_receive_trim(struct writeahead_epoch_acceptor* ac
         } else if (!able_to_trim) { // I know, I know. Always true. But I think it reads better
             paxos_log_debug("Disregarding Trim request to Instance %u, not yet caught up to this point", trim->iid);
         }
+        paxos_log_debug("Leaving trim");
         return 0;
     }
 }
@@ -485,14 +495,17 @@ int  writeahead_epoch_acceptor_receive_epoch_notification(struct writeahead_epoc
 }
 
 int writeahead_epoch_acceptor_get_current_state(struct writeahead_epoch_acceptor* acceptor, struct writeahead_epoch_acceptor_state* state) {
+    paxos_log_debug("Entering current state");
     state->current_epoch = acceptor->current_epoch;
     state->standard_acceptor_state.trim_iid = acceptor->trim_instance;
     state->standard_acceptor_state.aid = acceptor->id;
     epoch_paxos_storage_get_max_inited_instance(&acceptor->volatile_storage, &state->standard_acceptor_state.current_instance);
+    paxos_log_debug("Leaving current state");
     return 1;
 }
 
 int writeahead_epoch_acceptor_receive_instance_chosen(struct writeahead_epoch_acceptor* acceptor, struct epoch_ballot_chosen *chosen_message){
+    paxos_log_debug("Entering chosen");
     struct epoch_ballot_accept last_accept;
     bool was_accept = epoch_paxos_storage_get_last_accept(&acceptor->volatile_storage, chosen_message->instance, &last_accept);
 
@@ -514,11 +527,13 @@ int writeahead_epoch_acceptor_receive_instance_chosen(struct writeahead_epoch_ac
 
         bool was_last_accept = epoch_paxos_storage_get_last_accept(&acceptor->volatile_storage, chosen_message->instance,
                                                                    &last_accept);
-
+        paxos_log_debug("Checking chosen was stored");
         assert(was_last_accept);
+        paxos_log_debug("stored correctly");
     } else {
         paxos_log_debug("Ignoring Chosen as it is an old Chosen message");
     }
+    paxos_log_debug("Leaving chosen");
     return 1;
 }
 
