@@ -53,7 +53,7 @@ int epoch_paxos_storage_store_last_prepares(struct epoch_paxos_storage* paxos_st
 int epoch_paxos_storage_get_last_prepares(struct epoch_paxos_storage* paxos_storage, iid_t *instance_ids, int number_of_instances_to_retrieve,
                       paxos_prepare **last_promises_retrieved, int *number_of_instances_retrieved);
 
-int epoch_paxos_storage_store_accept(struct epoch_paxos_storage *paxos_storage, struct epoch_ballot_accept *epoch_ballot_accept);
+bool epoch_paxos_storage_store_accept(struct epoch_paxos_storage *paxos_storage, struct epoch_ballot_accept *epoch_ballot_accept);
 
 int epoch_paxos_storage_get_last_accept(struct epoch_paxos_storage *epoch_paxos_storage, iid_t instance_id, struct epoch_ballot_accept *last_accepted_retrieved);
 

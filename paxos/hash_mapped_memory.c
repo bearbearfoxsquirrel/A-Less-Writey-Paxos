@@ -136,7 +136,6 @@ hash_mapped_memory_store_last_prepares(struct hash_mapped_memory *hash_mapped_me
 static int
 hash_mapped_memory_store_last_accepted(struct hash_mapped_memory *volatile_storage,
                                        struct paxos_accept *last_ballot_accepted) {
-    int error = 0;
 
     int returned_value;
     khiter_t iter;
@@ -147,17 +146,16 @@ hash_mapped_memory_store_last_accepted(struct hash_mapped_memory *volatile_stora
 
     if (returned_value == -1) {
         paxos_accept_free(accept_copy);
-        error = -1;
+        return -1;
     } else if (returned_value == 0) {
         paxos_accept_free(kh_value(volatile_storage->last_accepts, iter));
     }
     kh_value(volatile_storage->last_accepts, iter) = accept_copy;
-    error = 0;
 
    // store_to_hash_map(last_accepts, volatile_storage->last_accepts, struct paxos_accept, last_ballot_accepted->iid, last_ballot_accepted, paxos_accept_free, paxos_accept_copy, error);
     if (last_ballot_accepted->iid > volatile_storage->max_inited_instance)
         volatile_storage->max_inited_instance = last_ballot_accepted->iid;
-    return error;
+    return 0;
 }
 
 static int

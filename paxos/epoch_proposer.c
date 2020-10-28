@@ -329,13 +329,15 @@ static struct ballot epoch_proposer_get_initial_ballot(const struct epoch_propos
     return (struct ballot){.number = random_between(1 + p->id, p->ballot_increment) - p->id, .proposer_id = p->id};
 }
 
-static struct ballot epoch_proposer_get_next_ballot(const int acceptors_last_bal_num, const uint32_t pid, const int ballot_increment) {
+struct ballot epoch_proposer_get_next_ballot(const int acceptors_last_bal_num, const uint32_t pid, const int ballot_increment) {
     return (struct ballot) {.number = random_between(acceptors_last_bal_num + 1 + pid,
                                                      acceptors_last_bal_num + ballot_increment + 1) - pid,
             .proposer_id = pid};
 }
 
-bool epoch_proposer_try_to_start_preparing_instance(struct epoch_proposer* p, iid_t instance, struct epoch_paxos_prepares *out){
+bool epoch_proposer_try_to_start_preparing_instance(struct epoch_proposer *p, iid_t instance,
+                                                    struct epoch_ballot initial_ballot,
+                                                    struct epoch_paxos_prepares *out) {
     bool prepare_message_to_send = false;
     assert(instance != INVALID_INSTANCE);
 
@@ -354,27 +356,26 @@ bool epoch_proposer_try_to_start_preparing_instance(struct epoch_proposer* p, ii
 
     khiter_t key = kh_get_instance_info(p->prepare_proposer_instance_infos, instance);
 
-    struct epoch_ballot begining_epoch_ballot = {p->known_highest_epoch, .ballot = epoch_proposer_get_initial_ballot(p)};
     if (key == kh_end(p->prepare_proposer_instance_infos)) {
-        if (begining_epoch_ballot.epoch == INVALID_EPOCH) {
+        if (initial_ballot.epoch == INVALID_EPOCH) {
             out->type = STANDARD_PREPARE;
             out->standard_prepare = (struct paxos_prepare) {
                 .iid = instance,
-                .ballot = begining_epoch_ballot.ballot
+                .ballot = initial_ballot.ballot
             };
         } else {
             out->type = EXPLICIT_EPOCH_PREPARE;
             out->explicit_epoch_prepare = (struct epoch_ballot_prepare) {
                 .instance = instance,
-                .epoch_ballot_requested = begining_epoch_ballot
+                .epoch_ballot_requested = initial_ballot
             };
         }
 
 
 
 
-        assert(begining_epoch_ballot.ballot.number > 0);
-        struct epoch_proposer_instance_info* inst = epoch_proposer_instance_info_new(instance, begining_epoch_ballot, p->acceptors, p->q1);
+        assert(initial_ballot.ballot.number > 0);
+        struct epoch_proposer_instance_info* inst = epoch_proposer_instance_info_new(instance, initial_ballot, p->acceptors, p->q1);
 
 
         int rv = -1;
@@ -964,11 +965,11 @@ enum epoch_paxos_message_return_codes epoch_proposer_receive_preempted(struct ep
 
                 if(epoch_greater_than(preempted->acceptors_current_epoch_ballot, epoch_proposer_instance_info_get_current_epoch_ballot(prepare_instance_info))){
                     // also increases ballot
-                   epoch_proposer_check_and_set_current_epoch_from_epoch_ballot(p, preempted->acceptors_current_epoch_ballot);
+                    epoch_proposer_check_and_set_current_epoch_from_epoch_ballot(p, preempted->acceptors_current_epoch_ballot);
              //       epoch_proposer_instance_info_update_info_from_epoch_preemption(prepare_instance_info, preempted,
                //                                                                    p->id, 0);
                     epoch_proposer_instance_info_set_current_epoch_ballot(prepare_instance_info, (struct epoch_ballot) {.epoch = preempted->acceptors_current_epoch_ballot.epoch, .ballot = prepare_instance_info->common_info.ballot});
-                 //   epoch_proposer_instance_info_set_current_epoch_ballot(prepare_instance_info, (struct epoch_ballot) {.epoch = preempted->acceptors_current_epoch_ballot.epoch, .ballot = epoch_proposer_get_next_ballot(prepare_instance_info->common_info.ballot, p->ballot_increment)});
+                  //  epoch_proposer_instance_info_set_current_epoch_ballot(prepare_instance_info, (struct epoch_ballot) {.epoch = preempted->acceptors_current_epoch_ballot.epoch, .ballot = epoch_proposer_get_next_ballot(prepare_instance_info->common_info.ballot, p->ballot_increment)});
 
                     prepare_instance_info->common_info.proposing_value = NULL;
                     quorum_clear(&prepare_instance_info->quorum);

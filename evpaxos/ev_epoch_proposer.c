@@ -203,7 +203,15 @@ static void ev_epoch_proposer_try_begin_new_instances(struct ev_epoch_proposer* 
         assert(current_instance != INVALID_INSTANCE);
         paxos_log_debug("Current Proposing Instance is %u", current_instance);
 
-        bool new_instance_to_prepare = epoch_proposer_try_to_start_preparing_instance(p->proposer, current_instance, &prepare);
+        struct epoch_ballot initial_ballot;
+        if (ev_epoch_proposer_is_round_robin_backoff(p, current_instance)) {
+            paxos_log_debug("Instance %u is biased for Proposer %u", prepare.standard_prepare.iid, p->id);
+            initial_ballot = (struct epoch_ballot ) {epoch_proposer_get_current_known_epoch(p->proposer), .ballot = epoch_proposer_get_next_ballot(paxos_config.max_ballot_increment, p->id, paxos_config.max_ballot_increment)};
+        } else {
+            initial_ballot = (struct epoch_ballot ) {epoch_proposer_get_current_known_epoch(p->proposer), .ballot = epoch_proposer_get_next_ballot(0, p->id, paxos_config.max_ballot_increment)};
+            }
+        bool new_instance_to_prepare = epoch_proposer_try_to_start_preparing_instance(p->proposer, current_instance,
+                                                                                      initial_ballot, &prepare);
 
         epoch_proposer_next_instance(p->proposer);
 
@@ -213,20 +221,10 @@ static void ev_epoch_proposer_try_begin_new_instances(struct ev_epoch_proposer* 
            iid_t instance_to_delay;
             switch (prepare.type) {
                 case STANDARD_PREPARE:
-                    if (paxos_config.pessimistic_proposing || !ev_epoch_proposer_is_round_robin_backoff(p, prepare.standard_prepare.iid)) {
+                    if (paxos_config.pessimistic_proposing ) {
                         delay = true;
                         instance_to_delay = prepare.standard_prepare.iid;
                     } else {
-                        if (ev_epoch_proposer_check_create_biased_prepare(p, &prepare)) {
-                            prepare.standard_prepare = (struct paxos_prepare) {
-                                    .iid = prepare.explicit_epoch_prepare.instance,
-                                    .ballot = prepare.explicit_epoch_prepare.epoch_ballot_requested.ballot
-                            };
-
-                            paxos_log_debug("Instance %u is biased for Proposer %u", prepare.standard_prepare.iid, p->id);
-
-                        }
-
                         paxos_log_debug("Sending Standard Prepare for Instance %u, Ballot %u.%u",
                                         prepare.standard_prepare.iid, prepare.standard_prepare.ballot.number,
                                         prepare.standard_prepare.ballot.proposer_id);
@@ -241,10 +239,6 @@ static void ev_epoch_proposer_try_begin_new_instances(struct ev_epoch_proposer* 
                         delay = true;
                         instance_to_delay = prepare.explicit_epoch_prepare.instance;
                     } else {
-                        bool prepare_biased = ev_epoch_proposer_check_create_biased_prepare(p, &prepare);
-                        if (prepare_biased) {
-                            paxos_log_debug("Instance %u is biased for Proposer %u", prepare.explicit_epoch_prepare.instance, p->id);
-                        }
                         paxos_log_debug("Sending Epoch Ballot Prepare for Instance %u, Epoch Ballot %u.%u.%u",
                                         prepare.explicit_epoch_prepare.instance,
                                         prepare.explicit_epoch_prepare.epoch_ballot_requested.epoch,

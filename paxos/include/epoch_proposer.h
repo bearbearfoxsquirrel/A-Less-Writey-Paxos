@@ -32,7 +32,11 @@ uint32_t epoch_proposer_get_min_unchosen_instance(struct epoch_proposer* p);
 iid_t epoch_proposer_get_next_instance_to_prepare(struct epoch_proposer* p);
 
 // phase 1
-bool epoch_proposer_try_to_start_preparing_instance(struct epoch_proposer* p, iid_t instance, struct epoch_paxos_prepares *out);
+bool epoch_proposer_try_to_start_preparing_instance(struct epoch_proposer *p, iid_t instance,
+                                                    struct epoch_ballot initial_ballot,
+                                                    struct epoch_paxos_prepares *out);
+
+struct ballot epoch_proposer_get_next_ballot(const int acceptors_last_bal_num, const uint32_t pid, const int ballot_increment);
 
 enum epoch_paxos_message_return_codes epoch_proposer_receive_promise(struct epoch_proposer* p, struct epoch_ballot_promise* ack,
                                                                      struct epoch_ballot_prepare* out);

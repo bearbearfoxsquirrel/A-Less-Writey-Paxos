@@ -332,7 +332,8 @@ void writeahead_epoch_acceptor_transaction_to_store_accept(struct writeahead_epo
         assert(accept->epoch_ballot_requested.epoch == acceptor->current_epoch);
     }
     epoch_paxos_storage_store_last_prepare(&acceptor->volatile_storage, &prepare_to_store);
-    epoch_paxos_storage_store_accept(&acceptor->volatile_storage, accept);
+    bool success = epoch_paxos_storage_store_accept(&acceptor->volatile_storage, accept);
+    assert(success);
 }
 
 
@@ -347,6 +348,10 @@ int writeahead_epoch_acceptor_receive_epoch_ballot_accept(struct writeahead_epoc
         is_a_message_returned = 1;
         return is_a_message_returned;
     }
+
+    assert(strncmp(request->value_to_accept.paxos_value_val, "", 1));
+    assert(request->value_to_accept.paxos_value_len > 0);
+    paxos_log_debug("value in accept");
 
 
     struct paxos_prepare last_prepare;
@@ -387,10 +392,12 @@ int writeahead_epoch_acceptor_receive_epoch_ballot_accept(struct writeahead_epoc
                         request->instance);
 
         writeahead_epoch_acceptor_transaction_to_store_accept(acceptor, request, false);
+        paxos_log_debug("stored value");
 
         bool was_last_accept = epoch_paxos_storage_get_last_accept(&acceptor->volatile_storage, request->instance,
                                                                    &last_accept);
         assert(was_last_accept);
+        paxos_log_debug("ensured value was stored");
 
         response->type = WRITEAHEAD_EPOCH_BALLOT_ACCEPTED;
         response->message_contents.epoch_ballot_accepted = (struct epoch_ballot_accepted) {

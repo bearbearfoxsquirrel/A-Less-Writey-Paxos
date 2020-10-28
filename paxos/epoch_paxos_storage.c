@@ -70,12 +70,13 @@ int epoch_paxos_storage_get_last_prepares(struct epoch_paxos_storage* paxos_stor
 
 
 // HANDY METHODS FOR STORING EPOCH BALLOT ACCEPTS EASILY
-void lazy_store_of_epoch_ballot_accept(const struct epoch_paxos_storage *paxos_storage,
+bool lazy_store_of_epoch_ballot_accept(const struct epoch_paxos_storage *paxos_storage,
                                       const struct epoch_ballot_accept *epoch_ballot_accept) {
     struct paxos_accept converted_accept;
     paxos_accept_from_epoch_ballot_accept(epoch_ballot_accept, &converted_accept);
-    paxos_storage->extended_api.store_accept_epoch(paxos_storage->extended_handle, epoch_ballot_accept->instance, epoch_ballot_accept->epoch_ballot_requested.epoch);
-    paxos_storage->paxos_storage.api.store_last_accepted(paxos_storage->paxos_storage.handle, &converted_accept);
+    int sucess_epoch = paxos_storage->extended_api.store_accept_epoch(paxos_storage->extended_handle, epoch_ballot_accept->instance, epoch_ballot_accept->epoch_ballot_requested.epoch);
+    int success_accept = paxos_storage->paxos_storage.api.store_last_accepted(paxos_storage->paxos_storage.handle, &converted_accept);
+    return success_accept == 1 && sucess_epoch == 0;
 }
 
 
@@ -93,9 +94,8 @@ int lazy_get_of_epoch_ballot_accept(const struct epoch_paxos_storage *epoch_paxo
 }
 
 
-int epoch_paxos_storage_store_accept(struct epoch_paxos_storage *paxos_storage, struct epoch_ballot_accept *epoch_ballot_accept){
-    lazy_store_of_epoch_ballot_accept(paxos_storage, epoch_ballot_accept);
-    return 1;
+bool epoch_paxos_storage_store_accept(struct epoch_paxos_storage *paxos_storage, struct epoch_ballot_accept *epoch_ballot_accept){
+    return lazy_store_of_epoch_ballot_accept(paxos_storage, epoch_ballot_accept);
 }
 
 
