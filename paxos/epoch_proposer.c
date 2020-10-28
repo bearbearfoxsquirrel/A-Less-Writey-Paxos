@@ -130,7 +130,7 @@ static bool epoch_proposer_get_instance_info_in_phase(khash_t(instance_info)* ph
     }
 }
 
-static bool epoch_proposer_remove_client_value_from_queue(struct epoch_proposer* p, struct paxos_value* v) {
+static bool epoch_proposer_remove_client_value_from_retry_queue(struct epoch_proposer* p, struct paxos_value* v) {
     struct carray* tmp = carray_new(carray_size(p->values_to_repropose));
     bool found = false;
     while(!carray_empty(p->values_to_repropose)){
@@ -775,7 +775,7 @@ enum epoch_paxos_message_return_codes epoch_proposer_receive_accepted(struct epo
 void epoch_proposer_check_and_handle_client_value_from_chosen(struct epoch_proposer* p, struct epoch_proposer_instance_info* inst, struct epoch_ballot_chosen* chosen){
     struct paxos_value proposed_client_value;
     bool client_value_proposed = get_value_pending_at(p->pending_client_values, chosen->instance, &proposed_client_value);
-    epoch_proposer_remove_client_value_from_queue(p, &chosen->chosen_value);
+    epoch_proposer_remove_client_value_from_retry_queue(p, &chosen->chosen_value);
 
     if (client_value_proposed) {
 
@@ -821,10 +821,10 @@ enum epoch_paxos_message_return_codes epoch_proposer_receive_chosen(struct epoch
     assert(ack->instance > INVALID_INSTANCE);
     assert(epoch_ballot_greater_than(ack->chosen_epoch_ballot, INVALID_EPOCH_BALLOT));
 
-    if (ack->instance <= p->trim_instance) {
-        paxos_log_debug("Chosen dropped, Instance trimed");
-        return MESSAGE_IGNORED;
-    }
+   // if (ack->instance <= p->trim_instance) {
+   //     paxos_log_debug("Chosen dropped, Instance trimed");
+   //     return MESSAGE_IGNORED;
+   // }
 
     if (epoch_proposer_is_instance_chosen(p, ack->instance)){
         paxos_log_debug("Chosen dropped, Instance %u known to be chosen", ack->instance);
@@ -863,6 +863,11 @@ enum epoch_paxos_message_return_codes epoch_proposer_receive_chosen(struct epoch
         epoch_proposer_remove_instance_from_phase(p->accept_proposer_instance_infos, ack->instance);
         epoch_proposer_instance_info_free(&inst_accept);
     }
+
+    epoch_proposer_remove_client_value_from_retry_queue(p, &ack->chosen_value);
+
+
+
 
 
 
@@ -1085,11 +1090,11 @@ enum epoch_paxos_message_return_codes epoch_proposer_receive_trim(struct epoch_p
 
         //clear values to repropose
 
-        int count = p->trim_instance - last_trim;
-        while(!carray_empty(p->values_to_repropose) && count > 0) {
-            carray_pop_front(p->values_to_repropose);
-            count--;
-        }
+       // int count = p->trim_instance - last_trim;
+      //  while(!carray_empty(p->values_to_repropose) && count > 0) {
+       //     carray_pop_front(p->values_to_repropose);
+       //     count--;
+      //  }
         return MESSAGE_ACKNOWLEDGED;
     } else {
         return MESSAGE_IGNORED;
