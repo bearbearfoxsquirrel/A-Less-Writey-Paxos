@@ -266,6 +266,21 @@ static int hash_mapped_memory_close_accept_instance_if_less_than(struct hash_map
 }
 
 
+static int hash_mapped_memory_close_chosen_instance_if_less_than(struct hash_mapped_memory* mem, iid_t instance, bool* chosen, iid_t cmp){
+    if (instance < cmp) {
+        khiter_t key =  kh_get_chosen(mem->chosen, instance);
+        if (key != kh_end(mem->chosen) && kh_exist(mem->chosen, key) == 1) {
+
+            free(kh_value(mem->chosen, key));
+//            paxos_value_destroy(&accept->value);
+            kh_del_chosen(mem->chosen, key);
+            return 1;
+        }
+    }
+    return 0;
+}
+
+
 static int hash_mapped_memory_close_accepted_epoch_instance_if_less_than(struct epoch_hash_mapped_memory* mem, iid_t instance, uint32_t* epoch, iid_t cmp) {
     if (instance < cmp) {
         khiter_t key = kh_get_accepts_epochs(mem->accepts_epochs, instance);
@@ -286,6 +301,9 @@ static int hash_mapped_memory_trim_storage(struct hash_mapped_memory *volatile_s
                hash_mapped_memory_close_promise_instance_if_less_than(volatile_storage, key, prepare_val, trim));
     struct paxos_accept* accept_val;
     kh_foreach(volatile_storage->last_accepts, key, accept_val, hash_mapped_memory_close_accept_instance_if_less_than(volatile_storage, key,  accept_val, trim));
+    
+    bool* chosen_val;
+    kh_foreach(volatile_storage->chosen, key, chosen_val, hash_mapped_memory_close_chosen_instance_if_less_than(volatile_storage, key, chosen_val, trim));
     return 1;
 }
 
