@@ -28,6 +28,10 @@ int epoch_stable_storage_open(struct epoch_stable_storage *stable_storage){
     return stable_storage->standard_storage.api.open(stable_storage->standard_storage.handle);
 }
 
+int epoch_stable_storage_trim_instances_less_than(struct epoch_stable_storage * stable_storage, const iid_t cmp){
+    return stable_storage->extended_api.trim_instances_less_than(stable_storage->standard_storage.handle, cmp);
+}
+
 void epoch_stable_storage_close(struct epoch_stable_storage *store){
     store->standard_storage.api.close(store->standard_storage.handle);
 }

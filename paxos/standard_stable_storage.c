@@ -54,6 +54,10 @@ storage_open(struct standard_stable_storage *stable_storage) {
     return stable_storage->api.open(stable_storage->handle);
 }
 
+int storage_trim_instances_less_than(struct standard_stable_storage * stable_store, const iid_t cmp){
+    return stable_store->api.trim_instances_less_than(stable_store->handle, cmp);
+}
+
 void
 storage_close(struct standard_stable_storage *stable_storage) {
     stable_storage->api.close(stable_storage->handle);

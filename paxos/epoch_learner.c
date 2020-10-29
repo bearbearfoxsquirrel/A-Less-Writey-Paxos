@@ -266,7 +266,7 @@ bool epoch_learner_deliver_next(struct epoch_learner* l, struct paxos_value* out
 }
 bool epoch_learner_has_holes(struct epoch_learner* l, iid_t* from, iid_t* to){
     if (l->highest_instance_chosen > l->current_min_instance_to_execute) {
-        *from = l->current_min_instance_to_execute;
+        *from = l->current_min_instance_to_execute - 1;
         *to = l->highest_instance_chosen;
         return true;
     } else {

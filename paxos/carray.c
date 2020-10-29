@@ -171,6 +171,7 @@ carray_grow(struct carray* a)
 {
 	int i;
 	struct carray* tmp = carray_new(a->size * 2);
+
 	for (i = 0; i < a->count; i++)
 		carray_push_back(tmp, carray_at(a, i));
 	free(a->array);

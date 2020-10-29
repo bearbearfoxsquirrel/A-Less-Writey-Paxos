@@ -30,7 +30,7 @@ static unsigned long exponential_randomised_backoff_initial(struct exponential_r
 }
 
 static unsigned long exponential_randomised_backoff_next(struct exponential_randomised_backoff* handle, int attempt_number){
-    unsigned  int new_time = (exponential_randomised_backoff_initial(handle) << (unsigned int) attempt_number) % handle->max_backoff;
+    unsigned  int new_time = (exponential_randomised_backoff_initial(handle) << ((unsigned int) attempt_number - 1)) % handle->max_backoff;
     if (new_time < handle->min_backoff) {
         new_time = exponential_randomised_backoff_initial(handle);
         assert(new_time >= handle->min_backoff && new_time <= handle->max_initial_backoff);

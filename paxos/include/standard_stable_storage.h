@@ -45,6 +45,8 @@ struct standard_stable_storage {
 
         void (*close)(void *handle);
 
+        int (*trim_instances_less_than) (void* handle, const iid_t cmp);
+
         int (*tx_begin)(void *handle);
 
         int (*tx_commit)(void *handle);
@@ -67,6 +69,8 @@ struct standard_stable_storage {
 };
 
 void storage_init(struct standard_stable_storage *store, int acceptor_id);
+
+int storage_trim_instances_less_than(struct standard_stable_storage * stable_store, const iid_t cmp);
 
 int storage_open(struct standard_stable_storage *stable_storage);
 

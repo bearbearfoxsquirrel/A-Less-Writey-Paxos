@@ -38,6 +38,7 @@
 #include <sys/stat.h>
 #include <assert.h>
 #include <paxos_types.h>
+#include <standard_stable_storage.h>
 #include "paxos_message_conversion.h"
 
 const int TRIM_ID_KEY = -1;
@@ -406,7 +407,7 @@ lmdb_storage_trim(struct lmdb_storage *lmdb_storage, iid_t iid) {
     if (iid == 0)
         return 0;
 
-    lmdb_storage_put_trim_instance(lmdb_storage, iid);
+   // lmdb_storage_put_trim_instance(lmdb_storage, iid);
 
     if ((result = mdb_cursor_open(lmdb_storage->txn, lmdb_storage->dbi, &cursor)) != 0) {
         paxos_log_error("Could not create cursor. %s", mdb_strerror(result));
@@ -515,6 +516,7 @@ lmdb_storage_new_write_ahead_epochs(int acceptor_id) {
 
 
 void initialise_standard_lmdb_function_pointers(struct standard_stable_storage *s) {
+    s->api.trim_instances_less_than = (int (*) (void*, const iid_t cmp)) lmdb_storage_trim;
     s->api.open = (int (*)(void *)) lmdb_storage_open;
     s->api.close = (void (*)(void *)) lmdb_storage_close;
     s->api.tx_begin = (int (*)(void *)) lmdb_storage_tx_begin;
@@ -693,6 +695,10 @@ static int epoch_lmdb_storage_get_all_untrimmed_instances(struct lmdb_storage* l
     return 1;
 }
 
+static int epoch_lmdb_storage_trim_instances_less_than(struct lmdb_storage* lmdb_storage, const iid_t cmp){
+    lmdb_storage_trim(lmdb_storage, cmp);
+}
+
 
 void epoch_stable_storage_lmdb_init(struct epoch_stable_storage* storage, int acceptor_id){
     storage->standard_storage.handle = lmdb_storage_new_write_ahead_epochs(acceptor_id);
@@ -703,6 +709,8 @@ void epoch_stable_storage_lmdb_init(struct epoch_stable_storage* storage, int ac
     // SHould make a storage union - so anything could be given (union of prepares, accept, and epoch_accept)
   // need to add in method for this  storage_init_lmdb_write_ahead_epochs&storage->standard_storage, acceptor_id);
     storage->extended_handle = storage->standard_storage.handle; // same handle ;)
+    
+    storage->extended_api.trim_instances_less_than = (int (*) (void*, const iid_t)) epoch_lmdb_storage_trim_instances_less_than;
    // storage->standard_storage.api.open = (int (*) (void*)) lmdb_epoch_storage_open;
     storage->extended_api.store_current_epoch = (int (*) (void *, uint32_t)) lmdb_store_current_epoch;
     storage->extended_api.get_current_epoch = (int (*) (void *, uint32_t*)) lmdb_get_current_epoch;

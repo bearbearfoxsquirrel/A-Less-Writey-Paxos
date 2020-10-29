@@ -11,6 +11,7 @@
 struct epoch_stable_storage {
     void* extended_handle;
     struct {
+        int (*trim_instances_less_than) (void* hndle, const iid_t cmp);
         int (*get_epoch_ballot_accept) (void* handle, const iid_t instance, struct epoch_ballot_accept* accept);
         int (*store_epoch_ballot_accept) (void* handle, const struct epoch_ballot_accept* accept);
         int (*get_all_untrimmed_epoch_ballots) (void* handle, struct epoch_ballot_accept** retrieved_epoch_balot_accepts, int* number_of_inst_retrieved);
@@ -21,6 +22,8 @@ struct epoch_stable_storage {
     } extended_api ;
     struct standard_stable_storage standard_storage;
 };
+
+int epoch_stable_storage_trim_instances_less_than(struct epoch_stable_storage * stable_storage, const iid_t cmp);
 
 int epoch_stable_storage_open(struct epoch_stable_storage *stable_storage);
 
