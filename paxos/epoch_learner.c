@@ -258,6 +258,8 @@ bool epoch_learner_deliver_next(struct epoch_learner* l, struct paxos_value* out
         if (inst->chosen) {
             paxos_value_copy(out, &inst->current_ballots_value);
             epoch_learner_remove_instance_from_pending(l, &inst);
+
+            paxos_log_debug("Executing Instance %u", l->current_min_instance_to_execute);
             l->current_min_instance_to_execute++;
             return true;
         }

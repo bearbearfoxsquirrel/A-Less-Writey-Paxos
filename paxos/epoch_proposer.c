@@ -130,12 +130,39 @@ static bool epoch_proposer_get_instance_info_in_phase(khash_t(instance_info)* ph
     }
 }
 
+static bool epoch_proposer_remove_client_value_from_proposing_queue(struct epoch_proposer* p, struct paxos_value* v) {
+    struct carray* tmp = carray_new(carray_size(p->client_values_to_propose));
+    bool found = false;
+    while(!carray_empty(p->client_values_to_propose)){
+        struct paxos_value* cur_val = carray_pop_front(p->client_values_to_propose);
+        if (is_values_equal(*cur_val, *v)) {
+            paxos_log_debug("Removed value from Client Values to Propose");
+            if (found == true ) {
+                paxos_log_debug("Duplicate value found in queue");
+            }
+            //      paxos_value_free(&cur_val);
+            found = true;
+            // break;
+        } else {
+            carray_push_front(tmp, cur_val);
+        }
+    }
+
+    while (!carray_empty(tmp)) {
+        carray_push_front(p->client_values_to_propose, carray_pop_front(tmp));
+    }
+
+    carray_free(tmp);
+    return found;
+}
+
 static bool epoch_proposer_remove_client_value_from_retry_queue(struct epoch_proposer* p, struct paxos_value* v) {
     struct carray* tmp = carray_new(carray_size(p->values_to_repropose));
     bool found = false;
     while(!carray_empty(p->values_to_repropose)){
         struct paxos_value* cur_val = carray_pop_front(p->values_to_repropose);
         if (is_values_equal(*cur_val, *v)) {
+            paxos_log_debug("Removed value from Values to Repropose");
             if (found == true ) {
                 paxos_log_debug("Duplicate value found in queue");
             }
@@ -819,6 +846,7 @@ void epoch_proposer_check_and_handle_client_value_from_chosen(struct epoch_propo
 
 
 enum epoch_paxos_message_return_codes epoch_proposer_receive_chosen(struct epoch_proposer* p, struct epoch_ballot_chosen* ack){
+    paxos_log_debug("Received chosen message for Instance %u at Epoch Ballot %u.%u.%u", ack->instance, ack->chosen_epoch_ballot.epoch, ack->chosen_epoch_ballot.ballot.number, ack->chosen_epoch_ballot.ballot.proposer_id);
     assert(ack->instance > INVALID_INSTANCE);
     assert(epoch_ballot_greater_than(ack->chosen_epoch_ballot, INVALID_EPOCH_BALLOT));
 
@@ -832,7 +860,6 @@ enum epoch_paxos_message_return_codes epoch_proposer_receive_chosen(struct epoch
         return MESSAGE_IGNORED;
     }
 
-    paxos_log_debug("Received chosen message for Instance %u at Epoch Ballot %u.%u.%u", ack->instance, ack->chosen_epoch_ballot.epoch, ack->chosen_epoch_ballot.ballot.number, ack->chosen_epoch_ballot.ballot.proposer_id);
 
     epoch_proposer_set_current_instance_chosen(p, ack->instance);
 
@@ -845,6 +872,9 @@ enum epoch_paxos_message_return_codes epoch_proposer_receive_chosen(struct epoch
 
     struct epoch_proposer_instance_info* inst_accept;
     bool pending_in_accept = epoch_proposer_get_instance_info_in_phase(p->accept_proposer_instance_infos, ack->instance, &inst_accept);
+
+    epoch_proposer_remove_client_value_from_retry_queue(p, &ack->chosen_value);
+    epoch_proposer_remove_client_value_from_proposing_queue(p, &ack->chosen_value);
 
     if (!pending_in_prepare && !pending_in_accept) {
         paxos_log_debug("Chosen dropped, Instance %u not pending_in_prepare", ack->instance);
@@ -865,7 +895,6 @@ enum epoch_paxos_message_return_codes epoch_proposer_receive_chosen(struct epoch
         epoch_proposer_instance_info_free(&inst_accept);
     }
 
-    epoch_proposer_remove_client_value_from_retry_queue(p, &ack->chosen_value);
 
 
 

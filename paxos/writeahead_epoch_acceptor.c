@@ -25,6 +25,7 @@ struct writeahead_epoch_acceptor {
 };
 
 static int writeahead_epoch_acceptor_increase_epoch(struct writeahead_epoch_acceptor* acceptor, uint32_t new_epoch){
+    paxos_log_debug("Storing new Epoch %u", new_epoch);
     // stored epochs should only ever increase
     assert(new_epoch >= acceptor->current_epoch);
     acceptor->current_epoch = new_epoch;
@@ -32,6 +33,7 @@ static int writeahead_epoch_acceptor_increase_epoch(struct writeahead_epoch_acce
 }
 
 static void writeahead_epoch_acceptor_store_trim(struct writeahead_epoch_acceptor* acceptor, iid_t trim) {
+    paxos_log_debug("Storing new Trim to Instance %u", trim);
     assert(trim >= acceptor->trim_instance);
     acceptor->trim_instance = trim;
     epoch_stable_storage_store_trim_instance(&acceptor->stable_storage, trim);
@@ -71,7 +73,7 @@ writeahead_epoch_acceptor_new(int id, struct epoch_notification *recover_message
     epoch_stable_storage_tx_begin(&acceptor->stable_storage);
 
     // Increment epoch
-    uint32_t old_epoch = 0;
+    uint32_t old_epoch = INVALID_EPOCH;
     int was_previous_epoch = epoch_stable_storage_get_current_epoch(&acceptor->stable_storage, &old_epoch);
     if (was_previous_epoch != 0) {
         uint32_t recovery_epoch = old_epoch + 1;
@@ -174,7 +176,7 @@ int handle_making_premepted(const struct writeahead_epoch_acceptor *acceptor, ii
 }
 
 int writeahead_epoch_acceptor_receive_prepare(struct writeahead_epoch_acceptor* acceptor, struct paxos_prepare* request, struct writeahead_epoch_paxos_message* returned_message){
-    paxos_log_debug("Entering std prepare");
+    paxos_log_debug("Handling Standard Promise Request in Instance %u for Epoch Ballot %u.%u", request->iid, request->ballot.number, request->ballot.proposer_id);
     int is_a_message_returned = 0;
 
     if (request->iid <= acceptor->trim_instance) {
@@ -230,7 +232,6 @@ int writeahead_epoch_acceptor_receive_prepare(struct writeahead_epoch_acceptor* 
                                                         returned_message, &last_prepare, "Promise");
 
     }
-    paxos_log_debug("Leaving std prepare");
     return is_a_message_returned;
 }
 
@@ -250,7 +251,7 @@ int write_ahead_epoch_acceptor_transaction_to_increment_epoch(struct writeahead_
 }
 
 int writeahead_epoch_acceptor_receive_epoch_ballot_prepare(struct writeahead_epoch_acceptor* acceptor, struct epoch_ballot_prepare* request, struct writeahead_epoch_paxos_message* returned_message){
-    paxos_log_debug("Entering prepare");
+    paxos_log_debug("Handling Epoch Promise Request in Instance %u for Epoch Ballot %u.%u", request->instance, request->epoch_ballot_requested.epoch, request->epoch_ballot_requested.ballot.number, request->epoch_ballot_requested.ballot.proposer_id);
     int is_a_message_returned = 0;
 
     if (request->instance <= acceptor->trim_instance) {
@@ -315,7 +316,6 @@ int writeahead_epoch_acceptor_receive_epoch_ballot_prepare(struct writeahead_epo
         is_a_message_returned = handle_making_premepted(acceptor, request->instance, request->epoch_ballot_requested,
                                                         returned_message, &last_prepare, "Promise");
     }
-    paxos_log_debug("Leaving prepare");
     return is_a_message_returned;
 }
 
@@ -343,7 +343,7 @@ void writeahead_epoch_acceptor_transaction_to_store_accept(struct writeahead_epo
 
 
 int writeahead_epoch_acceptor_receive_epoch_ballot_accept(struct writeahead_epoch_acceptor* acceptor, struct epoch_ballot_accept* request, struct writeahead_epoch_paxos_message* response) {
-    paxos_log_debug("Entering accept");
+    paxos_log_debug("Handling Accept Request in Instance %u for Epoch Ballot %u.%u", request->instance, request->epoch_ballot_requested.epoch, request->epoch_ballot_requested.ballot.number, request->epoch_ballot_requested.ballot.proposer_id);
     int is_a_message_returned = 0;
 
     if (request->instance <= acceptor->trim_instance) {
@@ -418,13 +418,12 @@ int writeahead_epoch_acceptor_receive_epoch_ballot_accept(struct writeahead_epoc
         is_a_message_returned = handle_making_premepted(acceptor, request->instance, request->epoch_ballot_requested,
                                                         response, &last_prepare, "Acceptance");
     }
-    paxos_log_debug("Leaving accept");
     return is_a_message_returned;
 }
 
 
 int  writeahead_epoch_acceptor_receive_repeat(struct writeahead_epoch_acceptor* acceptor, iid_t iid, struct writeahead_epoch_paxos_message* response){
-    paxos_log_debug("Entering repeat");
+    paxos_log_debug("Handling Repeat for Instance %u", iid);
     bool chosen = false;
     epoch_paxos_storage_is_instance_chosen(&acceptor->volatile_storage, iid, &chosen);
 
@@ -440,7 +439,7 @@ int  writeahead_epoch_acceptor_receive_repeat(struct writeahead_epoch_acceptor* 
             .chosen_epoch_ballot = last_accept.epoch_ballot_requested,
             .chosen_value = last_accept.value_to_accept
         };
-        paxos_log_debug("Leaving repeat");
+        paxos_log_debug("Responding with Chosen");
         return 1;
     } else {
         response->type = WRITEAHEAD_EPOCH_BALLOT_ACCEPTED;
@@ -452,8 +451,13 @@ int  writeahead_epoch_acceptor_receive_repeat(struct writeahead_epoch_acceptor* 
         };
         //assert(was_accept);
         // would add functionailty to check slower stable info but too lazy, so just assert this doesn't happen
-        paxos_log_debug("Leaving repeat");
-        return was_accept && ballot_greater_than(last_accept.epoch_ballot_requested.ballot, INVALID_BALLOT) ;
+        bool response = was_accept && ballot_greater_than(last_accept.epoch_ballot_requested.ballot, INVALID_BALLOT);
+        if (!response) {
+            paxos_log_debug("Wasn't a previous Accept so ignoring");
+        } else {
+            paxos_log_debug("Responding with last Accept");
+        }
+        return ;
     }
 }
 
