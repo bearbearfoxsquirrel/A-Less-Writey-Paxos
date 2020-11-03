@@ -178,7 +178,7 @@ proposer_instance_info_new(iid_t iid, struct ballot ballot, int acceptors, int q
 
 void proposer_add_paxos_value_to_queue(struct proposer* p, struct paxos_value* value) {
     paxos_log_debug("Recevied new client value");
-    struct paxos_value* value_copy = paxos_value_new(value->paxos_value_val, value->paxos_value_len);//malloc(sizeof(struct paxos_value*));
+    struct paxos_value* value_copy = paxos_value_new(value->paxos_value_val, value->paxos_value_len);
   //  copy_value(value, value_copy);
     assert(value_copy->paxos_value_len > 1);
 	carray_push_back(p->client_values_to_propose, value_copy);

@@ -245,7 +245,7 @@ make_epoch_client(const char *config, int proposer_id, int outstanding, int valu
     c->id = rand();
     c->value_size = value_size;
     c->max_outstanding = outstanding;
-    c->send_buffer = malloc(sizeof(struct client_value) + value_size);
+    c->send_buffer = malloc(sizeof(struct client_value) + sizeof(char) * value_size);
     c->outstanding_client_value_ids = malloc(sizeof(int) * c->max_outstanding);
     c->current_outstanding = 0;
 

@@ -76,7 +76,7 @@ epoch_ballot_accept_from_buffer(char* buffer, struct epoch_ballot_accept* out)
 {
     memcpy(out, buffer, sizeof(struct epoch_ballot_accept));
     if (out->value_to_accept.paxos_value_len > 0) {
-        out->value_to_accept.paxos_value_val = malloc(out->value_to_accept.paxos_value_len);
+        out->value_to_accept.paxos_value_val = malloc(sizeof(char) * out->value_to_accept.paxos_value_len);
         memcpy(out->value_to_accept.paxos_value_val,
                &buffer[sizeof(struct epoch_ballot_accept)],
                out->value_to_accept.paxos_value_len);

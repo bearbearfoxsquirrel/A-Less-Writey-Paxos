@@ -11,24 +11,19 @@
 #include <stdlib.h>
 #include <event2/event.h>
 #include "paxos_message_conversion.h"
-#include "ballot.h"
 #include "paxos_value.h"
 #include <paxos_types.h>
 #include "epoch_proposer.h"
 #include <assert.h>
-#include <fcntl.h>
-#include <standard_paxos_peers.h>
 #include <writeahead_epoch_paxos_peers.h>
 #include "time.h"
 #include "backoff_implementations.h"
 #include "backoff_manager.h"
-#include "stdlib.h"
 #include "random.h"
 #include "stdio.h"
 #include "timeout.h"
 #include "performance_threshold_timer.h"
 #include "epoch_ballot.h"
-#include "ev_epoch_paxos_internal.h"
 #include "ev_timer_threshold_timer_util.h"
 
 
@@ -169,7 +164,7 @@ static void ev_epoch_proposer_try_higher_ballot( evutil_socket_t fd,  short even
 
 
 static bool ev_epoch_proposer_is_round_robin_backoff(struct ev_epoch_proposer* p, iid_t instance) {
-    return paxos_config.round_robin && instance % p->proposer_count == p->id;
+    return paxos_config.round_robin && ((int) instance % p->proposer_count) == p->id;
 }
 
 
@@ -203,8 +198,6 @@ static void ev_epoch_proposer_try_begin_new_instances(struct ev_epoch_proposer* 
  //   performance_threshold_timer_begin_timing(p->preprare_timer);
 
     while (number_of_instances_to_open > 0) {
-     //   prepare = malloc(sizeof(struct epoch_paxos_prepares));
-
         iid_t current_instance = epoch_proposer_get_current_instance(p->proposer);
         assert(current_instance != INVALID_INSTANCE);
         paxos_log_debug("Current Proposing Instance is %u", current_instance);
@@ -255,6 +248,8 @@ static void ev_epoch_proposer_try_begin_new_instances(struct ev_epoch_proposer* 
                                                                     paxos_config.group_1);
                     }
                     break;
+                default:
+                    assert(1 != 1);
             }
 
 
@@ -372,7 +367,7 @@ static void ev_epoch_proposer_handle_preempted( struct writeahead_epoch_paxos_pe
                 next_prepare.epoch_ballot_requested.ballot.proposer_id,
                 current_backoff->tv_usec);
 
-        struct retry* retry_args = malloc(sizeof(*retry_args));
+        struct retry* retry_args = malloc(sizeof(struct retry));
         *retry_args = (struct retry) {.proposer = proposer, .prepare = (struct epoch_paxos_prepares) {.type = EXPLICIT_EPOCH_PREPARE, .explicit_epoch_prepare = next_prepare}};
         assert(current_backoff->tv_usec > 0);
         struct event* ev = evtimer_new(writeahead_epoch_paxos_peers_get_event_base(proposer->peers), ev_epoch_proposer_try_higher_ballot, retry_args);

@@ -72,7 +72,7 @@ struct epoch_proposer_timeout_iterator {
 
 
 struct epoch_proposer *epoch_proposer_new(int id, int acceptors, int q1, int q2, uint32_t max_ballot_increment) {
-    struct epoch_proposer* proposer = calloc(1, sizeof(struct epoch_proposer));
+    struct epoch_proposer* proposer = calloc(1, sizeof(*proposer));
     proposer->id = id;
     proposer->acceptors = acceptors;
     proposer->q1 = q1;

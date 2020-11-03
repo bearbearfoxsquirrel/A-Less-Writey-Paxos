@@ -46,7 +46,7 @@ paxos_accepted_copy(struct paxos_accepted* dst, const struct paxos_accepted* src
 {
     memcpy(dst, src, sizeof(paxos_accepted));
     if (dst->value.paxos_value_len > 0) {
-        dst->value.paxos_value_val = malloc(src->value.paxos_value_len);
+        dst->value.paxos_value_val = malloc(src->value.paxos_value_len * sizeof(char));
         memcpy(dst->value.paxos_value_val, src->value.paxos_value_val,
                src->value.paxos_value_len);
     }

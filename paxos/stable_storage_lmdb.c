@@ -193,7 +193,7 @@ lmdb_storage_open(struct lmdb_storage *lmdb_storage)
 	int dir_exists, result;
 	size_t lmdb_env_path_length = strlen(paxos_config.lmdb_env_path) + 16;
 
-	lmdb_env_path = malloc(lmdb_env_path_length);
+	lmdb_env_path = malloc(lmdb_env_path_length * sizeof(char));
 	snprintf(lmdb_env_path, lmdb_env_path_length, "%s_%d",
              paxos_config.lmdb_env_path, lmdb_storage->acceptor_id);
 

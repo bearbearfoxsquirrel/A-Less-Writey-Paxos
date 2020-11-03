@@ -14,8 +14,8 @@ struct count_logger {
 };
 
 struct count_logger *count_logger_new(const char *name, unsigned int name_len) {
-    struct count_logger* ret = malloc(sizeof(*ret));
-    char* name_cpy = malloc(sizeof(*name_cpy) * name_len);
+    struct count_logger* ret = malloc(sizeof(struct count_logger));
+    char* name_cpy = malloc(sizeof(char) * name_len);
     strcpy(name_cpy, name);
     name_cpy[name_len - 1]  = '\0';
     *ret = (struct count_logger){
