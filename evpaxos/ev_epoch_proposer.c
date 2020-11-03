@@ -192,6 +192,7 @@ static bool ev_epoch_proposer_check_create_biased_prepare(struct ev_epoch_propos
 
 
 static void ev_epoch_proposer_try_begin_new_instances(struct ev_epoch_proposer* p) {
+    paxos_log_debug("Beginning to try open new Instances");
     struct epoch_paxos_prepares prepare;
 
     unsigned int number_of_instances_to_open = p->max_num_open_instances - (epoch_proposer_prepare_count(p->proposer) + epoch_proposer_acceptance_count(p->proposer));
@@ -278,6 +279,7 @@ static void ev_epoch_proposer_try_begin_new_instances(struct ev_epoch_proposer* 
 
 
 static void ev_epoch_proposer_handle_promise( struct writeahead_epoch_paxos_peer* p, struct writeahead_epoch_paxos_message* msg, void* arg) {
+    paxos_log_debug("Handling Promise message");
     struct ev_epoch_proposer* proposer = arg;
     struct epoch_ballot_promise* promise = &msg->message_contents.epoch_ballot_promise;
     struct epoch_ballot_prepare next_prepare = {0};
@@ -298,6 +300,7 @@ static void ev_epoch_proposer_handle_promise( struct writeahead_epoch_paxos_peer
 }
 
 static void ev_epoch_proposer_handle_accepted( struct writeahead_epoch_paxos_peer* p, struct writeahead_epoch_paxos_message* msg, void* arg){
+    paxos_log_debug("Handling Accepted message");
     struct ev_epoch_proposer* proposer = arg;
     struct epoch_ballot_accepted* accepted = &msg->message_contents.epoch_ballot_accepted;
     struct epoch_ballot_chosen chosen_msg;
@@ -325,6 +328,7 @@ static void ev_epoch_proposer_handle_accepted( struct writeahead_epoch_paxos_pee
 }
 
 static void ev_epoch_proposer_handle_chosen( struct writeahead_epoch_paxos_peer* p, struct writeahead_epoch_paxos_message* msg, void* arg) {
+    paxos_log_debug("Handling Chosen message");
     struct ev_epoch_proposer* proposer = arg;
     struct epoch_ballot_chosen* chosen_msg = &msg->message_contents.instance_chosen_at_epoch_ballot;
 
@@ -342,6 +346,7 @@ static void ev_epoch_proposer_handle_chosen( struct writeahead_epoch_paxos_peer*
 
 
 static void ev_epoch_proposer_handle_preempted( struct writeahead_epoch_paxos_peer* p, struct writeahead_epoch_paxos_message* msg, void* arg) {
+    paxos_log_debug("Handling Preempted message");
     struct ev_epoch_proposer* proposer = arg;
     struct epoch_ballot_preempted preempted_msg = msg->message_contents.epoch_ballot_preempted;
 
@@ -378,7 +383,7 @@ static void ev_epoch_proposer_handle_preempted( struct writeahead_epoch_paxos_pe
 
 static void
 ev_epoch_proposer_handle_trim( struct writeahead_epoch_paxos_peer* p, struct writeahead_epoch_paxos_message* msg, void* arg) {
-
+    paxos_log_debug("Handling Trim message");
     struct ev_epoch_proposer* proposer = arg;
     struct paxos_trim* trim_msg = &msg->message_contents.trim;
 
@@ -393,6 +398,7 @@ ev_epoch_proposer_handle_trim( struct writeahead_epoch_paxos_peer* p, struct wri
 static void
 ev_epoch_proposer_handle_client_value( struct writeahead_epoch_paxos_peer* p, struct writeahead_epoch_paxos_message* msg, void* arg)
 {
+    paxos_log_debug("Handling Client Value message");
     struct ev_epoch_proposer* proposer = arg;
     struct paxos_value* v = &msg->message_contents.client_value;
 
@@ -407,6 +413,7 @@ ev_epoch_proposer_handle_client_value( struct writeahead_epoch_paxos_peer* p, st
 static void
 ev_epoch_proposer_handle_acceptor_state( struct writeahead_epoch_paxos_peer* p, struct writeahead_epoch_paxos_message* msg, void* arg)
 {
+    paxos_log_debug("Handing Acceptor State message");
     struct ev_epoch_proposer* proposer = arg;
     struct writeahead_epoch_acceptor_state* acc_state = &msg->message_contents.state;
     epoch_proposer_receive_acceptor_state(proposer->proposer, acc_state);
@@ -420,6 +427,7 @@ ev_epoch_proposer_handle_acceptor_state( struct writeahead_epoch_paxos_peer* p, 
 static void
 ev_epoch_proposer_check_timeouts( evutil_socket_t fd,  short event, void *arg)
 {
+    paxos_log_debug("Checking timeouts...");
     struct ev_epoch_proposer* p = arg;
     struct epoch_proposer_timeout_iterator* iter = epoch_proposer_timeout_iterator_new(p->proposer);
 
@@ -458,6 +466,7 @@ ev_epoch_proposer_preexec_once( evutil_socket_t fd, short event, void *arg)
 }
 
 static void random_seed_from_dev_rand() {
+    paxos_log_debug("Generating new randomness seed");
     FILE *randomData = fopen("/dev/urandom", "rb");
     if (randomData < 0)
     {

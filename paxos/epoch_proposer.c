@@ -850,7 +850,7 @@ enum epoch_paxos_message_return_codes epoch_proposer_receive_accepted(struct epo
 void epoch_proposer_check_and_handle_client_value_from_chosen(struct epoch_proposer* p, struct epoch_proposer_instance_info* inst, struct epoch_ballot_chosen* chosen){
     struct paxos_value proposed_client_value;
     bool client_value_proposed = get_value_pending_at(p->pending_client_values, chosen->instance, &proposed_client_value);
-    epoch_proposer_remove_client_value_from_retry_queue(p, &chosen->chosen_value);
+ //   epoch_proposer_remove_client_value_from_retry_queue(p, &chosen->chosen_value);
 
     if (client_value_proposed) {
 
