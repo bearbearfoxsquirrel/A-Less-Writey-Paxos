@@ -92,9 +92,9 @@ struct epoch_proposer *epoch_proposer_new(int id, int acceptors, int q1, int q2,
     proposer->known_highest_epoch = INVALID_EPOCH;
 
     proposer->instances_with_client_vals_closed = carray_new(5000);
-    proposer->client_values_to_propose = carray_new(10000);
+    proposer->client_values_to_propose = carray_new(5000);
     proposer->pending_client_values = pending_client_values_new();
-    proposer->values_to_repropose = carray_new(10000);
+    proposer->values_to_repropose = carray_new(5000);
 
 
     proposer->ballot_increment = max_ballot_increment;
@@ -153,6 +153,7 @@ static bool epoch_proposer_remove_client_value_from_proposing_queue(struct epoch
             found = true;
             // break;
             count_logger_decrement_and_print(p->counters.c_val_in_initial_queue, 1);
+
         } else {
             carray_push_front(tmp, cur_val);
         }
@@ -196,6 +197,7 @@ static bool epoch_proposer_remove_client_value_from_retry_queue(struct epoch_pro
     }
 
     paxos_log_debug("Finally there are %u elements", carray_num_elements(p->values_to_repropose));
+
     carray_free(tmp);
     return found;
 }
