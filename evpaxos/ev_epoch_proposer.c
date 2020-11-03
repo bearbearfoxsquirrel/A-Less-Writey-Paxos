@@ -370,11 +370,12 @@ static void ev_epoch_proposer_handle_preempted( struct writeahead_epoch_paxos_pe
                 next_prepare->epoch_ballot_requested.ballot.proposer_id, 
                 current_backoff->tv_usec);
 
-        struct retry* retry_args = calloc(1, sizeof(struct retry));
+        struct retry* retry_args = malloc(sizeof(*retry_args));
         *retry_args = (struct retry) {.proposer = proposer, .prepare = (struct epoch_paxos_prepares) {.type = EXPLICIT_EPOCH_PREPARE, .explicit_epoch_prepare = *next_prepare}};
         assert(current_backoff->tv_usec > 0);
         struct event* ev = evtimer_new(writeahead_epoch_paxos_peers_get_event_base(proposer->peers), ev_epoch_proposer_try_higher_ballot, retry_args);
         event_add(ev, current_backoff);
+        paxos_log_debug("Next proposal now queued");
     } else if (return_code == EPOCH_PREEMPTED) {
         writeahead_epoch_paxos_peers_for_n_acceptor(proposer->peers, peer_send_epoch_ballot_prepare, next_prepare, paxos_config.quorum_1);
     }
