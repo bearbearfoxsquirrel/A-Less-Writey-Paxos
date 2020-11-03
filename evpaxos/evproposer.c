@@ -47,6 +47,7 @@
 #include "backoff_manager.h"
 #include "stdio.h"
 #include "performance_threshold_timer.h"
+#include <count_logger.h>
 
 
 KHASH_MAP_INIT_INT(backoffs, struct timeval*)
@@ -76,6 +77,8 @@ struct evproposer {
     struct performance_threshold_timer* preemption_timer;
     struct performance_threshold_timer* chosen_timer;
 
+
+
 };
 
 
@@ -83,6 +86,7 @@ struct retry {
     struct evproposer* proposer;
     struct paxos_prepare* prepare;
 };
+
 
 
 static void

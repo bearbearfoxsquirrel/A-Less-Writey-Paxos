@@ -47,9 +47,11 @@ static void ev_epoch_learner_check_holes(evutil_socket_t fd, short event, void *
     if (epoch_learner_has_holes(l->learner, &msg.message_contents.repeat.from, &msg.message_contents.repeat.to)) {
         if ((msg.message_contents.repeat.to - msg.message_contents.repeat.from) > chunks) {
             msg.message_contents.repeat.to = msg.message_contents.repeat.from + chunks;
+            // determine gaps then
             paxos_log_debug("Sending Repeat for Instances %u-%u", msg.message_contents.repeat.from,
                             msg.message_contents.repeat.to);
-            writeahead_epoch_paxos_peers_for_a_random_acceptor(l->peers, peer_send_epoch_paxos_message, &msg);
+         //   writeahead_epoch_paxos_peers_for_a_random_acceptor(l->peers, peer_send_epoch_paxos_message, &msg);
+         writeahead_epoch_paxos_peers_foreach_acceptor(l->peers, peer_send_epoch_paxos_message, &msg);
 
         }
     } else {
@@ -157,8 +159,8 @@ ev_epoch_learner_init(const char *config, epoch_client_deliver_function f, void 
     if (c == NULL) return NULL;
 
     struct writeahead_epoch_paxos_peers* peers = writeahead_epoch_paxos_peers_new(base, c);
-    writeahead_epoch_paxos_peers_connect_to_acceptors(peers, partner_id); //todo fix lazy bad
-    writeahead_epoch_paxos_peers_connect_to_proposers(peers, partner_id);    //peers_connect_to_proposers(peers);
+    writeahead_epoch_paxos_peers_connect_to_acceptors(peers, partner_id);
+    writeahead_epoch_paxos_peers_connect_to_proposers(peers, partner_id);
 
     struct ev_epoch_learner* l = ev_epoch_learner_init_internal(c, peers, f, arg);
 

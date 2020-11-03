@@ -44,10 +44,9 @@ struct carray
 	void** array;
 };
 
-static int carray_full(struct carray* a);
+static bool carray_full(struct carray* a);
 static void carray_grow(struct carray* a);
 static void* carray_at(struct carray* a, int i);
-
 
 static void print_bytes_of_value_to_submit(char * ty, char * val, unsigned char * bytes, size_t num_bytes) {
     char* string; //= sprintf("(%*s) %*s = [ ", 15, ty, 16, val);
@@ -93,10 +92,20 @@ carray_empty(struct carray* a)
 	return a->count == 0;
 }
 
+int carray_num_elements(struct carray* a) {
+    return a->count;
+}
+
 int
 carray_size(struct carray* a)
 {
 	return a->size;
+}
+
+
+static bool carray_full(struct carray* a)
+{
+    return a->count == a->size;
 }
 
 void print(struct carray* a) {
@@ -160,11 +169,6 @@ carray_foreach(struct carray* a, void (*carray_cb)(void*))
 		carray_cb(carray_at(a, i));
 }
 
-static int
-carray_full(struct carray* a)
-{
-	return a->count == a->size;
-}
 
 static void
 carray_grow(struct carray* a)
@@ -198,9 +202,6 @@ bool carray_is_in(struct carray* a, void* cmp, bool (*chk_fcn)(const void *, con
     return false;
 }
 
-void remove_all_because(){
-
-}
 
 
 int carray_push_front(struct carray* a, void* p){

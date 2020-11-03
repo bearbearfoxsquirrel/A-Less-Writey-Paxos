@@ -457,7 +457,7 @@ int  writeahead_epoch_acceptor_receive_repeat(struct writeahead_epoch_acceptor* 
         } else {
             paxos_log_debug("Responding with last Accept");
         }
-        return ;
+        return response;
     }
 }
 

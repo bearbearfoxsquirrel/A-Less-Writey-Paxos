@@ -48,6 +48,9 @@ struct ev_epoch_proposer {
     struct event* random_seed_event;
     struct timeval random_seed_time;
 
+    struct event* count_timer_print_event;
+    struct timeval count_timer_print_time;
+
     struct performance_threshold_timer* preprare_timer;
     struct performance_threshold_timer* accept_timer;
     struct performance_threshold_timer* preempt_timer;
@@ -485,6 +488,12 @@ static void ev_epoch_proposer_gen_random_seed( evutil_socket_t fd,  short event,
     event_add(p->random_seed_event, &p->random_seed_time);
 }
 
+static void ev_epoch_proposer_print_counters(evutil_socket_t fd, short event, void* arg){
+    struct ev_epoch_proposer* p = arg;
+    epoch_proposer_print_counters(p->proposer);
+    event_add(p->count_timer_print_event, &p->count_timer_print_time);
+}
+
 struct ev_epoch_proposer *
 ev_epoch_proposer_init_internal(int id, struct evpaxos_config *c, struct writeahead_epoch_paxos_peers *peers,
                                 struct backoff_manager *backoff_manager, int proposer_count) {
@@ -523,8 +532,12 @@ ev_epoch_proposer_init_internal(int id, struct evpaxos_config *c, struct writeah
 
     proposer->random_seed_time = (struct timeval) {.tv_sec = random_between(30, 60), .tv_usec = 0};
     proposer->random_seed_event = evtimer_new(base, ev_epoch_proposer_gen_random_seed, proposer);
-
     event_add(proposer->random_seed_event, &proposer->random_seed_time);
+
+    proposer->count_timer_print_time = (struct timeval) {.tv_sec = 1, .tv_usec = 0};
+    proposer->count_timer_print_event = evtimer_new(base, ev_epoch_proposer_print_counters, proposer);
+    event_add(proposer->count_timer_print_event, &proposer->count_timer_print_time);
+
     random_seed_from_dev_rand();
 
     proposer->peers = peers;

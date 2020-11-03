@@ -6,7 +6,7 @@ set(LOCAL_SOURCES config.c standard_paxos_message.c paxos_types_pack.c standard_
 		ev_standard_acceptor.c evlearner.c evproposer.c evreplica.c ev_timer_threshold_timer_util.c include/backoff_manager.h backoff.c
 		include/backoff.h backoff_manager.c include/backoff_implementations.h include/ev_epoch_paxos_internal.h include/evpaxos/epoch_paxos.h
 		include/ev_epoch_paxos.h ev_epoch_proposer.c include/epoch_paxos_message.h epoch_paxos_message.c include/writeahead_epoch_paxos_peers.h
-		writeahead_epoch_paxos_peers.c ev_epoch_acceptor.c ev_epoch_learner.c)
+		writeahead_epoch_paxos_peers.c ev_epoch_acceptor.c ev_epoch_learner.c ../paxos/include/proposer_message_and_response_counters.h ../paxos/message_and_response_counters.c)
 
 add_library(evpaxos SHARED ${LOCAL_SOURCES})
 

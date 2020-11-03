@@ -170,6 +170,7 @@ void check_and_handle_new_ballot(struct instance* inst, struct epoch_ballot cmp,
 
 void epoch_learner_check_and_set_highest_instance_closed(struct epoch_learner* l, iid_t instance_chosen) {
     if (instance_chosen > l->highest_instance_chosen) {
+        paxos_log_debug("New highest instance chosen %u", instance_chosen);
         l->highest_instance_chosen = instance_chosen;
     }
 }
@@ -211,6 +212,7 @@ enum epoch_paxos_message_return_codes epoch_learner_receive_accepted(struct epoc
             .chosen_epoch_ballot = ack->accepted_epoch_ballot,
             .chosen_value = ack->accepted_value
         };
+        paxos_log_debug("Quorum reached");
         return QUORUM_REACHED;
     } else {
         return MESSAGE_ACKNOWLEDGED;

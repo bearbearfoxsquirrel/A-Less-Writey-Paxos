@@ -41,6 +41,7 @@ struct carray* carray_new(int size);
 void carray_free(struct carray* a);
 int carray_empty(struct carray* a);
 int carray_size(struct carray* a);
+int carray_num_elements(struct carray* a);
 int carray_push_back(struct carray* a, void* p);
 int carray_push_front(struct carray* a, void* p);
 void carray_foreach(struct carray* a, void (*carray_cb)(void*));

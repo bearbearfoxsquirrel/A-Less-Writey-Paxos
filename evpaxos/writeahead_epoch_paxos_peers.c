@@ -42,7 +42,6 @@
 #include <paxos.h>
 #include <random.h>
 
-
 struct writeahead_epoch_paxos_peer
 {
     int id;
@@ -263,6 +262,14 @@ writeahead_epoch_paxos_peers_foreach_client(struct writeahead_epoch_paxos_peers*
     int i;
     for (i = 0; i < p->clients_count; ++i)
         cb(p->clients[i], arg);
+}
+
+void writeahead_epoch_paxos_peers_send_accept_to_relevant_clients(struct writeahead_epoch_paxos_peers* p, writeahead_epoch_paxos_peer_iter_cb cb, void* arg) {
+    struct epoch_ballot_accept* accept = arg;
+  //  client_value
+    for (int i = 0; i < p->clients_count; i++){
+        //have look up table for which client is which
+    }
 }
 
 struct writeahead_epoch_paxos_peer*

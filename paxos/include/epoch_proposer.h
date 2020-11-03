@@ -66,6 +66,8 @@ enum timeout_iterator_return_code epoch_proposer_timeout_iterator_accept(struct 
 
 enum timeout_iterator_return_code epoch_proposer_timeout_iterator_prepare(struct epoch_proposer_timeout_iterator* iter, struct epoch_ballot_prepare* out);
 
+void epoch_proposer_print_counters(struct epoch_proposer* p);
+
 void epoch_proposer_timeout_iterator_free(struct epoch_proposer_timeout_iterator** iter);
 
 #endif //LIBPAXOS_EPOCH_PROPOSER_H
