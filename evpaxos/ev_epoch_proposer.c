@@ -106,6 +106,7 @@ static void ev_epoch_proposer_try_begin_new_instances(struct ev_epoch_proposer* 
 
 
 static void ev_epoch_proposer_try_accept(struct ev_epoch_proposer* p) {
+    paxos_log_debug("Beginning to try Accept Phase of one or more Instances");
     struct epoch_ballot_accept accept;
   //  performance_threshold_timer_begin_timing(p->accept_timer);
     while (epoch_proposer_try_accept(p->proposer, &accept)) {
@@ -122,6 +123,7 @@ static void ev_epoch_proposer_try_accept(struct ev_epoch_proposer* p) {
 
 
 static void ev_epoch_proposer_try_higher_ballot( evutil_socket_t fd,  short event, void* arg) {
+    paxos_log_debug("Triggered event to try some next Epoch Ballot");
     struct retry* args = arg;
     struct ev_epoch_proposer* proposer = args->proposer;
    // struct epoch_paxos_prepares* next_prepare;
@@ -493,12 +495,14 @@ static void random_seed_from_dev_rand() {
 }
 
 static void ev_epoch_proposer_gen_random_seed( evutil_socket_t fd,  short event, void* arg)  {
+    paxos_log_debug("Triggered event to generate new random seed");
     struct ev_epoch_proposer* p = arg;
     random_seed_from_dev_rand();
     event_add(p->random_seed_event, &p->random_seed_time);
 }
 
 static void ev_epoch_proposer_print_counters(evutil_socket_t fd, short event, void* arg){
+    paxos_log_debug("Triggered event to print Proposer stats");
     struct ev_epoch_proposer* p = arg;
     epoch_proposer_print_counters(p->proposer);
     event_add(p->count_timer_print_event, &p->count_timer_print_time);
