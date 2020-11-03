@@ -354,32 +354,32 @@ static void ev_epoch_proposer_handle_preempted( struct writeahead_epoch_paxos_pe
 
     if (preempted_msg.requested_epoch_ballot.ballot.proposer_id != epoch_proposer_get_id(proposer->proposer)) return;
 
-    struct epoch_ballot_prepare* next_prepare = malloc(sizeof(struct epoch_ballot_prepare));
+    struct epoch_ballot_prepare next_prepare;// = malloc(sizeof(*next_prepare));
     assert(epoch_ballot_greater_than(preempted_msg.acceptors_current_epoch_ballot, preempted_msg.requested_epoch_ballot));
 
  //   performance_threshold_timer_begin_timing(proposer->preempt_timer);
-    enum epoch_paxos_message_return_codes return_code = epoch_proposer_receive_preempted(proposer->proposer, &preempted_msg, next_prepare);
+    enum epoch_paxos_message_return_codes return_code = epoch_proposer_receive_preempted(proposer->proposer, &preempted_msg, &next_prepare);
   //  ev_performance_timer_stop_check_and_clear_timer(proposer->preempt_timer, "Preempt");
 
     if (return_code == BALLOT_PREEMPTED) {
-        assert(next_prepare->instance != 0);
-        assert(epoch_ballot_greater_than(next_prepare->epoch_ballot_requested, preempted_msg.acceptors_current_epoch_ballot));
+        assert(next_prepare.instance != 0);
+        assert(epoch_ballot_greater_than(next_prepare.epoch_ballot_requested, preempted_msg.acceptors_current_epoch_ballot));
         
         const struct timeval* current_backoff = backoff_manager_get_backoff(proposer->backoff_manager, preempted_msg.instance);
         paxos_log_debug("Trying next Ballot for Instance %u, %u.%u in %ld microseconds",
-                next_prepare->instance, 
-                next_prepare->epoch_ballot_requested.ballot.number, 
-                next_prepare->epoch_ballot_requested.ballot.proposer_id, 
+                next_prepare.instance,
+                next_prepare.epoch_ballot_requested.ballot.number,
+                next_prepare.epoch_ballot_requested.ballot.proposer_id,
                 current_backoff->tv_usec);
 
         struct retry* retry_args = malloc(sizeof(*retry_args));
-        *retry_args = (struct retry) {.proposer = proposer, .prepare = (struct epoch_paxos_prepares) {.type = EXPLICIT_EPOCH_PREPARE, .explicit_epoch_prepare = *next_prepare}};
+        *retry_args = (struct retry) {.proposer = proposer, .prepare = (struct epoch_paxos_prepares) {.type = EXPLICIT_EPOCH_PREPARE, .explicit_epoch_prepare = next_prepare}};
         assert(current_backoff->tv_usec > 0);
         struct event* ev = evtimer_new(writeahead_epoch_paxos_peers_get_event_base(proposer->peers), ev_epoch_proposer_try_higher_ballot, retry_args);
         event_add(ev, current_backoff);
         paxos_log_debug("Next proposal now queued");
     } else if (return_code == EPOCH_PREEMPTED) {
-        writeahead_epoch_paxos_peers_for_n_acceptor(proposer->peers, peer_send_epoch_ballot_prepare, next_prepare, paxos_config.quorum_1);
+        writeahead_epoch_paxos_peers_for_n_acceptor(proposer->peers, peer_send_epoch_ballot_prepare, &next_prepare, paxos_config.quorum_1);
     }
 }
 
