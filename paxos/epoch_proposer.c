@@ -491,7 +491,19 @@ ignore_promise(const struct epoch_proposer *p, char *error_msg) {
     return MESSAGE_IGNORED;
 }
 
+
+void print_received_promise(const struct epoch_ballot_promise *ack) {
+    paxos_log_debug("Handling Promise from Acceptor %u in Instance %u at Epoch Ballot %u.%u.%u",
+            ack->acceptor_id,
+            ack->instance,
+            ack->promised_epoch_ballot.epoch,
+            ack->promised_epoch_ballot.ballot.number,
+            ack->promised_epoch_ballot.ballot.proposer_id);
+}
+
+
 enum epoch_paxos_message_return_codes epoch_proposer_receive_promise(struct epoch_proposer *p, struct epoch_ballot_promise *ack, struct epoch_ballot_prepare* next_epoch_prepare) {
+    print_received_promise(ack);
     count_logger_increment(p->counters.promise_counter, 1);
     assert(ack->instance > INVALID_INSTANCE);
     assert(epoch_ballot_greater_than(ack->promised_epoch_ballot, INVALID_EPOCH_BALLOT));
@@ -508,12 +520,12 @@ enum epoch_paxos_message_return_codes epoch_proposer_receive_promise(struct epoc
     bool pending = epoch_proposer_get_instance_info_in_phase(p->prepare_proposer_instance_infos, ack->instance, &inst);
 
     if (!pending) {
-        return ignore_promise(p, "proposer_message_and_response_counters");
+        return ignore_promise(p, "Promise dropped, Instance is not pending.");
     }
 
 
     if (is_epoch_promise_outdated(ack, inst)) {
-        return ignore_promise(p,  "proposer_message_and_response_counters");
+        return ignore_promise(p,  "Promise dropped, Epoch Ballot is outdated.");
     } else if (is_current_epoch_ballot(ack, inst)) {
         if (inst->current_epoch == INVALID_EPOCH) {
             inst->current_epoch = ack->promised_epoch_ballot.epoch;
@@ -522,7 +534,7 @@ enum epoch_paxos_message_return_codes epoch_proposer_receive_promise(struct epoc
         int new_promise = quorum_add(&inst->quorum, ack->acceptor_id);
 
         if (new_promise == 0){
-            char msg[2000];
+            char msg[200];
             sprintf(msg, "Duplicate promise dropped from Acceptor %d on Instance %u", ack->acceptor_id, ack->instance);
             return ignore_promise(p, msg);
         } else {
@@ -567,8 +579,6 @@ enum epoch_paxos_message_return_codes epoch_proposer_receive_promise(struct epoc
         return EPOCH_PREEMPTED;
     }
 }
-
-
 
 static bool get_min_instance_to_begin_accept_phase(struct epoch_proposer *p,
                                                    struct epoch_proposer_instance_info **to_accept_inst) {
@@ -747,6 +757,7 @@ void set_epoch_ballot_accept_from_instance_info(struct epoch_ballot_accept *out,
 
 // phase 2
 int epoch_proposer_try_accept(struct epoch_proposer* p, struct epoch_ballot_accept* out){
+    paxos_log_debug("Trying to begin Accept Phase for an Instance");
     struct epoch_proposer_instance_info* instance_to_begin_accept = NULL;
     bool instance_found = get_min_instance_to_begin_accept_phase(p, &instance_to_begin_accept);
 
@@ -776,8 +787,8 @@ enum epoch_paxos_message_return_codes ignore_accepted(struct epoch_proposer* p, 
 }
 
 enum epoch_paxos_message_return_codes epoch_proposer_receive_accepted(struct epoch_proposer* p, struct epoch_ballot_accepted* ack, struct epoch_ballot_chosen* chosen){
-    count_logger_increment(p->counters.accept_counter, 1);
     paxos_log_debug("Received Accepted for Instance %u", ack->instance);
+    count_logger_increment(p->counters.accept_counter, 1);
     assert(ack->instance > INVALID_INSTANCE);
     assert(epoch_ballot_greater_than(ack->accepted_epoch_ballot, INVALID_EPOCH_BALLOT));
 
@@ -892,8 +903,8 @@ enum epoch_paxos_message_return_codes ignore_chosen(struct epoch_proposer* p, ch
 }
 
 enum epoch_paxos_message_return_codes epoch_proposer_receive_chosen(struct epoch_proposer* p, struct epoch_ballot_chosen* ack){
-    count_logger_increment(p->counters.chosen_counter, 1);
     paxos_log_debug("Received Chosen message for Instance %u at Epoch Ballot %u.%u.%u", ack->instance, ack->chosen_epoch_ballot.epoch, ack->chosen_epoch_ballot.ballot.number, ack->chosen_epoch_ballot.ballot.proposer_id);
+    count_logger_increment(p->counters.chosen_counter, 1);
     assert(ack->instance > INVALID_INSTANCE);
     assert(epoch_ballot_greater_than(ack->chosen_epoch_ballot, INVALID_EPOCH_BALLOT));
 
