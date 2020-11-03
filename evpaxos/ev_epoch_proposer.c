@@ -364,7 +364,7 @@ static void ev_epoch_proposer_handle_preempted( struct writeahead_epoch_paxos_pe
         assert(epoch_ballot_greater_than(next_prepare->epoch_ballot_requested, preempted_msg.acceptors_current_epoch_ballot));
         
         const struct timeval* current_backoff = backoff_manager_get_backoff(proposer->backoff_manager, preempted_msg.instance);
-        paxos_log_debug("Trying next Ballot for Instance %u, %u.%u in %u microseconds", 
+        paxos_log_debug("Trying next Ballot for Instance %u, %u.%u in %ld microseconds",
                 next_prepare->instance, 
                 next_prepare->epoch_ballot_requested.ballot.number, 
                 next_prepare->epoch_ballot_requested.ballot.proposer_id, 
