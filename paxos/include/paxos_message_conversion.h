@@ -13,7 +13,7 @@ void paxos_accepted_to_promise(const struct paxos_accepted *acc, standard_paxos_
 
 void paxos_accept_to_accepted(int id, const struct paxos_accept *acc, standard_paxos_message *out);
 
-void paxos_accepted_to_preempted(int id, const struct paxos_accepted *acc, standard_paxos_message *out);
+//void paxos_accepted_to_preempted(int id, const struct paxos_accepted *acc, standard_paxos_message *out);
 
 void union_paxos_prepare_and_last_acceptor_promise_to_preempted(int id, const struct paxos_prepare *requested_prepare,
                                                                 const struct paxos_prepare *last_acceptor_promise,

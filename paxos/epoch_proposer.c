@@ -374,9 +374,9 @@ uint32_t epoch_proposer_get_min_unchosen_instance(struct epoch_proposer* p){
 
 // phase 1
 
-static struct ballot epoch_proposer_get_initial_ballot(const struct epoch_proposer *p) {
-    return (struct ballot){.number = random_between(1 + p->id, p->ballot_increment) - p->id, .proposer_id = p->id};
-}
+//static struct ballot epoch_proposer_get_initial_ballot(const struct epoch_proposer *p) {
+//    return (struct ballot){.number = random_between(1 + p->id, p->ballot_increment) - p->id, .proposer_id = p->id};
+//}
 
 struct ballot epoch_proposer_get_next_ballot(const int acceptors_last_bal_num, const uint32_t pid, const int ballot_increment) {
     return (struct ballot) {.number = random_between(acceptors_last_bal_num + 1 + pid,
@@ -471,9 +471,7 @@ void epoch_proposer_check_and_handle_promises_last_accepted_value_for_instance(s
 }
 
 void epoch_proposer_instance_info_update_info_from_epoch_preemption(struct epoch_proposer_instance_info *inst,
-                                                                    struct epoch_ballot_preempted *preempted,
-                                                                    unsigned int proposer_id,
-                                                                    uint32_t ballot_increment) {
+                                                                    struct epoch_ballot_preempted *preempted) {
     struct epoch_ballot next_epoch_ballot = (struct epoch_ballot) {
         .epoch = preempted->acceptors_current_epoch_ballot.epoch,
         .ballot = preempted->requested_epoch_ballot.ballot//epoch_proposer_get_next_ballot(preempted->acceptors_current_epoch_ballot.ballot.number, proposer_id, ballot_increment)
@@ -570,7 +568,7 @@ enum epoch_paxos_message_return_codes epoch_proposer_receive_promise(struct epoc
                                                    .requested_epoch_ballot = epoch_proposer_instance_info_get_current_epoch_ballot(inst),
                                                    .acceptors_current_epoch_ballot = ack->promised_epoch_ballot};
 
-        epoch_proposer_instance_info_update_info_from_epoch_preemption(inst, &preempted, p->id, p->ballot_increment);
+        epoch_proposer_instance_info_update_info_from_epoch_preemption(inst, &preempted);
         // todo add a feature to ev_proposer where it will know who is in the quorum and send promise requests to those not in the quorum
         epoch_proposer_receive_promise(p, ack, next_epoch_prepare);
         next_epoch_prepare->instance = ack->instance;

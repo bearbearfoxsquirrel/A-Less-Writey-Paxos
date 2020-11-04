@@ -149,7 +149,7 @@ writeahead_epoch_paxos_peers_connect_to_acceptors(struct writeahead_epoch_paxos_
         p->acceptor_count++;
     }
 
-    for (unsigned int i = 0; i < p->acceptor_count; i++){
+    for (int i = 0; i < p->acceptor_count; i++){
         //if (i == source_id){
             struct writeahead_epoch_paxos_peer* tmp = p->peers[i];
             if (tmp->id == source_id) {
@@ -180,7 +180,7 @@ writeahead_epoch_paxos_peers_connect_to_proposers(struct writeahead_epoch_paxos_
     }
 
     if (partner_id > 0) { // Any negative ID to not sort
-        for (unsigned int i = 0; i < p->proposer_count; i++) {
+        for (int i = 0; i < p->proposer_count; i++) {
             //if (i == source_id){
             struct writeahead_epoch_paxos_peer *tmp = p->peers[i];
             if (tmp->id == partner_id) {
@@ -264,6 +264,7 @@ writeahead_epoch_paxos_peers_foreach_client(struct writeahead_epoch_paxos_peers*
         cb(p->clients[i], arg);
 }
 
+/*
 void writeahead_epoch_paxos_peers_send_accept_to_relevant_clients(struct writeahead_epoch_paxos_peers* p, writeahead_epoch_paxos_peer_iter_cb cb, void* arg) {
     struct epoch_ballot_accept* accept = arg;
   //  client_value
@@ -271,6 +272,7 @@ void writeahead_epoch_paxos_peers_send_accept_to_relevant_clients(struct writeah
         //have look up table for which client is which
     }
 }
+ */
 
 struct writeahead_epoch_paxos_peer*
 writeahead_epoch_paxos_peers_get_acceptor(struct writeahead_epoch_paxos_peers* p, int id)

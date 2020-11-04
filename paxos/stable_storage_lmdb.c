@@ -480,7 +480,7 @@ lmdb_storage_get_all_untrimmed_instances_info(struct lmdb_storage *lmdb_storage,
     }
 
     // cleanup
-    if (*number_of_instances_retrieved < max_inited_instance) {
+    if (*number_of_instances_retrieved < (int) max_inited_instance) {
         (*retreved_instances) = realloc((*retreved_instances), sizeof(struct paxos_accepted) * (*number_of_instances_retrieved));
     }
     return 0;
@@ -689,14 +689,14 @@ static int epoch_lmdb_storage_get_all_untrimmed_instances(struct lmdb_storage* l
     }
 
     // cleanup
-    if (*number_of_inst_retrieved < max_inited_instance) {
+    if (*number_of_inst_retrieved < (int) max_inited_instance) {
         (*retrieved_accepts) = realloc((*retrieved_accepts), sizeof(struct epoch_ballot_accept) * (*number_of_inst_retrieved));
     }
     return 1;
 }
 
 static int epoch_lmdb_storage_trim_instances_less_than(struct lmdb_storage* lmdb_storage, const iid_t cmp){
-    lmdb_storage_trim(lmdb_storage, cmp);
+    return lmdb_storage_trim(lmdb_storage, cmp);
 }
 
 

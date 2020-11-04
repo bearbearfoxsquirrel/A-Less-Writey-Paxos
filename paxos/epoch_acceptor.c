@@ -368,6 +368,7 @@ int writeahead_epoch_acceptor_receive_epoch_ballot_accept(struct epoch_acceptor*
      bool previous_accept = epoch_paxos_storage_get_last_accept(&acceptor->volatile_storage, request->instance,
                                                                &last_accept);
 
+
     bool was_instance_chosen = false;
     epoch_paxos_storage_is_instance_chosen(&acceptor->volatile_storage, request->instance, &was_instance_chosen);
     if (was_instance_chosen) {
@@ -390,6 +391,9 @@ int writeahead_epoch_acceptor_receive_epoch_ballot_accept(struct epoch_acceptor*
         if (request->instance > acceptor->max_proposed_instance) {
             acceptor->max_proposed_instance = request->instance;
         }
+
+
+        assert(epoch_ballot_greater_than_or_equal(request->epoch_ballot_requested, last_accept.epoch_ballot_requested));
 
         paxos_log_debug("New highest Epoch Ballot Accepted (%u.%u.%u) for Instance %u",
                         request->epoch_ballot_requested.epoch,

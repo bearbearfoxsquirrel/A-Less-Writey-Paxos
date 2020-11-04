@@ -101,12 +101,12 @@ paxos_accept_request_and_last_acceptor_promise_to_preempted(int id, const struct
     };
 }
 
- void
-paxos_accepted_to_preempted( int id,  const struct paxos_accepted *acc, standard_paxos_message *out) {
-    out->type = PAXOS_PREEMPTED;
+// void
+//paxos_accepted_to_preempted( int id,  const struct paxos_accepted *acc, standard_paxos_message *out) {
+ //   out->type = PAXOS_PREEMPTED;
     //todo remove or fix
   //  out->u.preempted = (paxos_preempted) {.aid = id, .iid = acc->iid, acc., acc->promise_ballot};
-}
+//}
 
 void
 paxos_accepted_to_accept(const struct paxos_accepted *accepted, paxos_accept *out) {

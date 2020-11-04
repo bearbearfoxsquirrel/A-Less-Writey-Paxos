@@ -136,15 +136,13 @@ peers_connect(struct standard_paxos_peers* p, int id, struct sockaddr_in* addr)
 void
 peers_connect_to_acceptors(struct standard_paxos_peers* p, int source_id)
 {
-	int i;
-	for (i = 0; i < evpaxos_acceptor_count(p->config); i++) {
+	for (int i = 0; i < evpaxos_acceptor_count(p->config); i++) {
 		struct sockaddr_in addr = evpaxos_acceptor_address(p->config, i);
 		peers_connect(p, i, &addr);
 	}
 
 
-	// What was I doing here?
-    for (unsigned int i = 0; i < p->peers_count; i++){
+    for (int i = 0; i < p->peers_count; i++){
         //if (i == source_id){
         struct standard_paxos_peer* tmp = p->peers[i];
         if (tmp->id == source_id) {
@@ -155,7 +153,7 @@ peers_connect_to_acceptors(struct standard_paxos_peers* p, int source_id)
     }
 
     paxos_log_debug("Order of acceptors connected to:");
-    for (unsigned int i = 0; i < p->peers_count; i++){
+    for (int i = 0; i < p->peers_count; i++){
         //if (i == source_id){
         struct standard_paxos_peer* tmp = p->peers[i];
         paxos_log_debug("acceptor %i", tmp->id);

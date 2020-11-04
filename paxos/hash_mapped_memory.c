@@ -38,13 +38,9 @@
 KHASH_MAP_INIT_INT(last_prepares,  struct paxos_prepare*)
 KHASH_MAP_INIT_INT(last_accepts,  struct paxos_accept*)
 KHASH_MAP_INIT_INT(accepts_epochs, uint32_t*)
-KHASH_MAP_INIT_INT(chosen, struct chosen_store*)
+KHASH_MAP_INIT_INT(chosen, bool*)
 
 
-struct chosen_store {
-    iid_t  instance;
-    bool is_chosen;
-} ;
 
 
 struct hash_mapped_memory {
@@ -358,7 +354,7 @@ new_hash_mapped_memory_from_promises_and_acceptances(int number_of_initiated_ins
 */
 
 static struct hash_mapped_memory*
-        new_hash_mapped_memory_from_instances_info(struct paxos_accepted* instances_info, int number_of_instances, int trim_instance, int aid){
+        new_hash_mapped_memory_from_instances_info(struct paxos_accepted* instances_info, int number_of_instances, unsigned int trim_instance, int aid){
     struct hash_mapped_memory *hash_mapped_mem = calloc(1, sizeof(struct hash_mapped_memory));
     init_hash_tables(hash_mapped_mem);
     hash_mapped_mem->trim_instance_id = trim_instance;
@@ -402,7 +398,7 @@ hash_mapped_memory_is_instance_chosen(const struct hash_mapped_memory* memory, i
         return 0;
     } else {
         // found
-        if (kh_value(memory->chosen, key)->is_chosen == true){
+        if (*kh_value(memory->chosen, key) == true){
             *chosen = true;
         } else {
             *chosen = false;
@@ -411,20 +407,18 @@ hash_mapped_memory_is_instance_chosen(const struct hash_mapped_memory* memory, i
     }
 }
 
-static void chosen_store_copy(struct chosen_store* dst, struct chosen_store* src) {
-    dst->is_chosen = src->is_chosen;
-    dst->instance = src->instance;
-}
-
 static int
 hash_mapped_memory_instance_chosen(struct hash_mapped_memory* memory, iid_t instance){
     int error = 0;
 
     int rv;
     khiter_t k;
-    struct chosen_store* record = malloc(sizeof(struct chosen_store));
-    struct chosen_store value = {instance, 1};
-    chosen_store_copy(record, &value);
+//    struct chosen_store* record = malloc(sizeof(struct chosen_store));
+    bool* record = malloc(sizeof(bool));
+    *record = true;
+   // struct chosen_store value = {instance, 1};
+
+//    chosen_store_copy(record, &value);
     k = kh_put_chosen(memory->chosen, instance, &rv);
     if (rv == -1) { // error
         free(record);
