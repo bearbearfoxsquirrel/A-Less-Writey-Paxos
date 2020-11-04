@@ -7,7 +7,7 @@
 #include <assert.h>
 #include "string.h"
 #include <event2/event.h>
-#include "writeahead_epoch_acceptor.h"
+#include "epoch_acceptor.h"
 #include "writeahead_epoch_paxos_peers.h"
 #include "epoch_paxos_message.h"
 #include "ballot.h"
@@ -19,7 +19,7 @@
 
 struct ev_epoch_acceptor {
     struct writeahead_epoch_paxos_peers* peers;
-    struct writeahead_epoch_acceptor* acceptor;
+    struct epoch_acceptor* acceptor;
 
     struct event* send_state_event;
     struct timeval send_state_timer;
@@ -35,8 +35,8 @@ static void peer_send_epoch_paxos_message(struct writeahead_epoch_paxos_peer* p,
     send_epoch_paxos_message(writeahead_epoch_paxos_peer_get_buffer(p), arg);
 }
 
-static void ev_epoch_acceptor_handle_standard_prepare(struct writeahead_epoch_paxos_peer* p, struct writeahead_epoch_paxos_message* msg, void* arg) {
-    struct writeahead_epoch_paxos_message out;
+static void ev_epoch_acceptor_handle_standard_prepare(struct writeahead_epoch_paxos_peer* p, struct epoch_paxos_message* msg, void* arg) {
+    struct epoch_paxos_message out;
     struct paxos_prepare* prepare = &msg->message_contents.standard_prepare;
     struct ev_epoch_acceptor* acceptor = arg;
 
@@ -55,8 +55,8 @@ static void ev_epoch_acceptor_handle_standard_prepare(struct writeahead_epoch_pa
   //  ev_performance_timer_stop_check_and_clear_timer(acceptor->promise_timer, "Promise");
 }
 
-static void ev_epoch_acceptor_handle_epoch_ballot_prepare(struct writeahead_epoch_paxos_peer* p, struct writeahead_epoch_paxos_message* msg, void* arg) {
-    struct writeahead_epoch_paxos_message out;
+static void ev_epoch_acceptor_handle_epoch_ballot_prepare(struct writeahead_epoch_paxos_peer* p, struct epoch_paxos_message* msg, void* arg) {
+    struct epoch_paxos_message out;
     struct epoch_ballot_prepare* prepare = &msg->message_contents.epoch_ballot_prepare;
     struct ev_epoch_acceptor* acceptor = arg;
 
@@ -75,8 +75,8 @@ static void ev_epoch_acceptor_handle_epoch_ballot_prepare(struct writeahead_epoc
 
 }
 
-static void ev_epoch_acceptor_handle_epoch_ballot_accept(struct writeahead_epoch_paxos_peer* p, struct writeahead_epoch_paxos_message* msg, void* arg) {
-    struct writeahead_epoch_paxos_message out;
+static void ev_epoch_acceptor_handle_epoch_ballot_accept(struct writeahead_epoch_paxos_peer* p, struct epoch_paxos_message* msg, void* arg) {
+    struct epoch_paxos_message out;
     struct epoch_ballot_accept* accept = &msg->message_contents.epoch_ballot_accept;
     struct ev_epoch_acceptor* acceptor = arg;
     paxos_log_debug("Handing Epoch Ballot Accept for Instance %u, Epoch Ballot %u.%u.%u",
@@ -103,16 +103,16 @@ static void ev_epoch_acceptor_handle_epoch_ballot_accept(struct writeahead_epoch
 
 }
 
-static void ev_epoch_acceptor_handle_epoch_notification(struct writeahead_epoch_paxos_peer* p, struct writeahead_epoch_paxos_message* msg, void* arg){
+static void ev_epoch_acceptor_handle_epoch_notification(struct writeahead_epoch_paxos_peer* p, struct epoch_paxos_message* msg, void* arg){
     struct epoch_notification* notification = &msg->message_contents.epoch_notification;
     struct ev_epoch_acceptor* acceptor = arg;
     writeahead_epoch_acceptor_receive_epoch_notification(acceptor->acceptor, notification);
 }
 
-static void ev_epoch_acceptor_handle_repeat(struct writeahead_epoch_paxos_peer* p, struct writeahead_epoch_paxos_message* msg, void* arg){
+static void ev_epoch_acceptor_handle_repeat(struct writeahead_epoch_paxos_peer* p, struct epoch_paxos_message* msg, void* arg){
     struct paxos_repeat* repeat = &msg->message_contents.repeat;
     struct ev_epoch_acceptor* acceptor = arg;
-    struct writeahead_epoch_paxos_message out_msg;
+    struct epoch_paxos_message out_msg;
     paxos_log_debug("Handle repeat for Instances %d-%d", repeat->from, repeat->to);
     for (iid_t instance = repeat->from; instance <= repeat->to; instance++) {
         if (writeahead_epoch_acceptor_receive_repeat(acceptor->acceptor, instance, &out_msg)) {
@@ -123,7 +123,7 @@ static void ev_epoch_acceptor_handle_repeat(struct writeahead_epoch_paxos_peer* 
     }
 }
 
-static void ev_epoch_acceptor_handle_epoch_ballot_chosen( struct writeahead_epoch_paxos_peer* p, struct writeahead_epoch_paxos_message* msg, void* arg) {
+static void ev_epoch_acceptor_handle_epoch_ballot_chosen(struct writeahead_epoch_paxos_peer* p, struct epoch_paxos_message* msg, void* arg) {
     struct ev_epoch_acceptor* acceptor = arg;
     struct epoch_ballot_chosen* chosen = &msg->message_contents.instance_chosen_at_epoch_ballot;
 
@@ -134,7 +134,7 @@ static void ev_epoch_acceptor_handle_epoch_ballot_chosen( struct writeahead_epoc
 
 }
 
-static void ev_epoch_acceptor_handle_trim( struct writeahead_epoch_paxos_peer* p, struct writeahead_epoch_paxos_message* msg, void* arg) {
+static void ev_epoch_acceptor_handle_trim(struct writeahead_epoch_paxos_peer* p, struct epoch_paxos_message* msg, void* arg) {
     struct ev_epoch_acceptor* acceptor = arg;
     struct paxos_trim* trim = &msg->message_contents.trim;
     writeahead_epoch_acceptor_receive_trim(acceptor->acceptor, trim);
@@ -142,7 +142,7 @@ static void ev_epoch_acceptor_handle_trim( struct writeahead_epoch_paxos_peer* p
 
 static void send_epoch_acceptor_state( int fd,  short ev, void* arg) {
     struct ev_epoch_acceptor* acceptor = arg;
-    struct writeahead_epoch_paxos_message msg;
+    struct epoch_paxos_message msg;
     msg.type = WRITEAHEAD_ACCEPTOR_STATE;
     writeahead_epoch_acceptor_get_current_state(acceptor->acceptor, &msg.message_contents.state);
     writeahead_epoch_paxos_peers_foreach_client(acceptor->peers, peer_send_epoch_paxos_message, &msg);
@@ -155,7 +155,7 @@ ev_epoch_acceptor_init_internal(int id, struct evpaxos_config *c, struct writeah
     struct epoch_notification epoch_notification;
     bool new_epoch;
 
-    acceptor->acceptor = writeahead_epoch_acceptor_new(id, &epoch_notification, &new_epoch);
+    acceptor->acceptor = epoch_acceptor_new(id, &epoch_notification, &new_epoch);
     acceptor->peers = p;
 
     writeahead_epoch_paxos_peers_subscribe(p, WRITEAHEAD_EPOCH_BALLOT_ACCEPT, ev_epoch_acceptor_handle_epoch_ballot_accept, acceptor);
@@ -177,7 +177,7 @@ ev_epoch_acceptor_init_internal(int id, struct evpaxos_config *c, struct writeah
     acceptor->send_state_timer = (struct timeval) {1, 0};
     event_add(acceptor->send_state_event, &acceptor->send_state_timer);
 
-    struct writeahead_epoch_paxos_message msg = {
+    struct epoch_paxos_message msg = {
             .type = WRITEAHEAD_EPOCH_NOTIFICATION,
             .message_contents.epoch_notification = epoch_notification
     };

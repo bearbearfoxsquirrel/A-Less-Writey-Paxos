@@ -14,7 +14,7 @@ static int bufferevent_pack_data(void* data, const char* buf, size_t len) { //la
     return 0;
 }
 
-void send_epoch_paxos_message(struct bufferevent* bev, struct writeahead_epoch_paxos_message* msg){
+void send_epoch_paxos_message(struct bufferevent* bev, struct epoch_paxos_message* msg){
     msgpack_packer* packer;
     packer = msgpack_packer_new(bev, bufferevent_pack_data);
     msgpack_pack_writeahead_epoch_paxos_message(packer, msg);
@@ -22,7 +22,7 @@ void send_epoch_paxos_message(struct bufferevent* bev, struct writeahead_epoch_p
 }
 
 void send_standard_paxos_prepare(struct bufferevent* bev, struct paxos_prepare* msg) {
-    struct writeahead_epoch_paxos_message send_msg = (struct writeahead_epoch_paxos_message) {
+    struct epoch_paxos_message send_msg = (struct epoch_paxos_message) {
             .type = WRITEAHEAD_STANDARD_PREPARE,
             .message_contents.standard_prepare = *msg
     };
@@ -34,7 +34,7 @@ void send_standard_paxos_prepare(struct bufferevent* bev, struct paxos_prepare* 
 }
 
 void send_epoch_paxos_trim(struct bufferevent* bev, struct paxos_trim* msg) {
-    struct writeahead_epoch_paxos_message send_msg = (struct writeahead_epoch_paxos_message) {
+    struct epoch_paxos_message send_msg = (struct epoch_paxos_message) {
             .type = WRITEAHEAD_INSTANCE_TRIM,
             .message_contents.trim = *msg
     };
@@ -44,7 +44,7 @@ void send_epoch_paxos_trim(struct bufferevent* bev, struct paxos_trim* msg) {
 }
 
 void send_epoch_ballot_prepare(struct bufferevent* bev, struct epoch_ballot_prepare* msg){
-    struct writeahead_epoch_paxos_message send_msg = (struct writeahead_epoch_paxos_message) {
+    struct epoch_paxos_message send_msg = (struct epoch_paxos_message) {
         .type = WRITEAHEAD_EPOCH_BALLOT_PREPARE,
         .message_contents.epoch_ballot_prepare = *msg
     };
@@ -58,7 +58,7 @@ void send_epoch_ballot_prepare(struct bufferevent* bev, struct epoch_ballot_prep
 
 
 void send_epoch_ballot_promise(struct bufferevent* bev, struct epoch_ballot_promise* msg){
-    struct writeahead_epoch_paxos_message send_msg = (struct writeahead_epoch_paxos_message) {
+    struct epoch_paxos_message send_msg = (struct epoch_paxos_message) {
         .type = WRITEAHEAD_EPOCH_BALLOT_PROMISE,
         .message_contents.epoch_ballot_promise = *msg
     };
@@ -73,7 +73,7 @@ void send_epoch_ballot_promise(struct bufferevent* bev, struct epoch_ballot_prom
 
 
 void send_epoch_ballot_accept(struct bufferevent* bev, struct epoch_ballot_accept* msg){
-    struct writeahead_epoch_paxos_message send_msg = (struct writeahead_epoch_paxos_message) {
+    struct epoch_paxos_message send_msg = (struct epoch_paxos_message) {
         .type = WRITEAHEAD_EPOCH_BALLOT_ACCEPT,
         .message_contents.epoch_ballot_accept = *msg
     };
@@ -87,7 +87,7 @@ void send_epoch_ballot_accept(struct bufferevent* bev, struct epoch_ballot_accep
 
 
 void send_epoch_paxos_accepted(struct bufferevent* bev, struct epoch_ballot_accepted* msg){
-    struct writeahead_epoch_paxos_message send_msg = (struct writeahead_epoch_paxos_message) {
+    struct epoch_paxos_message send_msg = (struct epoch_paxos_message) {
             .type = WRITEAHEAD_EPOCH_BALLOT_ACCEPTED,
             .message_contents.epoch_ballot_accepted = *msg
     };
@@ -100,7 +100,7 @@ void send_epoch_paxos_accepted(struct bufferevent* bev, struct epoch_ballot_acce
 }
 
 void send_epoch_paxos_preempted(struct bufferevent* bev, struct epoch_ballot_preempted* msg){
-    struct writeahead_epoch_paxos_message send_msg = (struct writeahead_epoch_paxos_message) {
+    struct epoch_paxos_message send_msg = (struct epoch_paxos_message) {
         .type = WRITEAHEAD_EPOCH_BALLOT_PREEMPTED,
         .message_contents.epoch_ballot_preempted = *msg
     };
@@ -114,7 +114,7 @@ void send_epoch_paxos_preempted(struct bufferevent* bev, struct epoch_ballot_pre
 
 void send_epoch_paxos_chosen(struct bufferevent* bev, struct epoch_ballot_chosen* chosen_msg){
 
-    struct writeahead_epoch_paxos_message send_msg = (struct writeahead_epoch_paxos_message) {
+    struct epoch_paxos_message send_msg = (struct epoch_paxos_message) {
         .type = WRITEAHEAD_INSTANCE_CHOSEN_AT_EPOCH_BALLOT,
         .message_contents.instance_chosen_at_epoch_ballot = *chosen_msg
     };
@@ -128,14 +128,14 @@ void send_epoch_paxos_chosen(struct bufferevent* bev, struct epoch_ballot_chosen
 }
 
 void epoch_paxos_submit_client_value(struct bufferevent* bev, char *data, int size){
-    struct writeahead_epoch_paxos_message msg = {
+    struct epoch_paxos_message msg = {
             .type = WRITEAHEAD_CLIENT_VALUE,
             .message_contents.client_value.paxos_value_len = size,
             .message_contents.client_value.paxos_value_val = data };
     send_epoch_paxos_message(bev, &msg);
 }
 
-int recv_epoch_paxos_message(struct evbuffer* in, struct writeahead_epoch_paxos_message* out){
+int recv_epoch_paxos_message(struct evbuffer* in, struct epoch_paxos_message* out){
     int rv = 0;
     char* buffer;
     size_t size, offset = 0;

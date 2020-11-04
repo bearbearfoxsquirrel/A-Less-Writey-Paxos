@@ -14,7 +14,7 @@ struct writeahead_epoch_paxos_peer;
 struct writeahead_epoch_paxos_peers;
 
 
-typedef void (*writeahead_epoch_paxos_peer_cb)(struct writeahead_epoch_paxos_peer* p, struct writeahead_epoch_paxos_message* m, void* arg);
+typedef void (*writeahead_epoch_paxos_peer_cb)(struct writeahead_epoch_paxos_peer* p, struct epoch_paxos_message* m, void* arg);
 typedef void (*writeahead_epoch_paxos_peer_iter_cb)(struct writeahead_epoch_paxos_peer* p, void* arg);
 
 struct writeahead_epoch_paxos_peers *

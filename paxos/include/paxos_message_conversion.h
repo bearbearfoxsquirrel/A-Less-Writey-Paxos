@@ -41,15 +41,15 @@ void epoch_ballot_accept_from_paxos_accept(const struct paxos_accept* paxos_acce
 
 void epoch_ballot_preempted_from_epoch_ballot_requested_and_epoch_ballot_last_responded(int aid, const iid_t instance, const struct epoch_ballot* requested_epoch_ballot, const struct epoch_ballot* last_responded_epoch_ballot, struct epoch_ballot_preempted* preempted);
 
-void union_epoch_ballot_preempted_from_epoch_ballot_preempted(const struct epoch_ballot_preempted* eb_preempte, struct writeahead_epoch_paxos_message* message_to_be_preempt);
+void union_epoch_ballot_preempted_from_epoch_ballot_preempted(const struct epoch_ballot_preempted* eb_preempte, struct epoch_paxos_message* message_to_be_preempt);
 
-void union_epoch_ballot_promise_from_epoch_ballot_accept_and_epoch_ballot_prepare(struct writeahead_epoch_paxos_message* message_to_be_promise, const struct epoch_ballot_prepare* prepare, const struct epoch_ballot_accept* accept, int aid);
+void union_epoch_ballot_promise_from_epoch_ballot_accept_and_epoch_ballot_prepare(struct epoch_paxos_message* message_to_be_promise, const struct epoch_ballot_prepare* prepare, const struct epoch_ballot_accept* accept, int aid);
 
-void union_epoch_ballot_accepted_from_epoch_ballot_accept(struct writeahead_epoch_paxos_message* message_to_be_accepted, const struct epoch_ballot_accept *accept, int acceptor_id);
+void union_epoch_ballot_accepted_from_epoch_ballot_accept(struct epoch_paxos_message* message_to_be_accepted, const struct epoch_ballot_accept *accept, int acceptor_id);
 
-void union_epoch_ballot_promise_from_epoch_ballot_accept_and_paxos_prepare(struct writeahead_epoch_paxos_message* message_to_be_promise, const struct paxos_prepare* prepare, const struct epoch_ballot_accept* accept, int aid, uint32_t promised_epoch);
+void union_epoch_ballot_promise_from_epoch_ballot_accept_and_paxos_prepare(struct epoch_paxos_message* message_to_be_promise, const struct paxos_prepare* prepare, const struct epoch_ballot_accept* accept, int aid, uint32_t promised_epoch);
 
-void union_epoch_ballot_chosen_from_epoch_ballot_accept(struct writeahead_epoch_paxos_message* chosen_message, const struct epoch_ballot_accept* accept);
+void union_epoch_ballot_chosen_from_epoch_ballot_accept(struct epoch_paxos_message* chosen_message, const struct epoch_ballot_accept* accept);
 
 void union_ballot_chosen_from_epoch_ballot_accept(struct standard_paxos_message* chosen_message, const struct paxos_accept* accept);
 

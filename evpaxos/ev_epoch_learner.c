@@ -38,7 +38,7 @@ static void peer_send_epoch_paxos_message(struct writeahead_epoch_paxos_peer* p,
 
 static void ev_epoch_learner_check_holes(evutil_socket_t fd, short event, void *arg)
 {
-    struct writeahead_epoch_paxos_message msg;
+    struct epoch_paxos_message msg;
     struct ev_epoch_learner* l = arg;
 
     uint32_t chunks = l->min_chunks_missing;
@@ -84,10 +84,10 @@ ev_epoch_learner_deliver_next_closed(struct ev_epoch_learner* l)
     }
 }
 
-static void ev_epoch_learner_handle_accepted( struct writeahead_epoch_paxos_peer* p, struct writeahead_epoch_paxos_message* msg, void* arg){
+static void ev_epoch_learner_handle_accepted(struct writeahead_epoch_paxos_peer* p, struct epoch_paxos_message* msg, void* arg){
     struct ev_epoch_learner* l = arg;
     struct epoch_ballot_accepted* accepted = &msg->message_contents.epoch_ballot_accepted;
-    struct writeahead_epoch_paxos_message chosen;
+    struct epoch_paxos_message chosen;
     chosen.type = WRITEAHEAD_INSTANCE_CHOSEN_AT_EPOCH_BALLOT;
 
     enum epoch_paxos_message_return_codes return_code = epoch_learner_receive_accepted(l->learner, accepted, &chosen.message_contents.instance_chosen_at_epoch_ballot);
@@ -103,14 +103,14 @@ static void ev_epoch_learner_handle_accepted( struct writeahead_epoch_paxos_peer
     }
 }
 
-static void ev_epoch_learner_handle_chosen( struct writeahead_epoch_paxos_peer* p, struct writeahead_epoch_paxos_message* msg, void* arg) {
+static void ev_epoch_learner_handle_chosen(struct writeahead_epoch_paxos_peer* p, struct epoch_paxos_message* msg, void* arg) {
     struct ev_epoch_learner* l = arg;
     struct epoch_ballot_chosen* chosen = &msg->message_contents.instance_chosen_at_epoch_ballot;
     epoch_learner_receive_epoch_ballot_chosen(l->learner, chosen);
     ev_epoch_learner_deliver_next_closed(l);
 }
 
-static void ev_learner_handle_trim( struct writeahead_epoch_paxos_peer* p, struct writeahead_epoch_paxos_message* msg, void* arg) {
+static void ev_learner_handle_trim(struct writeahead_epoch_paxos_peer* p, struct epoch_paxos_message* msg, void* arg) {
     struct ev_epoch_learner* l = arg;
     struct paxos_trim* trim = &msg->message_contents.trim;
     epoch_learner_set_trim_instance(l->learner, trim->iid);

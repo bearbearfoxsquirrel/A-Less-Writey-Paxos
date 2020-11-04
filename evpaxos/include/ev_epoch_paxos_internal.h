@@ -20,7 +20,7 @@ void ev_epoch_acceptor_free_internal(struct ev_epoch_acceptor** a);
 
 struct ev_epoch_proposer *
 ev_epoch_proposer_init_internal(int id, struct evpaxos_config *c, struct writeahead_epoch_paxos_peers *peers,
-                                struct backoff_manager *backoff_manager, int proposer_count);
+                                int proposer_count);
 
 void ev_epoch_proposer_free_internal(struct ev_epoch_proposer** p);
 

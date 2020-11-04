@@ -10,7 +10,7 @@
 #include <event2/buffer.h>
 #include <event2/bufferevent.h>
 
-void send_epoch_paxos_message(struct bufferevent* bev, struct writeahead_epoch_paxos_message* msg);
+void send_epoch_paxos_message(struct bufferevent* bev, struct epoch_paxos_message* msg);
 void send_epoch_ballot_prepare(struct bufferevent* bev, struct epoch_ballot_prepare* msg);
 void send_epoch_ballot_promise(struct bufferevent* bev, struct epoch_ballot_promise* msg);
 void send_epoch_ballot_accept(struct bufferevent* bev, struct epoch_ballot_accept* msg);
@@ -20,7 +20,7 @@ void send_standard_paxos_prepare(struct bufferevent* bev, struct paxos_prepare* 
 void send_epoch_paxos_trim(struct bufferevent* bev, struct paxos_trim* msg);
 void send_epoch_paxos_chosen(struct bufferevent* bev, struct epoch_ballot_chosen* chosen_msg);
 void epoch_paxos_submit_client_value(struct bufferevent* bev, char *data, int size);
-int recv_epoch_paxos_message(struct evbuffer* in, struct writeahead_epoch_paxos_message* out);
+int recv_epoch_paxos_message(struct evbuffer* in, struct epoch_paxos_message* out);
 
 
 #endif //A_LESS_WRITEY_PAXOS_EPOCH_PAXOS_MESSAGE_H

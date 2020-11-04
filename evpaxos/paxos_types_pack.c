@@ -451,7 +451,7 @@ void msgpack_pack_epoch_paxos_client_value(msgpack_packer* p, struct paxos_value
     msgpack_pack_paxos_value(p, v);
 }
 
-void msgpack_pack_writeahead_epoch_paxos_message(msgpack_packer* packer, struct writeahead_epoch_paxos_message* message){
+void msgpack_pack_writeahead_epoch_paxos_message(msgpack_packer* packer, struct epoch_paxos_message* message){
    switch (message->type) {
        case WRITEAHEAD_STANDARD_PREPARE:
            msgpack_pack_epoch_paxos_standard_prepare(packer, &message->message_contents.standard_prepare);
@@ -581,7 +581,7 @@ void msgpack_unpack_epoch_paxos_trim(msgpack_object* o, paxos_trim* v)
 }
 
 
-void msgpack_unpack_writeahead_epoch_paxos_message(msgpack_object* msg_object, struct writeahead_epoch_paxos_message* unpacked_message){
+void msgpack_unpack_writeahead_epoch_paxos_message(msgpack_object* msg_object, struct epoch_paxos_message* unpacked_message){
    unpacked_message->type = MSGPACK_OBJECT_AT(msg_object,0).u64;
 
    switch (unpacked_message->type) {

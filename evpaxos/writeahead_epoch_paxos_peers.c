@@ -341,7 +341,7 @@ writeahead_epoch_paxos_peers_get_event_base(struct writeahead_epoch_paxos_peers*
 }
 
 static void
-writeahead_epoch_paxos_dispatch_message(struct writeahead_epoch_paxos_peer* p, struct writeahead_epoch_paxos_message* msg)
+writeahead_epoch_paxos_dispatch_message(struct writeahead_epoch_paxos_peer* p, struct epoch_paxos_message* msg)
 {
     int i;
     for (i = 0; i < p->peers->subs_count; ++i) {
@@ -355,7 +355,7 @@ writeahead_epoch_paxos_dispatch_message(struct writeahead_epoch_paxos_peer* p, s
 static void
 writeahead_epoch_paxos_on_read(struct bufferevent* bev, void* arg)
 {
-    struct writeahead_epoch_paxos_message msg;
+    struct epoch_paxos_message msg;
     struct writeahead_epoch_paxos_peer* p = (struct writeahead_epoch_paxos_peer*)arg;
     struct evbuffer* in = bufferevent_get_input(bev);
     while (recv_epoch_paxos_message(in, &msg)) {

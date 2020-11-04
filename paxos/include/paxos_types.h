@@ -253,7 +253,7 @@ struct  epoch_paxos_prepares {
     };
 };
 
-struct writeahead_epoch_paxos_message {
+struct epoch_paxos_message {
     enum writeahead_epoch_message_type type;
     union {
         struct paxos_prepare standard_prepare;

@@ -275,7 +275,7 @@ static void ev_epoch_proposer_try_begin_new_instances(struct ev_epoch_proposer* 
 
 
 
-static void ev_epoch_proposer_handle_promise( struct writeahead_epoch_paxos_peer* p, struct writeahead_epoch_paxos_message* msg, void* arg) {
+static void ev_epoch_proposer_handle_promise(struct writeahead_epoch_paxos_peer* p, struct epoch_paxos_message* msg, void* arg) {
     paxos_log_debug("Handling Promise message");
     struct ev_epoch_proposer* proposer = arg;
     struct epoch_ballot_promise* promise = &msg->message_contents.epoch_ballot_promise;
@@ -296,7 +296,7 @@ static void ev_epoch_proposer_handle_promise( struct writeahead_epoch_paxos_peer
     }
 }
 
-static void ev_epoch_proposer_handle_accepted( struct writeahead_epoch_paxos_peer* p, struct writeahead_epoch_paxos_message* msg, void* arg){
+static void ev_epoch_proposer_handle_accepted(struct writeahead_epoch_paxos_peer* p, struct epoch_paxos_message* msg, void* arg){
     paxos_log_debug("Handling Accepted message");
     struct ev_epoch_proposer* proposer = arg;
     struct epoch_ballot_accepted* accepted = &msg->message_contents.epoch_ballot_accepted;
@@ -324,7 +324,7 @@ static void ev_epoch_proposer_handle_accepted( struct writeahead_epoch_paxos_pee
   //  }
 }
 
-static void ev_epoch_proposer_handle_chosen( struct writeahead_epoch_paxos_peer* p, struct writeahead_epoch_paxos_message* msg, void* arg) {
+static void ev_epoch_proposer_handle_chosen(struct writeahead_epoch_paxos_peer* p, struct epoch_paxos_message* msg, void* arg) {
     paxos_log_debug("Handling Chosen message");
     struct ev_epoch_proposer* proposer = arg;
     struct epoch_ballot_chosen* chosen_msg = &msg->message_contents.instance_chosen_at_epoch_ballot;
@@ -342,7 +342,7 @@ static void ev_epoch_proposer_handle_chosen( struct writeahead_epoch_paxos_peer*
 }
 
 
-static void ev_epoch_proposer_handle_preempted( struct writeahead_epoch_paxos_peer* p, struct writeahead_epoch_paxos_message* msg, void* arg) {
+static void ev_epoch_proposer_handle_preempted(struct writeahead_epoch_paxos_peer* p, struct epoch_paxos_message* msg, void* arg) {
     paxos_log_debug("Handling Preempted message");
     struct ev_epoch_proposer* proposer = arg;
     struct epoch_ballot_preempted preempted_msg = msg->message_contents.epoch_ballot_preempted;
@@ -380,7 +380,7 @@ static void ev_epoch_proposer_handle_preempted( struct writeahead_epoch_paxos_pe
 
 
 static void
-ev_epoch_proposer_handle_trim( struct writeahead_epoch_paxos_peer* p, struct writeahead_epoch_paxos_message* msg, void* arg) {
+ev_epoch_proposer_handle_trim(struct writeahead_epoch_paxos_peer* p, struct epoch_paxos_message* msg, void* arg) {
     paxos_log_debug("Handling Trim message");
     struct ev_epoch_proposer* proposer = arg;
     struct paxos_trim* trim_msg = &msg->message_contents.trim;
@@ -394,7 +394,7 @@ ev_epoch_proposer_handle_trim( struct writeahead_epoch_paxos_peer* p, struct wri
 }
 
 static void
-ev_epoch_proposer_handle_client_value( struct writeahead_epoch_paxos_peer* p, struct writeahead_epoch_paxos_message* msg, void* arg)
+ev_epoch_proposer_handle_client_value(struct writeahead_epoch_paxos_peer* p, struct epoch_paxos_message* msg, void* arg)
 {
     paxos_log_debug("Handling Client Value message");
     struct ev_epoch_proposer* proposer = arg;
@@ -409,7 +409,7 @@ ev_epoch_proposer_handle_client_value( struct writeahead_epoch_paxos_peer* p, st
 }
 
 static void
-ev_epoch_proposer_handle_acceptor_state( struct writeahead_epoch_paxos_peer* p, struct writeahead_epoch_paxos_message* msg, void* arg)
+ev_epoch_proposer_handle_acceptor_state(struct writeahead_epoch_paxos_peer* p, struct epoch_paxos_message* msg, void* arg)
 {
     paxos_log_debug("Handing Acceptor State message");
     struct ev_epoch_proposer* proposer = arg;
@@ -505,7 +505,20 @@ static void ev_epoch_proposer_print_counters(evutil_socket_t fd, short event, vo
 
 struct ev_epoch_proposer *
 ev_epoch_proposer_init_internal(int id, struct evpaxos_config *c, struct writeahead_epoch_paxos_peers *peers,
-                                struct backoff_manager *backoff_manager, int proposer_count) {
+                                int proposer_count) {
+
+    struct backoff *backoff;
+    if(strncmp(paxos_config.backoff_type, "full-jitter", 11) == 0) {
+        backoff = full_jitter_backoff_new(paxos_config.max_backoff_microseconds,
+                                          paxos_config.min_backoff_microseconds,
+                                          paxos_config.max_initial_backff_microseconds);
+    } else if (strncmp(paxos_config.backoff_type, "exponential", 12) == 0){
+        backoff = exponential_randomised_backoff_new(paxos_config.max_backoff_microseconds, paxos_config.min_backoff_microseconds, paxos_config.max_initial_backff_microseconds);
+    } else {
+        backoff = exponential_randomised_backoff_new(paxos_config.max_backoff_microseconds, paxos_config.min_backoff_microseconds, paxos_config.max_initial_backff_microseconds);
+    }
+
+    struct backoff_manager* backoff_manager = backoff_manager_new(backoff);
     struct ev_epoch_proposer* proposer = malloc(sizeof(struct ev_epoch_proposer));
     proposer->id = id;
     proposer->proposer = epoch_proposer_new(id, evpaxos_acceptor_count(c), paxos_config.quorum_1, paxos_config.quorum_2,
@@ -576,19 +589,8 @@ struct ev_epoch_proposer* ev_epoch_proposer_init(int id, const char* config_file
         return NULL;
 
     //todo config mechanism to work out backoff type
-    struct backoff *backoff;
-    if(strncmp(paxos_config.backoff_type, "full-jitter", 11) == 0) {
-         backoff = full_jitter_backoff_new(paxos_config.max_backoff_microseconds,
-                                                          paxos_config.min_backoff_microseconds,
-                                                          paxos_config.max_initial_backff_microseconds);
-    } else if (strncmp(paxos_config.backoff_type, "exponential", 12) == 0){
-        backoff = exponential_randomised_backoff_new(paxos_config.max_backoff_microseconds, paxos_config.min_backoff_microseconds, paxos_config.max_initial_backff_microseconds);
-    } else {
-        backoff = exponential_randomised_backoff_new(paxos_config.max_backoff_microseconds, paxos_config.min_backoff_microseconds, paxos_config.max_initial_backff_microseconds);
-    }
-    struct backoff_manager* backoff_manager = backoff_manager_new(backoff);
 
-    struct ev_epoch_proposer* p = ev_epoch_proposer_init_internal(id, config, peers, backoff_manager, evpaxos_proposer_count(config));
+    struct ev_epoch_proposer* p = ev_epoch_proposer_init_internal(id, config, peers, evpaxos_proposer_count(config));
     evpaxos_config_free(config);
     return p;
 }

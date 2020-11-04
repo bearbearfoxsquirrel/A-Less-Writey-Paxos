@@ -95,8 +95,8 @@ void msgpack_unpack_epoch_paxos_repeat(msgpack_object* o, paxos_repeat* v);
 void msgpack_pack_epoch_paxos_repeat(msgpack_packer* p, paxos_repeat* v);
 void msgpack_pack_epoch_paxos_standard_prepare(msgpack_packer* p, struct paxos_prepare* v);
 
-void msgpack_pack_writeahead_epoch_paxos_message(msgpack_packer* packer, struct writeahead_epoch_paxos_message* message);
-void msgpack_unpack_writeahead_epoch_paxos_message(msgpack_object* msg_object, struct writeahead_epoch_paxos_message* unpacked_message);
+void msgpack_pack_writeahead_epoch_paxos_message(msgpack_packer* packer, struct epoch_paxos_message* message);
+void msgpack_unpack_writeahead_epoch_paxos_message(msgpack_object* msg_object, struct epoch_paxos_message* unpacked_message);
 
 #ifdef __cplusplus
 }

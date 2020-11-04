@@ -175,7 +175,7 @@ void epoch_ballot_chosen_in_instance_destroy(struct epoch_ballot_chosen* chosen)
     paxos_value_destroy(&chosen->chosen_value);
 }
 
-void writeahead_epoch_paxos_message_destroy_contents(struct writeahead_epoch_paxos_message* m) {
+void writeahead_epoch_paxos_message_destroy_contents(struct epoch_paxos_message* m) {
     switch (m->type) {
 
         case WRITEAHEAD_STANDARD_PREPARE:

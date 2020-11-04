@@ -72,7 +72,7 @@ struct epoch_proposer_timeout_iterator {
 
 
 struct epoch_proposer *epoch_proposer_new(int id, int acceptors, int q1, int q2, uint32_t max_ballot_increment) {
-    struct epoch_proposer* proposer = calloc(1, sizeof(*proposer));
+    struct epoch_proposer* proposer = calloc(1, sizeof(struct epoch_proposer));
     proposer->id = id;
     proposer->acceptors = acceptors;
     proposer->q1 = q1;
@@ -91,10 +91,10 @@ struct epoch_proposer *epoch_proposer_new(int id, int acceptors, int q1, int q2,
 
     proposer->known_highest_epoch = INVALID_EPOCH;
 
-    proposer->instances_with_client_vals_closed = carray_new(5000);
-    proposer->client_values_to_propose = carray_new(5000);
+    proposer->instances_with_client_vals_closed = carray_new(128);
+    proposer->client_values_to_propose = carray_new(1000);
     proposer->pending_client_values = pending_client_values_new();
-    proposer->values_to_repropose = carray_new(5000);
+    proposer->values_to_repropose = carray_new(500);
 
 
     proposer->ballot_increment = max_ballot_increment;
@@ -797,7 +797,7 @@ enum epoch_paxos_message_return_codes epoch_proposer_receive_accepted(struct epo
     }
 
     if (epoch_proposer_is_instance_chosen(p, ack->instance)){
-        char msg[1000];
+        char msg[200];
         sprintf(msg, "Acceptance dropped, Instance %u known to be chosen", ack->instance);
         return ignore_accepted(p, msg);
     }
@@ -819,7 +819,7 @@ enum epoch_paxos_message_return_codes epoch_proposer_receive_accepted(struct epo
                 ack->accepted_epoch_ballot.ballot.number, ack->accepted_epoch_ballot.ballot.proposer_id);
 
         if (quorum_add(&inst->quorum, ack->acceptor_id) == 0) {
-            char msg[1000];
+            char msg[200];
             sprintf(msg, "Duplicate Acceptance from Acceptor %u dropped for Instance %u", ack->acceptor_id, ack->instance);
             return ignore_accepted(p, msg);
         } else {
