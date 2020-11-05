@@ -29,7 +29,7 @@ KHASH_MAP_INIT_INT(chosen_instances, bool*)
 
 
 struct epoch_proposer {
-   // struct proposer_message_and_response_counters counters;
+    struct proposer_message_and_response_counters counters;
 
     int id;
     uint32_t known_highest_epoch;
@@ -99,7 +99,7 @@ struct epoch_proposer *epoch_proposer_new(int id, int acceptors, int q1, int q2,
 
     proposer->ballot_increment = max_ballot_increment;
 
-//    proposer->counters = prop_msg_and_resp_counters_new();
+    proposer->counters = prop_msg_and_resp_counters_new();
 
     return proposer;
 }
@@ -420,12 +420,8 @@ bool epoch_proposer_try_to_start_preparing_instance(struct epoch_proposer *p, ii
             };
         }
 
-
-
-
         assert(initial_ballot.ballot.number > 0);
         struct epoch_proposer_instance_info* inst = epoch_proposer_instance_info_new(instance, initial_ballot, p->acceptors, p->q1);
-
 
         int rv = -1;
         key = kh_put_instance_info(p->prepare_proposer_instance_infos, instance, &rv);
@@ -686,15 +682,16 @@ bool epoch_proposer_try_determine_value_to_propose(struct epoch_proposer* propos
             assert(inst->common_info.proposing_value == NULL);
             paxos_log_debug("Proposing client value");
             struct paxos_value* value_to_propose = carray_pop_front(proposer->client_values_to_propose);
+            inst->common_info.proposing_value = value_to_propose;
             assert(value_to_propose != NULL);
 
-            inst->common_info.proposing_value = malloc(sizeof(struct paxos_value));
-            paxos_value_copy(inst->common_info.proposing_value, value_to_propose);
+          //  inst->common_info.proposing_value = malloc(sizeof(struct paxos_value));
+        //    paxos_value_copy(inst->common_info.proposing_value, value_to_propose);
 
-            carray_push_back(proposer->values_to_repropose, value_to_propose);
+        //    carray_push_back(proposer->values_to_repropose, value_to_propose);
 
 
-            client_value_now_pending_at(proposer->pending_client_values, inst->common_info.iid, value_to_propose);// value_to_propose);
+           // client_value_now_pending_at(proposer->pending_client_values, inst->common_info.iid, value_to_propose);// value_to_propose);
 
             // count_logger_decrement_and_print(proposer->counters.c_val_in_initial_queue, 1);
             // count_logger_increment(proposer->counters.c_val_proposed, 1);
@@ -702,7 +699,7 @@ bool epoch_proposer_try_determine_value_to_propose(struct epoch_proposer* propos
             // count_logger_increment_and_print(proposer->counters.c_val_in_retry_queue, 1);
         } else {
             // (rate_limiter_okay(proposer) ||
-           if (!carray_empty(proposer->values_to_repropose) && proposer->max_chosen_instance > inst->common_info.iid) {
+       /*    if (!carray_empty(proposer->values_to_repropose) && proposer->max_chosen_instance > inst->common_info.iid) {
                 gettimeofday(&proposer->last_reproposal_time, NULL);
 
                 paxos_log_debug("Reproposing client value");
@@ -714,7 +711,7 @@ bool epoch_proposer_try_determine_value_to_propose(struct epoch_proposer* propos
                 carray_push_back(proposer->values_to_repropose, value_to_propose);
                 // count_logger_increment_and_print(proposer->counters.c_val_reproposed, 1);
 
-            } else {
+            } else {*/
 
                 // Fill holes
                 if (proposer->max_chosen_instance > inst->common_info.iid) {
@@ -729,7 +726,7 @@ bool epoch_proposer_try_determine_value_to_propose(struct epoch_proposer* propos
                     paxos_log_debug("No need to propose a Value");
                     return false;
                 }
-            }
+          //  }
         }
     } else {
 
@@ -846,9 +843,11 @@ enum epoch_paxos_message_return_codes epoch_proposer_receive_accepted(struct epo
 
 
 void epoch_proposer_check_and_handle_client_value_from_chosen(struct epoch_proposer* p, struct epoch_proposer_instance_info* inst, struct epoch_ballot_chosen* chosen){
-    struct paxos_value proposed_client_value;
-    bool client_value_proposed = get_value_pending_at(p->pending_client_values, chosen->instance, &proposed_client_value);
+  //  struct paxos_value proposed_client_value;
+  //  bool client_value_proposed = get_value_pending_at(p->pending_client_values, chosen->instance, &proposed_client_value);
  //   epoch_proposer_remove_client_value_from_retry_queue(p, &chosen->chosen_value);
+
+    bool client_value_proposed = inst->common_info.proposing_value != NULL;
 
     if (client_value_proposed) {
 
@@ -857,7 +856,7 @@ void epoch_proposer_check_and_handle_client_value_from_chosen(struct epoch_propo
             if (is_values_equal(*inst->common_info.proposing_value, chosen->chosen_value)) {
 
                 // count_logger_increment(p->counters.chosen_c_val_counter, 1);
-                remove_pending_value_at(p->pending_client_values, chosen->instance, NULL);
+            //    remove_pending_value_at(p->pending_client_values, chosen->instance, NULL);
 
                 paxos_log_debug("Pending Client Value was Chosen in Instance %u at Epoch Ballot %u.%u.%u",
                                 chosen->instance,
@@ -879,7 +878,7 @@ void epoch_proposer_check_and_handle_client_value_from_chosen(struct epoch_propo
             } else {
                 // count_logger_increment_and_print(p->counters.c_val_in_initial_queue, 1);
                 // count_logger_increment(p->counters.c_val_requeued, 1);
-                remove_pending_value_at(p->pending_client_values, chosen->instance, NULL);
+//                remove_pending_value_at(p->pending_client_values, chosen->instance, NULL);
                 paxos_log_debug(
                         "Pending Client Value was not Chosen for Instance %u. Pushing Client Value back to Queue.",
                         chosen->instance);
@@ -929,12 +928,12 @@ enum epoch_paxos_message_return_codes epoch_proposer_receive_chosen(struct epoch
     bool pending_in_accept = epoch_proposer_get_instance_info_in_phase(p->accept_proposer_instance_infos, ack->instance, &inst_accept);
 
     // remove from the queue of values to propose. If wasn't chosen then will be added again later
-    bool was_in_retry = epoch_proposer_remove_client_value_from_retry_queue(p, &ack->chosen_value);
-    bool was_in_propose = epoch_proposer_remove_client_value_from_proposing_queue(p, &ack->chosen_value);
+   // bool was_in_retry = epoch_proposer_remove_client_value_from_retry_queue(p, &ack->chosen_value);
+ //   bool was_in_propose = epoch_proposer_remove_client_value_from_proposing_queue(p, &ack->chosen_value);
 
-    if (was_in_propose || was_in_retry) {
+   //if (was_in_propose || was_in_retry) {
        // count_logger_decrement_and_print(p->counters.unique_c_val_proposed_but_not_yet_chosen, 1);
-    }
+    //}
 
     if (!pending_in_prepare && !pending_in_accept) {
         return ignore_chosen(p, "Chosen dropped, Instance not pending");
@@ -1017,7 +1016,8 @@ bool epoch_proposer_remove_instance_val_already_closed(struct epoch_proposer* p,
 
 void  epoch_proposer_check_and_requeue_client_value_if_was_proposed(struct epoch_proposer* p, struct epoch_proposer_instance_info* inst) {
    // struct paxos_value proposed_value;
-    bool inst_has_pending_client_value = get_value_pending_at(p->pending_client_values, inst->common_info.iid, NULL);
+ //   bool inst_has_pending_client_value = get_value_pending_at(p->pending_client_values, inst->common_info.iid, NULL);
+    bool inst_has_pending_client_value = inst->common_info.proposing_value != NULL;
 
     // if the value is still pending
     if (inst_has_pending_client_value && !epoch_proposer_remove_instance_val_already_closed(p, inst->common_info.iid)) {
@@ -1025,7 +1025,7 @@ void  epoch_proposer_check_and_requeue_client_value_if_was_proposed(struct epoch
             // count_logger_increment_and_print(p->counters.c_val_in_initial_queue, 1);
             carray_push_front(p->client_values_to_propose, inst->common_info.proposing_value);
             inst->common_info.proposing_value = NULL;
-            remove_pending_value_at(p->pending_client_values, inst->common_info.iid, NULL);
+          //  remove_pending_value_at(p->pending_client_values, inst->common_info.iid, NULL);
     }
 }
 
@@ -1268,5 +1268,5 @@ void epoch_proposer_timeout_iterator_free(struct epoch_proposer_timeout_iterator
 }
 
 void epoch_proposer_print_counters(struct epoch_proposer* p){
-   // proposer_print_all_counters(p->counters);
+    proposer_print_all_counters(p->counters);
 }

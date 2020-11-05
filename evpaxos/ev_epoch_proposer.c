@@ -512,9 +512,10 @@ ev_epoch_proposer_init_internal(int id, struct evpaxos_config *c, struct writeah
         backoff = full_jitter_backoff_new(paxos_config.max_backoff_microseconds,
                                           paxos_config.min_backoff_microseconds,
                                           paxos_config.max_initial_backff_microseconds);
-    } else if (strncmp(paxos_config.backoff_type, "exponential", 12) == 0){
+    } else if (strncmp(paxos_config.backoff_type, "exponential", 11) == 0) {
         backoff = exponential_randomised_backoff_new(paxos_config.max_backoff_microseconds, paxos_config.min_backoff_microseconds, paxos_config.max_initial_backff_microseconds);
     } else {
+        //default
         backoff = exponential_randomised_backoff_new(paxos_config.max_backoff_microseconds, paxos_config.min_backoff_microseconds, paxos_config.max_initial_backff_microseconds);
     }
 
