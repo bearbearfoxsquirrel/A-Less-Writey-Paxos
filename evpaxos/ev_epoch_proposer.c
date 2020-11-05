@@ -212,7 +212,6 @@ static void ev_epoch_proposer_try_begin_new_instances(struct ev_epoch_proposer* 
         bool new_instance_to_prepare = epoch_proposer_try_to_start_preparing_instance(p->proposer, current_instance,
                                                                                       initial_ballot, &prepare);
 
-        epoch_proposer_next_instance(p->proposer);
 
         if (new_instance_to_prepare) {
            number_of_instances_to_open--;
@@ -220,7 +219,7 @@ static void ev_epoch_proposer_try_begin_new_instances(struct ev_epoch_proposer* 
            iid_t instance_to_delay;
             switch (prepare.type) {
                 case STANDARD_PREPARE:
-                    if (paxos_config.pessimistic_proposing ) {
+                    if (paxos_config.pessimistic_proposing) {
                         delay = true;
                         instance_to_delay = prepare.standard_prepare.iid;
                     } else {
@@ -267,6 +266,7 @@ static void ev_epoch_proposer_try_begin_new_instances(struct ev_epoch_proposer* 
             }
         }
 
+        epoch_proposer_next_instance(p->proposer);
     }
  //   ev_performance_timer_stop_check_and_clear_timer(p->preprare_timer, "Prepare");
 
