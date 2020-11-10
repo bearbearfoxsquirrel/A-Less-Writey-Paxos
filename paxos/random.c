@@ -6,9 +6,6 @@
 #include <random.h>
 #include <stdlib.h>
 
-#include <stdlib.h>
-#include <time.h>
-
 
 unsigned int random_between(unsigned int min, unsigned int max) {
     unsigned int r;

@@ -3,13 +3,15 @@ include_directories(${CMAKE_SOURCE_DIR}/evpaxos/include)
 include_directories(${CMAKE_SOURCE_DIR}/paxos/include)
 include_directories(${LIBEVENT_INCLUDE_DIRS})
 
-SET(SRCS latency_recorder.c )
+SET(SRCS include/client_value.h latency_recorder.c include/client_benchmarker.h client_benchmarker.c client_value.c)
+
+ADD_LIBRARY(sample SHARED ${SRCS})
+#link_libraries(sample shared ${LIBPAXOS_LINKER_LIBS})
 
 set(TEST_SOURCES epoch_acceptor.c epoch_client.c epoch_proposer.c learner.c  standard_acceptor.c proposer.c client.c replica.c counter.c write_ahead_window_acceptor.c)
 
 #set(HEADER_FILES ${CMAKE_SOURCE_DIR}/sample/include/client_value.h)
 
-ADD_LIBRARY(sample SHARED ${SRCS})
 
 
 foreach(p ${TEST_SOURCES})

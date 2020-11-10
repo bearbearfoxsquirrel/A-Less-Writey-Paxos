@@ -37,18 +37,18 @@
 #include <event2/event.h>
 #include <netinet/tcp.h>
 #include <latency_recorder.h>
-
+/*
 #define MAX_VALUE_SIZE 8192
 
 
-struct client_value
-{
-    int client_id;
-    struct timeval t;
-    size_t size;
-    char value[0];
-    int uid;
-};
+//struct client_value
+//{
+ //   int client_id;
+  //  struct timeval t;
+   // size_t size;
+    //char value[0];
+//    int uid;
+//};
 
 struct stats
 {
@@ -114,8 +114,6 @@ client_submit_value(struct client* c)
     size_t size = sizeof(struct client_value) + v->size;
     paxos_submit_client_value(c->bev, c->send_buffer, size);
     paxos_log_debug("Submitted new client value");
-
-
 }
 
 // Returns t2 - t1 in microseconds.
@@ -134,7 +132,7 @@ update_stats(struct latency_recorder* recorder, struct stats* stats, struct clie
 {
     struct timeval tv;
     gettimeofday(&tv, NULL);
-    long lat = timeval_diff(&delivered->t, &tv);
+    long lat = timeval_diff_in_microseconds(&delivered->t, &tv);
     stats->delivered_count++;
     stats->delivered_bytes += size;
     stats->avg_latency = stats->avg_latency +
@@ -175,11 +173,7 @@ static void
 on_stats(evutil_socket_t fd, short event, void *arg)
 {
     struct client* c = arg;
-    double mbps = (double)(c->stats.delivered_bytes * 8) / (1024*1024);
-    printf("%d value/sec, %.2f Mbps, latency min %ld us max %ld us avg %ld us\n",
-           c->stats.delivered_count, mbps, c->stats.min_latency,
-           c->stats.max_latency, c->stats.avg_latency);
-    memset(&c->stats, 0, sizeof(struct stats));
+
     event_add(c->stats_ev, &c->stats_interval);
 }
 
@@ -327,3 +321,4 @@ main(int argc, char const *argv[])
 
     return 0;
 }
+*/

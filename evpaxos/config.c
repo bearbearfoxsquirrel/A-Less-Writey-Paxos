@@ -99,26 +99,28 @@ struct option options[] =
         {"client-settle-in-time", &paxos_config.settle_in_time, option_integer},
         {"client-num-latencies-to-record", &paxos_config.number_of_latencies_to_record, option_integer},
 
-        {"messages-batched-average", &paxos_config.messages_batched_average, option_integer},
-        {"messages-batched-max", &paxos_config.messages_batched_max, option_integer},
+        {"messages-batched-average", &paxos_config.messages_batched_average,                       option_integer},
+        {"messages-batched-max", &paxos_config.messages_batched_max,                               option_integer},
 
-        {"lnr-comm-all-acceptors-trim", &paxos_config.lnr_comm_all_acc_trim, option_boolean},
-        {"lnr-comm-all-proposers-trim", &paxos_config.lnr_comm_all_prop_trim, option_boolean},
+        {"lnr-comm-all-acceptors-trim", &paxos_config.lnr_comm_all_acc_trim,                       option_boolean},
+        {"lnr-comm-all-proposers-trim", &paxos_config.lnr_comm_all_prop_trim,                      option_boolean},
 
-        {"lnr-comm-all-acceptors-chosen", &paxos_config.lnr_comm_all_acc_chosen, option_boolean},
-        {"lnr-comm-all-proposers-chosen", &paxos_config.lnr_comm_all_prop_chosen, option_boolean},
+        {"lnr-comm-all-acceptors-chosen", &paxos_config.lnr_comm_all_acc_chosen,                   option_boolean},
+        {"lnr-comm-all-proposers-chosen", &paxos_config.lnr_comm_all_prop_chosen,                  option_boolean},
 
         {"lnr-min-chunks-missing-before-repeats", &paxos_config.lnr_missing_chunks_before_repeats, option_integer},
-        {"proposer-use-round-robin", &paxos_config.round_robin, option_boolean},
+        {"proposer-round-robin-ballot-bias", &paxos_config.round_robin_ballot_bias,                        option_boolean},
+        {"proposer-round-robin-backoff", &paxos_config.round_robin_backoff, option_boolean},
 
-        {"proposer-propose-values-in-parallel-instances", &paxos_config.repropose_values, option_boolean},
-        {"proposer-reproposal-rate-microseconds", &paxos_config.reproposal_rate, option_integer},
 
-        {"stable-storage-backend",  &paxos_config.storage_backend,         option_backend},
-        {"acceptor-trash-files",    &paxos_config.trash_files,             option_boolean },
-        {"lmdb-sync",               &paxos_config.lmdb_sync,               option_boolean },
-        {"lmdb-env-path",           &paxos_config.lmdb_env_path,           option_string },
-        {"lmdb-mapsize",            &paxos_config.lmdb_mapsize,            option_bytes },
+        {"proposer-propose-values-in-parallel-instances", &paxos_config.repropose_values,          option_boolean},
+        {"proposer-reproposal-rate-microseconds", &paxos_config.reproposal_rate,                   option_integer},
+
+        {"stable-storage-backend",  &paxos_config.storage_backend,                                 option_backend},
+        {"acceptor-trash-files",    &paxos_config.trash_files,                                     option_boolean },
+        {"lmdb-sync",               &paxos_config.lmdb_sync,                                       option_boolean },
+        {"lmdb-env-path",           &paxos_config.lmdb_env_path,                                   option_string },
+        {"lmdb-mapsize",            &paxos_config.lmdb_mapsize,                                    option_bytes },
 
         {"backoff-type", &paxos_config.backoff_type, option_string},
         {"pessimistic-proposing", &paxos_config.pessimistic_proposing, option_boolean},

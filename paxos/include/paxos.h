@@ -114,7 +114,8 @@ struct paxos_config
     bool pessimistic_proposing;
     int reproposal_rate;
     bool repropose_values;
-    bool round_robin;
+    bool round_robin_ballot_bias;
+    bool round_robin_backoff;
 };
 
 extern struct paxos_config paxos_config;

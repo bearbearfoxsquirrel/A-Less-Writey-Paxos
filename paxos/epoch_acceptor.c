@@ -477,7 +477,7 @@ int  writeahead_epoch_acceptor_receive_trim(struct epoch_acceptor* acceptor, str
         writeahead_epoch_acceptor_store_trim(acceptor, trim->iid);
 
 
-        int to_trim_from = trim->iid - 30000;
+        int to_trim_from = trim->iid - 20000;
         if (to_trim_from > INVALID_INSTANCE) {
             epoch_paxos_storage_trim_instances_less_than(&acceptor->volatile_storage, trim->iid);
             epoch_stable_storage_trim_instances_less_than(&acceptor->stable_storage, to_trim_from);

@@ -28,7 +28,7 @@
 
 
 
-KHASH_MAP_INIT_INT(retries, iid_t*)
+//KHASH_MAP_INIT_INT(retries, iid_t*)
 
 struct ev_epoch_proposer {
     int max_num_open_instances;
@@ -163,13 +163,13 @@ static void ev_epoch_proposer_try_higher_ballot( evutil_socket_t fd,  short even
 }
 
 
-static bool ev_epoch_proposer_is_round_robin_backoff(struct ev_epoch_proposer* p, iid_t instance) {
-    return paxos_config.round_robin && ((int) instance % p->proposer_count) == p->id;
+static bool is_round_robin_allocted_to_proposer(struct paxos_config config, int proposer_count, int pid, iid_t instance) {
+    return config.round_robin_ballot_bias && ((int) instance % proposer_count) == pid;
 }
 
 
 static bool ev_epoch_proposer_check_create_biased_prepare(struct ev_epoch_proposer* p, struct epoch_paxos_prepares* prepare){
-    if (ev_epoch_proposer_is_round_robin_backoff(p, prepare->standard_prepare.iid) ) {
+/*    if (is_round_robin_allocted_to_proposer(p, prepare->standard_prepare.iid, p->id, ) ) {
         struct epoch_ballot_preempted preempted = (struct epoch_ballot_preempted) {
                 .instance = prepare->standard_prepare.iid,
                 .requested_epoch_ballot = (struct epoch_ballot) {INVALID_EPOCH,
@@ -184,7 +184,12 @@ static bool ev_epoch_proposer_check_create_biased_prepare(struct ev_epoch_propos
         epoch_proposer_receive_preempted(p->proposer, &preempted, &prepare->explicit_epoch_prepare);
         return true;
     }
-    return false;
+    return false;*/
+}
+
+bool should_delay_proposal(struct paxos_config config, int proposer_count, int pid, iid_t instance) {
+    return config.pessimistic_proposing || (config.round_robin_backoff &&
+            is_round_robin_allocted_to_proposer(config, proposer_count, pid, instance));
 }
 
 
@@ -203,7 +208,7 @@ static void ev_epoch_proposer_try_begin_new_instances(struct ev_epoch_proposer* 
         paxos_log_debug("Current Proposing Instance is %u", current_instance);
 
         struct epoch_ballot initial_ballot;
-        if (ev_epoch_proposer_is_round_robin_backoff(p, current_instance)) {
+        if (is_round_robin_allocted_to_proposer(paxos_config, current_instance, p->id, current_instance)) {
             paxos_log_debug("Instance %u is biased for Proposer %u", prepare.standard_prepare.iid, p->id);
             initial_ballot = (struct epoch_ballot ) {epoch_proposer_get_current_known_epoch(p->proposer), .ballot = epoch_proposer_get_next_ballot(paxos_config.max_ballot_increment, p->id, paxos_config.max_ballot_increment)};
         } else {
@@ -212,14 +217,14 @@ static void ev_epoch_proposer_try_begin_new_instances(struct ev_epoch_proposer* 
         bool new_instance_to_prepare = epoch_proposer_try_to_start_preparing_instance(p->proposer, current_instance,
                                                                                       initial_ballot, &prepare);
 
-
+        //todo simplify to use current_instance
         if (new_instance_to_prepare) {
            number_of_instances_to_open--;
            bool delay = false;
            iid_t instance_to_delay;
             switch (prepare.type) {
                 case STANDARD_PREPARE:
-                    if (paxos_config.pessimistic_proposing) {
+                    if (should_delay_proposal(paxos_config, p->proposer_count, p->id, prepare.explicit_epoch_prepare.instance)) {
                         delay = true;
                         instance_to_delay = prepare.standard_prepare.iid;
                     } else {
@@ -231,9 +236,8 @@ static void ev_epoch_proposer_try_begin_new_instances(struct ev_epoch_proposer* 
                                                                     paxos_config.group_1);
                     }
                     break;
-
                 case EXPLICIT_EPOCH_PREPARE:
-                    if (paxos_config.pessimistic_proposing || ev_epoch_proposer_is_round_robin_backoff(p, prepare.explicit_epoch_prepare.instance)){
+                    if (should_delay_proposal(paxos_config, p->proposer_count, p->id, prepare.explicit_epoch_prepare.instance)){
                         delay = true;
                         instance_to_delay = prepare.explicit_epoch_prepare.instance;
                     } else {
@@ -251,10 +255,7 @@ static void ev_epoch_proposer_try_begin_new_instances(struct ev_epoch_proposer* 
                     assert(1 != 1);
             }
 
-
-
             if (delay) {
-
                 const struct timeval* current_backoff = backoff_manager_get_backoff(p->backoff_manager, instance_to_delay);//(struct timeval) {0, random_between(5000, 10000)};
                 struct retry *retry_args = malloc(sizeof(struct retry));
                 retry_args->proposer = p;
@@ -262,14 +263,10 @@ static void ev_epoch_proposer_try_begin_new_instances(struct ev_epoch_proposer* 
                 struct event *ev = evtimer_new(writeahead_epoch_paxos_peers_get_event_base(p->peers), ev_epoch_proposer_try_higher_ballot,
                                                retry_args);
                 event_add(ev, current_backoff);
-
             }
         }
-
         epoch_proposer_next_instance(p->proposer);
     }
- //   ev_performance_timer_stop_check_and_clear_timer(p->preprare_timer, "Prepare");
-
 }
 
 
@@ -384,12 +381,8 @@ ev_epoch_proposer_handle_trim(struct writeahead_epoch_paxos_peer* p, struct epoc
     paxos_log_debug("Handling Trim message");
     struct ev_epoch_proposer* proposer = arg;
     struct paxos_trim* trim_msg = &msg->message_contents.trim;
-
-
     epoch_proposer_receive_trim(proposer->proposer, trim_msg);
-
     backoff_manager_close_less_than_or_equal(proposer->backoff_manager, trim_msg->iid);
-
     ev_epoch_proposer_try_begin_new_instances(proposer);
 }
 
@@ -588,8 +581,6 @@ struct ev_epoch_proposer* ev_epoch_proposer_init(int id, const char* config_file
     int rv = writeahead_epoch_paxos_peers_listen(peers, port);
     if (rv == 0 ) // failure
         return NULL;
-
-    //todo config mechanism to work out backoff type
 
     struct ev_epoch_proposer* p = ev_epoch_proposer_init_internal(id, config, peers, evpaxos_proposer_count(config));
     evpaxos_config_free(config);
