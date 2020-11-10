@@ -48,8 +48,8 @@ deliver(unsigned iid, char* value, size_t size, void* arg)
 {
 	struct client_value* val = (struct client_value*) &value;
 
-	printf("%ld.%06d [%.16s] %ld bytes\n", val->submitted_at.tv_sec, val->submitted_at.tv_usec,
-		val->value, (long)val->value_size);
+//	printf("%ld.%06d [%.16s] %ld bytes\n", val->submitted_at.tv_sec, val->submitted_at.tv_usec,
+//		val->value, (long)val->value_size);
 }
 
 static void

@@ -28,6 +28,8 @@
 
 #include <paxos.h>
 #include <evpaxos.h>
+#include "client_benchmarker.h"
+#include "client_value.h"
 #include <errno.h>
 #include <stdlib.h>
 #include "unistd.h"
@@ -36,48 +38,22 @@
 #include <signal.h>
 #include <event2/event.h>
 #include <netinet/tcp.h>
-#include <latency_recorder.h>
-/*
 #define MAX_VALUE_SIZE 8192
 
 
-//struct client_value
-//{
- //   int client_id;
-  //  struct timeval t;
-   // size_t size;
-    //char value[0];
-//    int uid;
-//};
-
-struct stats
-{
-    long min_latency;
-    long max_latency;
-    long avg_latency;
-    int delivered_count;
-    size_t delivered_bytes;
-};
-
 struct client
 {
-    // todo add in break in time - don't record for this long
     int id;
     int value_size;
     int max_outstanding;
-    int current_outstanding;
     char* send_buffer;
-    struct stats stats;
     struct event_base* base;
     struct bufferevent* bev;
     struct event* stats_ev;
     struct timeval stats_interval;
     struct event* sig;
+    struct client_benchmarker* benchmarker;
     struct evlearner* learner;
-
-    struct latency_recorder* latency_recorder;
-
-    int* outstanding_client_value_ids;
 };
 
 static void
@@ -85,84 +61,31 @@ handle_sigint(int sig, short ev, void* arg)
 {
 //    struct event_base* base = arg;
     struct client* client= arg;
-    latency_recorder_free(&client->latency_recorder);
+    client_benchmarker_free(&client->benchmarker);
     printf("Caught signal %d\n", sig);
     event_base_loopexit(client->base, NULL);
 }
 
 static void
-random_string(char *s, const int len)
-{
-    int i;
-    static const char alphanum[] =
-            "0123456789abcdefghijklmnopqrstuvwxyz";
-    for (i = 0; i < len-1; ++i)
-        s[i] = alphanum[rand() % (sizeof(alphanum) - 1)];
-    s[len-1] = 0;
-}
-
-static void
 client_submit_value(struct client* c)
 {
+    client_value_generate((struct client_value**) c->send_buffer, c->value_size, c->id);
     struct client_value* v = (struct client_value*)c->send_buffer;
-    v->client_id = c->id;
-    gettimeofday(&v->t, NULL);
-    v->size = c->value_size;
-    random_string(v->value, v->size);
-    v->uid = rand();
-    c->outstanding_client_value_ids[c->current_outstanding++] = v->uid;
+    client_benchmarker_register_value(c->benchmarker, v);
     size_t size = sizeof(struct client_value) + v->size;
     paxos_submit_client_value(c->bev, c->send_buffer, size);
     paxos_log_debug("Submitted new client value");
 }
 
-// Returns t2 - t1 in microseconds.
-static long
-timeval_diff(struct timeval* t1, struct timeval* t2)
-{
-    long us;
-    us = (t2->tv_sec - t1->tv_sec) * 1e6;
-    if (us < 0) return 0;
-    us += (t2->tv_usec - t1->tv_usec);
-    return us;
-}
 
-static void
-update_stats(struct latency_recorder* recorder, struct stats* stats, struct client_value* delivered, size_t size)
-{
-    struct timeval tv;
-    gettimeofday(&tv, NULL);
-    long lat = timeval_diff_in_microseconds(&delivered->t, &tv);
-    stats->delivered_count++;
-    stats->delivered_bytes += size;
-    stats->avg_latency = stats->avg_latency +
-                         ((lat - stats->avg_latency) / stats->delivered_count);
-    if (stats->min_latency == 0 || lat < stats->min_latency)
-        stats->min_latency = lat;
-    if (lat > stats->max_latency)
-        stats->max_latency = lat;
-
-    latency_recorder_record(recorder, lat);
-}
-
-//todo refactor so there is a struct uid made of a value number and a client id
-static bool is_value_uid_awaiting(int* outstanding_uids, int number_of_awaiting_values, int value_uid) {
-    for (int i = 0; i < number_of_awaiting_values; i++) {
-        if (outstanding_uids[i] == value_uid) {
-            return true;
-        }
-    }
-    return false;
-}
 static void
 on_deliver(unsigned iid, char* value, size_t size, void* arg)
 {
     struct client* c = arg;
     struct client_value* v = (struct client_value*)value;
-    if (v->client_id == c->id && is_value_uid_awaiting(c->outstanding_client_value_ids, c->max_outstanding, v->uid)) {
+    if (client_benchmarker_is_outstanding(c->benchmarker, v)) {
         paxos_log_debug("Client Value delivered.");
-        update_stats(c->latency_recorder, &c->stats, v, size);
-        c->current_outstanding--;
+        client_benchmarker_close_value_and_update_stats(c->benchmarker, v);
         client_submit_value(c);
 
     }
@@ -220,7 +143,6 @@ make_client(const char *config, int proposer_id, int outstanding, int value_size
     struct evpaxos_config* ev_config = evpaxos_config_read(config);
     //c->outstanding_values = malloc(max_outstanding * sizeof(int));
 
-    memset(&c->stats, 0, sizeof(struct stats));
     c->bev = connect_to_proposer(c, config, proposer_id);
     if (c->bev == NULL)
         exit(1);
@@ -229,12 +151,11 @@ make_client(const char *config, int proposer_id, int outstanding, int value_size
     c->value_size = value_size;
     c->max_outstanding = outstanding;
     c->send_buffer = malloc(sizeof(struct client_value) + value_size);
-    c->outstanding_client_value_ids = malloc(sizeof(int) * c->max_outstanding);
-    c->current_outstanding = 0;
+
 
     struct timeval settle_in_time =  {.tv_sec = paxos_config.settle_in_time, .tv_usec = 0};
     u_int64_t number_of_latencies_to_record = paxos_config.number_of_latencies_to_record;
-    c->latency_recorder = latency_recorder_new(latency_record_output_path, settle_in_time, number_of_latencies_to_record);
+    c->benchmarker = client_benchmarker_new(c->id, number_of_latencies_to_record, settle_in_time, latency_record_output_path);
 
     c->stats_interval = (struct timeval){1, 0};
     c->stats_ev = evtimer_new(c->base, on_stats, c);
@@ -321,4 +242,3 @@ main(int argc, char const *argv[])
 
     return 0;
 }
-*/

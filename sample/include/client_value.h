@@ -7,7 +7,9 @@
 
 //#include "paxos_value.h"
 //#include "stdio.h"
-#include "sys/time.h"
+
+//#include <ntsid.h>
+#include <stddef.h>
 
 //public so that it can be allocated on the stack and space can be reused
 struct client_value {

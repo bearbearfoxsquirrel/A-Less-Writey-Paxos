@@ -6,6 +6,7 @@
 #define A_LESS_WRITEY_PAXOS_CLIENT_BENCHMARKER_H
 
 #include "client_value.h"
+#include "sys/time.h"
 #include <stdbool.h>
 
 struct client_benchmarker;

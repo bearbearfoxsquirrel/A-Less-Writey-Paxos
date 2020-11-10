@@ -4,6 +4,7 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include "time.h"
 #include <latency_recorder.h>
 #include <khash.h>
 #include "client_benchmarker.h"
@@ -103,6 +104,12 @@ static long timeval_diff_in_microseconds(struct timeval* lhs, struct timeval* rh
     return result.tv_sec * 1000000 + result.tv_usec;
 }
 
+bool client_benchmarker_close_value(struct client_benchmarker* benchmarker, const struct client_value* v){
+    khiter_t key = kh_get_value_times(benchmarker->value_and_submission_times, client_value_get_uid(v));
+    free(kh_value(benchmarker->value_and_submission_times, key));
+    kh_del_value_times(benchmarker->value_and_submission_times, key);
+}
+
 bool client_benchmarker_close_value_and_update_stats(struct client_benchmarker* benchmarker, const struct client_value* v){
     struct timeval val_submission_time;
     bool found = client_benchmarker_get_submission_time(benchmarker, v, &val_submission_time);
@@ -125,6 +132,7 @@ bool client_benchmarker_close_value_and_update_stats(struct client_benchmarker* 
             benchmarker->stats.max_latency = latency_microseconds;
 
         latency_recorder_record(benchmarker->latency_recorder, latency_microseconds);
+        client_benchmarker_close_value(benchmarker, v);
     }
     return found;
 }
