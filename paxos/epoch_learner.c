@@ -41,6 +41,7 @@ static struct instance* epoch_learner_instance_new(iid_t instance, int number_of
 }
 
 static void epoch_learner_instance_free(struct instance** inst) {
+    paxos_value_destroy(&(*inst)->current_ballots_value);
     quorum_destroy(&(**inst).quorum);
     free(*inst);
     *inst = NULL;
@@ -71,6 +72,7 @@ static struct instance* epoch_learner_get_or_create_instance(struct epoch_learne
 }
 
 static void epoch_learner_remove_instance_from_pending(struct epoch_learner* l, struct instance** inst) {
+    paxos_log_info("Removing Instance %u from pending", (*inst)->instance);
     khiter_t k = kh_get_instance(l->instances_waiting_to_execute, (**inst).instance);
     kh_del_instance(l->instances_waiting_to_execute, k);
     epoch_learner_instance_free(inst);
@@ -163,6 +165,8 @@ void check_and_handle_new_ballot(struct instance* inst, struct epoch_ballot cmp,
             paxos_value_destroy(&inst->current_ballots_value);
         }
         inst->most_recent_epoch_ballot = cmp;
+//        paxos_value_destroy(&inst->current_ballots_value);
+     //   inst->current_ballots_value = value;
         copy_value(&value, &inst->current_ballots_value);
         quorum_clear(&inst->quorum);
     }
@@ -176,6 +180,7 @@ void epoch_learner_check_and_set_highest_instance_closed(struct epoch_learner* l
 }
 
 enum epoch_paxos_message_return_codes epoch_learner_receive_accepted(struct epoch_learner* l, struct epoch_ballot_accepted* ack, struct epoch_ballot_chosen* returned_message) {
+    paxos_log_info("Entering receive Accepted");
     char phase_name[] = "Acceptance";
     check_and_handle_late_start(l, ack->instance);
 
@@ -221,6 +226,7 @@ enum epoch_paxos_message_return_codes epoch_learner_receive_accepted(struct epoc
 
 
 enum epoch_paxos_message_return_codes epoch_learner_receive_epoch_ballot_chosen(struct epoch_learner* l, struct epoch_ballot_chosen* chosen_msg){
+    paxos_log_info("Entering received Chosen");
     char message_name[] = "Chosen";
     check_and_handle_late_start(l, chosen_msg->instance);
 
@@ -253,6 +259,7 @@ enum epoch_paxos_message_return_codes epoch_learner_receive_trim(struct epoch_le
 }
 
 bool epoch_learner_deliver_next(struct epoch_learner* l, struct paxos_value* out){
+    paxos_log_info("Entering deliver next");
     struct instance* inst;
     bool instance_exists = epoch_learner_get_existing_instance(l, l->current_min_instance_to_execute, &inst);
 

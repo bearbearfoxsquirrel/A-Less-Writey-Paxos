@@ -50,7 +50,7 @@
 
 struct epoch_client
 {
-    int id;
+    unsigned int id;
     int value_size;
     int max_outstanding;
     struct client_benchmarker* benchmarker;
@@ -174,6 +174,8 @@ make_epoch_client(const char *config, int proposer_id, int outstanding, int valu
 
     c->sig = evsignal_new(c->base, SIGINT, handle_sigint, c);
     evsignal_add(c->sig, NULL);
+
+    free(ev_config);
 
 
     if (c->bev == NULL)

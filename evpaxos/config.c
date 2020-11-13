@@ -299,6 +299,7 @@ parse_string(char* str, char** string)
 	if (str == NULL || str[0] == '\0' || str[0] == '\n')
 		return 0;
 	*string = strdup(str);
+	// mem leak
 	return 1;
 }
 
@@ -419,7 +420,7 @@ parse_line(struct evpaxos_config* c, char* line)
 static void
 address_init(struct address* a, char* addr, int port)
 {
-	a->addr = strdup(addr);
+	a->addr = strdup(addr); // todo mem leak?
 	a->port = port;
 }
 
