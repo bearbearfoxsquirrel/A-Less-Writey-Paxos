@@ -24,6 +24,7 @@
 #include "timeout.h"
 #include "performance_threshold_timer.h"
 #include "epoch_ballot.h"
+#include <instance_strategy.h>
 #include "ev_timer_threshold_timer_util.h"
 
 
@@ -34,6 +35,8 @@ struct ev_epoch_proposer {
     int max_num_open_instances;
     struct epoch_proposer* proposer;
     struct writeahead_epoch_paxos_peers* peers;
+
+ //   struct instance_strategy* instance_strategy;
 
     struct timeval timeout_time;
     struct event* timeout_event;
@@ -51,6 +54,9 @@ struct ev_epoch_proposer {
     struct performance_threshold_timer* preempt_timer;
     struct performance_threshold_timer* accepted_timer;
     struct performance_threshold_timer *chosen_timer;
+
+  //  struct timeval proposers_value_chosen_at;
+
     
     
     struct performance_threshold_timer *promise_timer;
@@ -109,7 +115,13 @@ static void ev_epoch_proposer_try_accept(struct ev_epoch_proposer* p) {
         assert(accept.value_to_accept.paxos_value_val != NULL);
         assert(accept.value_to_accept.paxos_value_len > 0);
         assert(strncmp(accept.value_to_accept.paxos_value_val, "", 2));
-        writeahead_epoch_paxos_peers_for_n_acceptor(p->peers, peer_send_epoch_ballot_accept, &accept, paxos_config.group_2);
+
+    //    if (rate_limiter_okay(p->settle_in_rate_limiter)) {
+            writeahead_epoch_paxos_peers_for_n_acceptor(p->peers, peer_send_epoch_ballot_accept, &accept,
+                                                        paxos_config.group_2);
+      //  } else {
+
+      //  }
     }
  //   ev_performance_timer_stop_check_and_clear_timer(p->accept_timer, "Accept Request");
 
@@ -539,7 +551,6 @@ ev_epoch_proposer_init_internal(int id, struct evpaxos_config *c, struct writeah
     proposer->preempt_timer = get_preempt_threshold_timer_new();
     proposer->chosen_timer = get_chosen_acceptor_performance_threshold_timer_new();
 
-
     proposer->timeout_time.tv_sec = paxos_config.proposer_timeout;
     proposer->timeout_time.tv_usec = 0;
     proposer->timeout_event = evtimer_new(base, ev_epoch_proposer_check_timeouts, proposer);
@@ -558,7 +569,7 @@ ev_epoch_proposer_init_internal(int id, struct evpaxos_config *c, struct writeah
 
     proposer->peers = peers;
     proposer->backoff_manager = backoff_manager;
-
+//..    proposer->instance_strategy = instance_strategy_new(500, 1);
     event_base_once(base, 0, EV_TIMEOUT, ev_epoch_proposer_preexec_once, proposer, NULL);
     return proposer;
 }

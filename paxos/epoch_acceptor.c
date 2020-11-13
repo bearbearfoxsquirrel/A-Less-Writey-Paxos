@@ -20,7 +20,6 @@ struct epoch_acceptor {
     struct epoch_paxos_storage volatile_storage;
     iid_t trim_instance; // here for fast access
     uint32_t current_epoch;
-
     iid_t max_proposed_instance;
 };
 
@@ -40,12 +39,6 @@ static void writeahead_epoch_acceptor_store_trim(struct epoch_acceptor* acceptor
 
     epoch_paxos_storage_store_trim_instance(&acceptor->volatile_storage, trim);
 }
-/*
-bool writeahead_epoch_acceptor_epoch_ballot_greater_than_or_equal_to(struct epoch_ballot* left, struct epoch_ballot* right) {
-    if (left->epoch > right->epoch) return true;
- //   else if (left->epoch == right->epoch && left->ballot >= right->ballot) return true;
-    else return false;
-}*/
 
 static void create_epoch_notification_message(struct epoch_notification *recover_message,
                                        const struct epoch_acceptor *acceptor) {
@@ -330,12 +323,14 @@ void writeahead_epoch_acceptor_transaction_to_store_accept(struct epoch_acceptor
     if (accept->epoch_ballot_requested.epoch > acceptor->current_epoch){
         writeahead_epoch_acceptor_increase_epoch(acceptor, accept->epoch_ballot_requested.epoch);
     }
+
     epoch_stable_storage_store_epoch_ballot_accept(&acceptor->stable_storage, accept);
     epoch_stable_storage_tx_commit(&acceptor->stable_storage);
 
     if (!is_chosen) {
         assert(accept->epoch_ballot_requested.epoch == acceptor->current_epoch);
     }
+
     epoch_paxos_storage_store_last_prepare(&acceptor->volatile_storage, &prepare_to_store);
     bool success = epoch_paxos_storage_store_accept(&acceptor->volatile_storage, accept);
     assert(success);
@@ -455,13 +450,13 @@ int  writeahead_epoch_acceptor_receive_repeat(struct epoch_acceptor* acceptor, i
         };
         //assert(was_accept);
         // would add functionailty to check slower stable info but too lazy, so just assert this doesn't happen
-        bool response = was_accept && ballot_greater_than(last_accept.epoch_ballot_requested.ballot, INVALID_BALLOT);
-        if (!response) {
+        bool was_response = was_accept && ballot_greater_than(last_accept.epoch_ballot_requested.ballot, INVALID_BALLOT);
+        if (!was_response) {
             paxos_log_debug("Wasn't a previous Accept so ignoring");
         } else {
             paxos_log_debug("Responding with last Accept");
         }
-        return response;
+        return was_response;
     }
 }
 
@@ -477,10 +472,15 @@ int  writeahead_epoch_acceptor_receive_trim(struct epoch_acceptor* acceptor, str
         writeahead_epoch_acceptor_store_trim(acceptor, trim->iid);
 
 
-        int to_trim_from = trim->iid - 20000;
+        iid_t to_trim_from = trim->iid - 20000;
         if (to_trim_from > INVALID_INSTANCE) {
-            epoch_paxos_storage_trim_instances_less_than(&acceptor->volatile_storage, trim->iid);
+            paxos_log_debug("Acceptor trimming stored Instances to %u", to_trim_from);
+            epoch_paxos_storage_trim_instances_less_than(&acceptor->volatile_storage, to_trim_from);
             epoch_stable_storage_trim_instances_less_than(&acceptor->stable_storage, to_trim_from);
+        }
+
+        if (trim->iid > acceptor->max_proposed_instance) {
+            acceptor->max_proposed_instance = trim->iid;
         }
 
         epoch_stable_storage_tx_commit(&acceptor->stable_storage);
@@ -510,7 +510,9 @@ int writeahead_epoch_acceptor_get_current_state(struct epoch_acceptor* acceptor,
     state->current_epoch = acceptor->current_epoch;
     state->standard_acceptor_state.trim_iid = acceptor->trim_instance;
     state->standard_acceptor_state.aid = acceptor->id;
-    epoch_paxos_storage_get_max_inited_instance(&acceptor->volatile_storage, &state->standard_acceptor_state.current_instance);
+    state->standard_acceptor_state.current_instance = acceptor->max_proposed_instance;
+
+   // epoch_paxos_storage_get_max_inited_instance(&acceptor->volatile_storage, &state->standard_acceptor_state.current_instance);
     paxos_log_debug("Leaving current state");
     return 1;
 }
