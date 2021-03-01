@@ -7,7 +7,7 @@ VARIABLES learnt
 ConsensusInitalState == learnt = {}
 
 
-(* There was no value learnt, and in the new state a value from the set of
+(* There was no value learnt, and in the new acceptor_state a value from the set of
    ProposableValues is the only element in learnt *)
 ConsensusNextState == /\ learnt = {}
              /\ \exists value \in ProposableValues: {value} = learnt'

@@ -25,7 +25,7 @@ struct backoff_manager {
 struct backoff_manager* backoff_manager_new(struct backoff* backoff){
     struct backoff_manager* new_manager = malloc(sizeof(struct backoff_manager));
     new_manager->backingoff_instances = kh_init_backingoff_instances();
-    assert(backoff != NULL);
+   // assert(backoff != NULL);
     new_manager->backoff_mechanism = backoff;
     return new_manager;
 }
@@ -40,7 +40,7 @@ void backoff_manager_free(struct backoff_manager **manager){
 khiter_t kh_manager_put_new_instance_to_backing_off_instances_and_return_key(struct backoff_manager* manager, iid_t new_instance){
     int rv = -1;
     khiter_t key = kh_put_backingoff_instances(manager->backingoff_instances, new_instance, &rv);
-    assert(rv > 0);
+   // assert(rv > 0);
     struct managed_backoff* new_backoff = malloc(sizeof(*new_backoff));
     *new_backoff = (struct managed_backoff) {
         .current_backoff = (struct timeval) {.tv_sec = 0, .tv_usec = 0},

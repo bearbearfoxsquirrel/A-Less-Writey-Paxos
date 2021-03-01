@@ -47,7 +47,7 @@ struct evpaxos_replica;
  * a value has been learned.
  */
 typedef void (*deliver_function)(
-	unsigned int,
+//	unsigned int,
 	char* value,
 	size_t size,
 	void* arg);
@@ -111,8 +111,8 @@ int evpaxos_replica_count(struct evpaxos_replica* replica);
  * an optional argument to that is passed to the callback, and
  * a libevent event_base.
  */
-struct evlearner* evlearner_init(const char* config, deliver_function f,
-	void* arg, struct event_base* base);
+struct evlearner *
+evlearner_init(const char *config_file, deliver_function f, void *arg, struct event_base *b, int partner_id);
 
 /**
  * Release the memory allocated by the learner
@@ -172,6 +172,7 @@ void ev_write_ahead_window_acceptor_free(struct ev_write_ahead_acceptor* a);
 struct evproposer* evproposer_init(int id, const char* config,
 	struct event_base* b);
 
+struct evproposer* ev_fake_leader_init(int id, const char* config, struct event_base* b);
 /**
  * Release the memory allocated by the proposer
  */
@@ -188,6 +189,8 @@ void evproposer_set_instance_id(struct evproposer* p, unsigned iid);
  * Used by clients to submit values to proposers.
  */
 void paxos_submit_client_value(struct bufferevent* bev, char *data, int size);
+
+
 
 #ifdef __cplusplus
 }

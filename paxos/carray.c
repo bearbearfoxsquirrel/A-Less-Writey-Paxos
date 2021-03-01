@@ -69,13 +69,13 @@ carray_new(int size)
 {
 	struct carray* a;
 	a = malloc(sizeof(struct carray));
-	assert(a != NULL);
+	//assert(a != NULL);
 	a->head = 0;
 	a->tail = size - 1;
 	a->size = size;
 	a->count = 0;
 	a->array = malloc(sizeof(void*)*a->size);
-	assert(a->array != NULL);
+//	assert(a->array != NULL);
 	return a;
 }
 
@@ -127,9 +127,9 @@ int
 carray_push_back(struct carray* a, void* p)
 {
    // struct paxos_value* test = p;
-//    assert(test->paxos_value_len > 0);
-  //  assert(test->paxos_value_val != NULL);
-  //  assert(memcmp(test->paxos_value_val, "", 1));
+//   // assert(test->paxos_value_len > 0);
+  // // assert(test->paxos_value_val != NULL);
+  // // assert(memcmp(test->paxos_value_val, "", 1));
 
 
 	if (carray_full(a))

@@ -123,7 +123,7 @@ void send_paxos_chosen(struct bufferevent* bev, struct paxos_chosen* chosen_msg)
             .type = PAXOS_CHOSEN,
             .u.chosen = *chosen_msg };
 
-    assert(msg.u.chosen.iid == chosen_msg->iid);
+   // assert(msg.u.chosen.iid == chosen_msg->iid);
     send_paxos_message(bev, &msg);
     paxos_log_debug("Send chosen message for inst %d, chosen at Ballot %u.%u", chosen_msg->iid, chosen_msg->ballot.number, chosen_msg->ballot.proposer_id);
 }

@@ -39,7 +39,7 @@ static bool is_timespec_greater_than_or_equal(struct timespec lhs, struct timesp
 }
 
 static struct timespec timespec_get_elapsed_time(struct timespec start, struct timespec stop) {
-    assert(is_timespec_greater_than_or_equal(stop, start));
+   // assert(is_timespec_greater_than_or_equal(stop, start));
     struct timespec result;
 
     if ((stop.tv_nsec - start.tv_nsec) < 0) {
@@ -55,7 +55,7 @@ static struct timespec timespec_get_elapsed_time(struct timespec start, struct t
 
 static void set_time_to_now(struct timespec* timer_to_set) {
     int error = clock_gettime(CLOCK_MONOTONIC, timer_to_set);
-    assert(error != -1);
+   // assert(error != -1);
 }
 
 
@@ -86,23 +86,23 @@ struct performance_threshold_timer* performance_threshold_timer_new(struct times
 }
 
 void performance_threshold_timer_begin_timing(struct performance_threshold_timer* timer) {
-    assert(is_timespec_cleared(timer->begin_time));
-    assert(is_timespec_cleared(timer->end_time));
+   // assert(is_timespec_cleared(timer->begin_time));
+   // assert(is_timespec_cleared(timer->end_time));
 
     set_time_to_now(&timer->begin_time);
 }
 
 void performance_threshold_timer_end_timing(struct performance_threshold_timer* timer){
-    assert(is_timespec_cleared(timer->end_time));
-    assert(!is_timespec_cleared(timer->begin_time));
+   // assert(is_timespec_cleared(timer->end_time));
+   // assert(!is_timespec_cleared(timer->begin_time));
 
     set_time_to_now(&timer->end_time);
 }
 
 
 bool performance_threshold_timer_was_threshold_exceeded(struct performance_threshold_timer* timer){
-    assert(!is_timespecs_equal(timer->begin_time, get_cleared_timespec()));
-    assert(!is_timespecs_equal(timer->end_time, get_cleared_timespec()));
+   // assert(!is_timespecs_equal(timer->begin_time, get_cleared_timespec()));
+   // assert(!is_timespecs_equal(timer->end_time, get_cleared_timespec()));
     return is_timespec_greater_than(timespec_get_elapsed_time(timer->begin_time, timer->end_time), timer->threshold_time);
 }
 

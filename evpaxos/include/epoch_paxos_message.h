@@ -19,7 +19,7 @@ void send_epoch_paxos_preempted(struct bufferevent* bev, struct epoch_ballot_pre
 void send_standard_paxos_prepare(struct bufferevent* bev, struct paxos_prepare* msg);
 void send_epoch_paxos_trim(struct bufferevent* bev, struct paxos_trim* msg);
 void send_epoch_paxos_chosen(struct bufferevent* bev, struct epoch_ballot_chosen* chosen_msg);
-void epoch_paxos_submit_client_value(struct bufferevent* bev, char *data, int size);
+void epoch_paxos_submit_client_value(struct bufferevent* bev, char *data, uint32_t size);
 int recv_epoch_paxos_message(struct evbuffer* in, struct epoch_paxos_message* out);
 
 

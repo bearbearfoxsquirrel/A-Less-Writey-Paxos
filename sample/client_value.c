@@ -28,18 +28,19 @@ static void random_string(char *s, const int len)
     s[len-1] = 0;
 }
 
-void client_value_generate(struct client_value **value_allocated, unsigned int value_size, unsigned int c_id) {
-    assert((*value_allocated) != NULL);
+void
+client_value_generate(struct client_value **value_allocated, uint32_t value_size, uint32_t c_id) {
+  // // assert((*value_allocated) != NULL);
     (*value_allocated)->client_id = c_id;
     (*value_allocated)->uid = rand(); //random_between(1, RAND_MAX);
     (*value_allocated)->size = value_size;
     random_string((*value_allocated)->value, (*value_allocated)->size);
 }
 
-unsigned int client_value_get_uid(const struct client_value* value){
+uint32_t client_value_get_uid(const struct client_value* value){
     return value->uid;
 }
 
-unsigned int client_value_get_value_size(const struct client_value* value){
+uint32_t client_value_get_value_size(const struct client_value* value){
     return value->size;
 }

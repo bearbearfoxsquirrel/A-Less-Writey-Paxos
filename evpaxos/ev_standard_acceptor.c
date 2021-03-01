@@ -70,12 +70,12 @@ evacceptor_handle_prepare(struct standard_paxos_peer* p, standard_paxos_message*
 	paxos_log_debug("Handle prepare for iid %d ballot %d",
 		prepare->iid, prepare->ballot);
 
-	performance_threshold_timer_begin_timing(a->promise_timer);
+//	performance_threshold_timer_begin_timing(a->promise_timer);
     if (standard_acceptor_receive_prepare(a->state, prepare, &out) != 0) {
 		send_paxos_message(peer_get_buffer(p), &out);
         paxos_message_destroy_contents(&out);
 	}
-    ev_performance_timer_stop_check_and_clear_timer(a->promise_timer, "Promise Phase");
+   // ev_performance_timer_stop_check_and_clear_timer(a->promise_timer, "Promise Phase");
     // handle sending of chosen to sender
 }
 
@@ -87,24 +87,27 @@ evacceptor_handle_accept(struct standard_paxos_peer* p, standard_paxos_message* 
 {	
 	standard_paxos_message out;
 	paxos_accept* accept = &msg->u.accept;
+	//assert(accept->ballot.proposer_id < 5);
 	struct ev_standard_acceptor* a = (struct ev_standard_acceptor*)arg;
 	paxos_log_debug("Handle accept for iid %d bal %d", 
 		accept->iid, accept->ballot);
-	performance_threshold_timer_begin_timing(a->acceptance_timer);
+	//performance_threshold_timer_begin_timing(a->acceptance_timer);
     if (standard_acceptor_receive_accept(a->state, accept, &out) != 0) {
 		if (out.type == PAXOS_ACCEPTED) {
-		    assert(out.u.accepted.value.paxos_value_val != NULL);
-		    assert(out.u.accepted.value.paxos_value_len > 1);
-		    assert(strncmp(out.u.accepted.value.paxos_value_val, "", 2));
+		   // assert(out.u.accepted.value.paxos_value_val != NULL);
+		   // assert(out.u.accepted.value.paxos_value_len > 1);
+		   // assert(strncmp(out.u.accepted.value.paxos_value_val, "", 2));
 
-		    assert(ballot_equal(out.u.accepted.value_ballot, out.u.accepted.promise_ballot));
+		   // assert(ballot_equal(out.u.accepted.value_ballot, out.u.accepted.promise_ballot));
+		   // assert(out.u.accepted.value_ballot.proposer_id < 5);
+		   // assert(out.u.accepted.promise_ballot.proposer_id < 5);
 			peers_foreach_client(a->peers, peer_send_paxos_message, &out);
 		} else {
 	        send_paxos_message(peer_get_buffer(p), &out);
 	    }
         paxos_message_destroy_contents(&out);
 	}
-    ev_performance_timer_stop_check_and_clear_timer(a->acceptance_timer, "Acceptance Phase");
+   // ev_performance_timer_stop_check_and_clear_timer(a->acceptance_timer, "Acceptance Phase");
 }
 
 static void
@@ -115,9 +118,15 @@ evacceptor_handle_repeat(struct standard_paxos_peer* p, standard_paxos_message* 
 	paxos_repeat* repeat = &msg->u.repeat;
 	struct ev_standard_acceptor* a = (struct ev_standard_acceptor*)arg;
 	paxos_log_debug("Handle repeat for iids %d-%d", repeat->from, repeat->to);
-	for (iid = repeat->from; iid <= repeat->to; ++iid) {
+	for (iid = repeat->from; iid <= repeat->to; iid++) {
         if (standard_acceptor_receive_repeat(a->state, iid, &out_msg)) {
-          //  assert(out_msg.u.accepted.value_ballot.number > 0);
+         //   if (out_msg.type == PAXOS_ACCEPTED) {
+               // assert(out_msg.u.accepted.promise_ballot.proposer_id < 5);
+               // assert(out_msg.u.accepted.value_ballot.proposer_id < 5);
+          //  } else {
+           //    // assert(out_msg.u.chosen.ballot.proposer_id < 5);
+          //  }
+
 			send_paxos_message(peer_get_buffer(p), &out_msg);
 			paxos_message_destroy_contents(&out_msg);
 		}
@@ -147,7 +156,7 @@ send_acceptor_state( int fd,  short ev, void* arg)
 {
 	struct ev_standard_acceptor* a = (struct ev_standard_acceptor*)arg;
 	standard_paxos_message msg = {.type = PAXOS_ACCEPTOR_STATE};
-    standard_acceptor_get_current_state(a->state, &msg.u.state);
+    standard_acceptor_get_current_state(a->state, &msg.u.acceptor_state);
 	peers_foreach_client(a->peers, peer_send_paxos_message, &msg);
 	event_add(a->timer_ev, &a->timer_tv);
 }
@@ -167,7 +176,7 @@ evacceptor_init_internal(int id,  struct evpaxos_config* c, struct standard_paxo
 	
 	struct event_base* base = peers_get_event_base(p);
 	acceptor->timer_ev = evtimer_new(base, send_acceptor_state, acceptor);
-	acceptor->timer_tv = (struct timeval){1, 0};
+	acceptor->timer_tv = (struct timeval){0, 100000};
 	event_add(acceptor->timer_ev, &acceptor->timer_tv);
 
 	acceptor->promise_timer = get_promise_performance_threshold_timer_new();

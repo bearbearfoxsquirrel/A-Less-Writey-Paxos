@@ -132,6 +132,7 @@ void ev_epoch_acceptor_free(struct ev_epoch_acceptor** a);
 struct ev_epoch_proposer* ev_epoch_proposer_init(int id, const char* config,
                                    struct event_base* b);
 
+
 /**
  * Release the memory allocated by the proposer
  */
@@ -147,7 +148,7 @@ void ev_epoch_proposer_set_instance_id(struct ev_epoch_proposer* p, unsigned iid
 /**
  * Used by clients to submit values to proposers.
  */
-void epoch_paxos_submit_client_value(struct bufferevent* bev_epoch_, char *data, int size);
+void epoch_paxos_submit_client_value(struct bufferevent* bev, char *data, uint32_t size);
 
 #ifdef __cplusplus
 }

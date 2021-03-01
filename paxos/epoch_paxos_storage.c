@@ -88,7 +88,7 @@ int lazy_get_of_epoch_ballot_accept(const struct epoch_paxos_storage *epoch_paxo
     int found_epoch = epoch_paxos_storage->extended_api.get_accept_epoch(epoch_paxos_storage->extended_handle, instance_id, &epoch);
     // then convert to an epoch_ballot_accept
     epoch_ballot_accept_from_paxos_accept(&retrieved_paxos_accept, epoch, last_accepted_retrieved);
-    assert(found_accept == found_epoch);
+   // assert(found_accept == found_epoch);
     return found_accept;
 }
 

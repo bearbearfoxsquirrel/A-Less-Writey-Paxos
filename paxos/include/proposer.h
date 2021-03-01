@@ -58,10 +58,10 @@ uint32_t proposer_get_min_unchosen_instance(struct proposer* p);
 iid_t proposer_get_next_instance_to_prepare(struct proposer* p);
 
 // phase 1
-bool proposer_try_to_start_preparing_instance(struct proposer* p, iid_t instance, paxos_prepare* out);
+bool proposer_try_to_start_preparing_instance(struct proposer *p, iid_t instance, struct ballot initial_ballot,
+                                              paxos_prepare *out);
 
-int proposer_receive_promise(struct proposer* p, paxos_promise* ack,
-	paxos_prepare* out);
+int proposer_receive_promise(struct proposer *p, paxos_promise *ack);
 
 // phase 2
 int proposer_try_accept(struct proposer* p, paxos_accept* out);
@@ -73,9 +73,12 @@ int proposer_receive_preempted(struct proposer* p, struct paxos_preempted* preem
 
 bool proposer_is_instance_pending(struct proposer* p, iid_t instance);
 
-// periodic acceptor state
+// periodic acceptor acceptor_state
 void proposer_receive_acceptor_state(struct proposer* p,
                                      paxos_standard_acceptor_state* state);
+
+void proposer_get_state(struct proposer* p, struct proposer_state* state);
+void proposer_receive_proposer_state(struct proposer* p, struct proposer_state* state);
 void proposer_receive_trim(struct proposer* p,
                                      struct paxos_trim* trim_msg);
 

@@ -56,7 +56,7 @@ schema = GenPack::Schema.define "paxos_types" do
     paxos_preempted :preempted
     paxos_repeat :repeat
     paxos_trim :trim
-    paxos_standard_acceptor_state :state
+    paxos_standard_acceptor_state :acceptor_state
     paxos_client_value :client_value
   }
 end

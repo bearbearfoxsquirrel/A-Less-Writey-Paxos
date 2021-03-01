@@ -69,9 +69,9 @@ static void ev_epoch_acceptor_handle_epoch_ballot_prepare(struct writeahead_epoc
 
     if (writeahead_epoch_acceptor_receive_epoch_ballot_prepare(acceptor->acceptor, prepare, &out)){
         send_epoch_paxos_message(writeahead_epoch_paxos_peer_get_buffer(p), &out);
-        writeahead_epoch_paxos_message_destroy_contents(&out);
     }
-  //  ev_performance_timer_stop_check_and_clear_timer(acceptor->promise_timer, "Promise");
+    writeahead_epoch_paxos_message_destroy_contents(&out);
+    //  ev_performance_timer_stop_check_and_clear_timer(acceptor->promise_timer, "Promise");
 
 }
 
@@ -83,23 +83,26 @@ static void ev_epoch_acceptor_handle_epoch_ballot_accept(struct writeahead_epoch
                     accept->instance,
                     accept->epoch_ballot_requested.epoch,
                     accept->epoch_ballot_requested.ballot.number, accept->epoch_ballot_requested.ballot.proposer_id);
-
+    //assert(accept->value_to_accept.paxos_value_len > 0);
  //   performance_threshold_timer_begin_timing(acceptor->acceptance_timer);
+
+// assert(accept->epoch_ballot_requested.epoch > 0);
+// assert(accept->epoch_ballot_requested.ballot.number > 0);
 
     if (writeahead_epoch_acceptor_receive_epoch_ballot_accept(acceptor->acceptor, accept, &out)) {
         if (out.type == WRITEAHEAD_EPOCH_BALLOT_ACCEPTED) {
-            assert(out.message_contents.epoch_ballot_accepted.accepted_value.paxos_value_val != NULL);
-            assert(out.message_contents.epoch_ballot_accepted.accepted_value.paxos_value_len > 1);
-            assert(strncmp(out.message_contents.epoch_ballot_accepted.accepted_value.paxos_value_val, "", 2));
+           // assert(out.message_contents.epoch_ballot_accepted.accepted_value.paxos_value_val != NULL);
+           // assert(out.message_contents.epoch_ballot_accepted.accepted_value.paxos_value_len > 1);
+           // assert(strncmp(out.message_contents.epoch_ballot_accepted.accepted_value.paxos_value_val, "", 2));
+       //     assert(out.message_contents.epoch_ballot_accepted.accepted_value.paxos_value_len > 0);
+        writeahead_epoch_paxos_peers_foreach_client(acceptor->peers, peer_send_epoch_paxos_message, &out) ;
 
-            writeahead_epoch_paxos_peers_foreach_client(acceptor->peers, peer_send_epoch_paxos_message, &out);
-            paxos_log_debug("sent message");
         } else {
             send_epoch_paxos_message(writeahead_epoch_paxos_peer_get_buffer(p), &out);
+            writeahead_epoch_paxos_message_destroy_contents(&out);
         }
-        writeahead_epoch_paxos_message_destroy_contents(&out);
     }
-  //  ev_performance_timer_stop_check_and_clear_timer(acceptor->acceptance_timer, "Acceptance");
+    //  ev_performance_timer_stop_check_and_clear_timer(acceptor->acceptance_timer, "Acceptance");
 
 }
 
@@ -117,6 +120,7 @@ static void ev_epoch_acceptor_handle_repeat(struct writeahead_epoch_paxos_peer* 
     for (iid_t instance = repeat->from; instance <= repeat->to; instance++) {
         if (writeahead_epoch_acceptor_receive_repeat(acceptor->acceptor, instance, &out_msg)) {
             //assert(out_msg.message_contents.epoch_ballot_accepted.accepted_epoch_ballot.ballot.number > 0);
+
             peer_send_epoch_paxos_message(p, &out_msg);
             writeahead_epoch_paxos_message_destroy_contents(&out_msg);
         }
@@ -128,7 +132,9 @@ static void ev_epoch_acceptor_handle_epoch_ballot_chosen(struct writeahead_epoch
     struct epoch_ballot_chosen* chosen = &msg->message_contents.instance_chosen_at_epoch_ballot;
 
    // performance_threshold_timer_begin_timing(acceptor->chosen_timer);
-
+   // assert(chosen->chosen_epoch_ballot.epoch > 0);
+   // assert(chosen->chosen_epoch_ballot.ballot.number > 0);
+ //  assert(chosen->chosen_value.paxos_value_len > 0);
     writeahead_epoch_acceptor_receive_instance_chosen(acceptor->acceptor, chosen);
    // ev_performance_timer_stop_check_and_clear_timer(acceptor->chosen_timer, "Chosen");
 
@@ -144,8 +150,9 @@ static void send_epoch_acceptor_state( int fd,  short ev, void* arg) {
     struct ev_epoch_acceptor* acceptor = arg;
     struct epoch_paxos_message msg;
     msg.type = WRITEAHEAD_ACCEPTOR_STATE;
-    writeahead_epoch_acceptor_get_current_state(acceptor->acceptor, &msg.message_contents.state);
-    writeahead_epoch_paxos_peers_foreach_client(acceptor->peers, peer_send_epoch_paxos_message, &msg);
+    writeahead_epoch_acceptor_get_current_state(acceptor->acceptor, &msg.message_contents.acceptor_state);
+    writeahead_epoch_paxos_peers_foreach_proposer(acceptor->peers, peer_send_epoch_paxos_message, &msg);
+//    writeahead_epoch_paxos_peers_foreach_client(acceptor->peers, peer_send_epoch_paxos_message, &msg);
     event_add(acceptor->send_state_event, &acceptor->send_state_timer);
 }
 
@@ -162,7 +169,7 @@ ev_epoch_acceptor_init_internal(int id, struct evpaxos_config *c, struct writeah
     writeahead_epoch_paxos_peers_subscribe(p, WRITEAHEAD_STANDARD_PREPARE, ev_epoch_acceptor_handle_standard_prepare, acceptor);
     writeahead_epoch_paxos_peers_subscribe(p, WRITEAHEAD_EPOCH_BALLOT_PREPARE, ev_epoch_acceptor_handle_epoch_ballot_prepare, acceptor);
     writeahead_epoch_paxos_peers_subscribe(p, WRITEAHEAD_INSTANCE_CHOSEN_AT_EPOCH_BALLOT,ev_epoch_acceptor_handle_epoch_ballot_chosen, acceptor );
-    writeahead_epoch_paxos_peers_subscribe(p, WRITEAHEAD_EPOCH_NOTIFICATION, ev_epoch_acceptor_handle_epoch_notification, acceptor);
+//    writeahead_epoch_paxos_peers_subscribe(p, WRITEAHEAD_EPOCH_NOTIFICATION, ev_epoch_acceptor_handle_epoch_notification, acceptor);
     writeahead_epoch_paxos_peers_subscribe(p, WRITEAHEAD_REPEAT, ev_epoch_acceptor_handle_repeat, acceptor);
     writeahead_epoch_paxos_peers_subscribe(p, WRITEAHEAD_INSTANCE_TRIM, ev_epoch_acceptor_handle_trim, acceptor);
 
@@ -181,9 +188,9 @@ ev_epoch_acceptor_init_internal(int id, struct evpaxos_config *c, struct writeah
             .type = WRITEAHEAD_EPOCH_NOTIFICATION,
             .message_contents.epoch_notification = epoch_notification
     };
-    writeahead_epoch_paxos_peers_foreach_client(acceptor->peers, peer_send_epoch_paxos_message, &msg);
-    //todo send epoch_notifcation to all actors
-
+    writeahead_epoch_paxos_peers_foreach_proposer(acceptor->peers, peer_send_epoch_paxos_message, &msg);
+   // writeahead_epoch_paxos_peers_foreach_client(acceptor->peers, peer_send_epoch_paxos_message, &msg);
+   // writeahead_epoch_paxos_peers_foreach_acceptor(acceptor->peers, peer_send_epoch_paxos_message, &msg);
     return acceptor;
 }
 
@@ -202,6 +209,8 @@ struct ev_epoch_acceptor* ev_epoch_acceptor_init(int id, const char* config_fig,
     }
 
     struct writeahead_epoch_paxos_peers* peers = writeahead_epoch_paxos_peers_new(base, config);
+    writeahead_epoch_paxos_peers_connect_to_proposers(peers, id);
+//    writeahead_epoch_paxos_peers_connect_to_clients(peers, -1);
     int port = evpaxos_acceptor_listen_port(config, id);
     if (writeahead_epoch_paxos_peers_listen(peers, port) == 0)
         return NULL;

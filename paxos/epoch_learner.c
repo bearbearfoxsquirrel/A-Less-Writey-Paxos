@@ -6,7 +6,6 @@
 #include <quorum.h>
 #include <epoch_quorum.h>
 #include <assert.h>
-#include <epoch_proposer.h>
 #include <epoch_ballot.h>
 
 
@@ -44,7 +43,7 @@ static void epoch_learner_instance_free(struct instance** inst) {
     paxos_value_destroy(&(*inst)->current_ballots_value);
     quorum_destroy(&(**inst).quorum);
     free(*inst);
-    *inst = NULL;
+   // *inst = NULL;
 }
 
 static bool epoch_learner_get_existing_instance(struct epoch_learner* l, iid_t instance, struct instance** inst) {
@@ -64,7 +63,7 @@ static struct instance* epoch_learner_get_or_create_instance(struct epoch_learne
     if (!instance_existing) {
         int rv;
         khiter_t k = kh_put_instance(l->instances_waiting_to_execute, instance, &rv);
-        assert(rv != -1);
+       // assert(rv != -1);
         inst = epoch_learner_instance_new(instance, l->acceptors, l->acceptance_quorum_size);
         kh_value(l->instances_waiting_to_execute, k) = inst;
     }
@@ -72,7 +71,7 @@ static struct instance* epoch_learner_get_or_create_instance(struct epoch_learne
 }
 
 static void epoch_learner_remove_instance_from_pending(struct epoch_learner* l, struct instance** inst) {
-    paxos_log_info("Removing Instance %u from pending", (*inst)->instance);
+    paxos_log_debug("Removing Instance %u from pending", (*inst)->instance);
     khiter_t k = kh_get_instance(l->instances_waiting_to_execute, (**inst).instance);
     kh_del_instance(l->instances_waiting_to_execute, k);
     epoch_learner_instance_free(inst);
@@ -100,7 +99,7 @@ void epoch_learner_free(struct epoch_learner** l){
 }
 
 void epoch_learner_set_trim_instance(struct epoch_learner* l, iid_t trim){
-    assert(trim > l->trim_instance);
+   // assert(trim > l->trim_instance);
     l->trim_instance = trim;
 }
 
@@ -108,19 +107,20 @@ iid_t epoch_learner_get_trim_instance(struct epoch_learner* l) {
     return l->trim_instance;
 }
 
+/*
 void epoch_learner_set_instance_id(struct epoch_learner* l, iid_t iid){
     if (l->current_min_instance_to_execute > INVALID_INSTANCE) {
         for (iid_t i = l->current_min_instance_to_execute; i <= iid; i++) {
             struct instance *inst;
             epoch_learner_get_existing_instance(l, i, &inst);
-            assert(quorum_reached(&inst->quorum));
+           // assert(quorum_reached(&inst->quorum));
         }
     }
     l->current_min_instance_to_execute = iid + 1;
     l->highest_instance_chosen = iid;
 }
-
-void check_and_handle_late_start(struct epoch_learner* l, iid_t instance) {
+*/
+static void check_and_handle_late_start(struct epoch_learner* l, iid_t instance) {
     if (l->late_start) {
         l->late_start = false;
         l->current_min_instance_to_execute = instance;
@@ -154,12 +154,12 @@ bool epoch_learner_is_epoch_ballot_outdated(const struct instance* inst, struct 
                         cmp.ballot.number, cmp.ballot.proposer_id);
         return false;
     } else {
-        paxos_log_debug("Received Acceptance for Instance is out of date. Ignoring it.", inst->instance);
+        paxos_log_debug("Received Acceptance for Instance %u is out of date. Ignoring it.", inst->instance);
         return true;
     }
 }
 
-void check_and_handle_new_ballot(struct instance* inst, struct epoch_ballot cmp, struct paxos_value value) {
+static void check_and_handle_new_ballot(struct instance* inst, struct epoch_ballot cmp, struct paxos_value value) {
     if (epoch_ballot_greater_than(cmp, inst->most_recent_epoch_ballot)) {
         if (!epoch_ballot_equal(inst->most_recent_epoch_ballot, INVALID_EPOCH_BALLOT)){
             paxos_value_destroy(&inst->current_ballots_value);
@@ -180,7 +180,7 @@ void epoch_learner_check_and_set_highest_instance_closed(struct epoch_learner* l
 }
 
 enum epoch_paxos_message_return_codes epoch_learner_receive_accepted(struct epoch_learner* l, struct epoch_ballot_accepted* ack, struct epoch_ballot_chosen* returned_message) {
-    paxos_log_info("Entering receive Accepted");
+    paxos_log_debug("Entering receive Accepted");
     char phase_name[] = "Acceptance";
     check_and_handle_late_start(l, ack->instance);
 
@@ -226,7 +226,7 @@ enum epoch_paxos_message_return_codes epoch_learner_receive_accepted(struct epoc
 
 
 enum epoch_paxos_message_return_codes epoch_learner_receive_epoch_ballot_chosen(struct epoch_learner* l, struct epoch_ballot_chosen* chosen_msg){
-    paxos_log_info("Entering received Chosen");
+    paxos_log_debug("Entering received Chosen");
     char message_name[] = "Chosen";
     check_and_handle_late_start(l, chosen_msg->instance);
 
@@ -259,25 +259,29 @@ enum epoch_paxos_message_return_codes epoch_learner_receive_trim(struct epoch_le
 }
 
 bool epoch_learner_deliver_next(struct epoch_learner* l, struct paxos_value* out){
-    paxos_log_info("Entering deliver next");
+    paxos_log_debug("Entering deliver next");
     struct instance* inst;
     bool instance_exists = epoch_learner_get_existing_instance(l, l->current_min_instance_to_execute, &inst);
 
     if (instance_exists) {
         if (inst->chosen) {
+            paxos_log_debug("Value exists and is chosen");
             paxos_value_copy(out, &inst->current_ballots_value);
+            paxos_log_debug("Copied value to deliver");
             epoch_learner_remove_instance_from_pending(l, &inst);
+
 
             paxos_log_debug("Executing Instance %u", l->current_min_instance_to_execute);
             l->current_min_instance_to_execute++;
             return true;
         }
     }
+    paxos_log_debug("Unable to deliver next value");
     return false;
 }
 bool epoch_learner_has_holes(struct epoch_learner* l, iid_t* from, iid_t* to){
     if (l->highest_instance_chosen > l->current_min_instance_to_execute) {
-        *from = l->current_min_instance_to_execute - 1;
+        *from = l->current_min_instance_to_execute;
         *to = l->highest_instance_chosen;
         return true;
     } else {
@@ -286,7 +290,7 @@ bool epoch_learner_has_holes(struct epoch_learner* l, iid_t* from, iid_t* to){
 }
 
 iid_t epoch_learner_get_instance_to_trim(struct epoch_learner* l) {
-    assert(l->highest_instance_chosen <= l->current_min_instance_to_execute);
+   // assert(l->highest_instance_chosen <= l->current_min_instance_to_execute);
     iid_t prev_instance = l->current_min_instance_to_execute - 1;
     return prev_instance;
 }

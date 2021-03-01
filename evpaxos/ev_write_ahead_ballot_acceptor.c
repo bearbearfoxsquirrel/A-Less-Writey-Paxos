@@ -105,22 +105,22 @@ ev_write_ahead_acceptor_handle_accept(struct standard_paxos_peer* p, standard_pa
     paxos_accept* accept = &msg->u.accept;
     struct ev_write_ahead_acceptor* a = (struct ev_write_ahead_acceptor*)arg;
 
-    assert(accept->value.paxos_value_len > 0);
+   // assert(accept->value.paxos_value_len > 0);
     performance_threshold_timer_begin_timing(a->acceptance_timer);
     paxos_log_debug("Handle accept for iid %dballot %u.%u",
                     accept->iid, accept->ballot.number, accept->ballot.proposer_id);
 
     if (write_ahead_window_acceptor_receive_accept(a->state, accept, &out) != 0) {
         if (out.type == PAXOS_ACCEPTED) {
-            assert(ballot_equal(out.u.accepted.promise_ballot, accept->ballot));
-            assert(ballot_equal(out.u.accepted.value_ballot, accept->ballot));
-            assert(out.u.accepted.value.paxos_value_len > 0);
+           // assert(ballot_equal(out.u.accepted.promise_ballot, accept->ballot));
+           // assert(ballot_equal(out.u.accepted.value_ballot, accept->ballot));
+           // assert(out.u.accepted.value.paxos_value_len > 0);
             peers_foreach_client(a->peers_proposers,  peer_send_paxos_message, &out);
 //   peers_foreach_proposer(a->peers_proposers, peer_send_epoch_paxos_message, &out);
         } else if (out.type == PAXOS_PREEMPTED) {
             send_paxos_preempted(peer_get_buffer(p), &out.u.preempted);
         } else if (out.type == PAXOS_CHOSEN) {
-            assert(out.u.chosen.value.paxos_value_len > 0);
+           // assert(out.u.chosen.value.paxos_value_len > 0);
             send_paxos_chosen(peer_get_buffer(p), &out.u.chosen);
 //send_paxos_message(peer_get_buffer(p), &out);
         } else if (out.type == PAXOS_TRIM) {
@@ -181,7 +181,7 @@ send_acceptor_state( int fd,  short ev, void* arg)
 {
     struct ev_write_ahead_acceptor* a = (struct ev_write_ahead_acceptor*)arg;
     standard_paxos_message msg = {.type = PAXOS_ACCEPTOR_STATE};
-    write_ahead_window_acceptor_get_current_state(a->state, &msg.u.state);
+    write_ahead_window_acceptor_get_current_state(a->state, &msg.u.acceptor_state);
     peers_foreach_client(a->peers_proposers, peer_send_paxos_message, &msg);
     event_add(a->send_state_event, &a->send_state_timer);
 }
@@ -245,7 +245,7 @@ ev_write_ahead_acceptor_init_internal(int id,  struct evpaxos_config* c, struct 
     acceptor->promise_timer = get_promise_performance_threshold_timer_new();
     acceptor->acceptance_timer = get_acceptance_performance_threshold_timer_new();
 //    acceptor->chosen_timer = get_chosen_performance_threshold_timer_new();
-    //event_set(&acceptor->send_state_event, 0, EV_PERSIST, write_ahead_window_acceptor_check_and_update_write_ahead_windows, acceptor->state);
+    //event_set(&acceptor->send_state_event, 0, EV_PERSIST, write_ahead_window_acceptor_check_and_update_write_ahead_windows, acceptor->acceptor_state);
   //  evtimer_add(&acceptor->send_state_event, &time);
 
     return acceptor;

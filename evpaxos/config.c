@@ -46,11 +46,13 @@ struct evpaxos_config
 {
 	int proposers_count;
 	int acceptors_count;
+	int client_count;
 
 	// todo add learners so they can update each other
 
 	struct address proposers[500]; //todo not use this
 	struct address acceptors[500];
+	struct address clients[500];
 };
 
 enum option_type
@@ -83,8 +85,10 @@ struct option options[] =
         {"group-2",                 &paxos_config.group_2,                 option_integer },
         {"learner-catch-up",        &paxos_config.learner_catch_up,        option_boolean },
         {"proposer-check_timeout",        &paxos_config.proposer_timeout,        option_integer },
+        {"acceptor-timeout", &paxos_config.acceptor_timeout, option_integer},
 
-        {"proposer-preexec-window", &paxos_config.proposer_preexec_window,                         option_integer },
+        {"proposer-preexec-window-max", &paxos_config.proposer_preexec_window_max,                         option_integer },
+        {"proposer-preexec-window-min", &paxos_config.proposer_preexec_window_min, option_integer},
 
         {"max-ballot-increment", &paxos_config.max_ballot_increment,                               option_integer},
         {"min-backoff-microseconds", &paxos_config.min_backoff_microseconds,                       option_integer},
@@ -121,6 +125,8 @@ struct option options[] =
         {"lmdb-sync",               &paxos_config.lmdb_sync,                                       option_boolean },
         {"lmdb-env-path",           &paxos_config.lmdb_env_path,                                   option_string },
         {"lmdb-mapsize",            &paxos_config.lmdb_mapsize,                                    option_bytes },
+
+        {"fall-behind-jump", &paxos_config.fall_behind_jump, option_integer},
 
         {"backoff-type", &paxos_config.backoff_type, option_string},
         {"pessimistic-proposing", &paxos_config.pessimistic_proposing, option_boolean},
@@ -195,6 +201,8 @@ evpaxos_config_free(struct evpaxos_config* config)
 		address_free(&config->proposers[i]);
 	for (i = 0; i < config->acceptors_count; ++i)
 		address_free(&config->acceptors[i]);
+	for (i = 0; i < config->client_count; i++)
+		address_free(&config->clients[i]);
 	free(config);
 }
 
@@ -204,10 +212,20 @@ evpaxos_proposer_address(struct evpaxos_config* config, int i)
 	return address_to_sockaddr(&config->proposers[i]);
 }
 
+struct sockaddr_in evpaxos_client_address(struct evpaxos_config* config, int i){
+	return address_to_sockaddr(&config->clients[i]);
+}
+
 int
 evpaxos_proposer_listen_port(struct evpaxos_config* config, int i)
 {
 	return config->proposers[i].port;
+}
+
+int
+evpaxos_client_listen_port(struct evpaxos_config* config, int i)
+{
+	return config->clients[i].port;
 }
 
 // Reads the number of acceptors defined in the config
@@ -220,6 +238,10 @@ evpaxos_acceptor_count(struct evpaxos_config* config)
 
 int evpaxos_proposer_count(struct evpaxos_config* config) {
     return config->proposers_count;
+}
+
+int evpaxos_client_count(struct evpaxos_config* config) {
+	return config->client_count;
 }
 
 struct sockaddr_in
@@ -373,6 +395,15 @@ parse_line(struct evpaxos_config* c, char* line)
         c->proposers_count++;
 		return parse_address(line, addr);
 	}
+
+	if (strcasecmp(tok, "c") == 0 || strcasecmp(tok, "client") == 0) {
+
+		struct address* addr = &c->clients[c->client_count];
+		c->client_count++;
+		return parse_address(line, addr);
+	}
+
+
 
 	if (strcasecmp(tok, "r") == 0 || strcasecmp(tok, "replica") == 0) {
 

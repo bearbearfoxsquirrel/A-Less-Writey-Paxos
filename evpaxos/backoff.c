@@ -33,9 +33,9 @@ static unsigned long exponential_randomised_backoff_next(struct exponential_rand
     unsigned  int new_time = (exponential_randomised_backoff_initial(handle) << ((unsigned int) attempt_number - 1)) % handle->max_backoff;
     if (new_time < handle->min_backoff) {
         new_time = exponential_randomised_backoff_initial(handle);
-        assert(new_time >= handle->min_backoff && new_time <= handle->max_initial_backoff);
+       // assert(new_time >= handle->min_backoff && new_time <= handle->max_initial_backoff);
     }
-    assert(new_time > 0 && new_time <= handle->max_backoff);
+   // assert(new_time > 0 && new_time <= handle->max_backoff);
     return new_time;
 }
 
@@ -105,7 +105,7 @@ static unsigned long full_jitter_backoff_get_max_backoff(struct full_jitter_back
 
 static void full_jitter_backoff_free(struct full_jitter_backoff** handle_ptr) {
     backoff_free(&(*handle_ptr)->base_backoff);
-    assert(&(*handle_ptr)->base_backoff == NULL);
+   // assert(&(*handle_ptr)->base_backoff == NULL);
     free(*handle_ptr);
     *handle_ptr = NULL;
 }

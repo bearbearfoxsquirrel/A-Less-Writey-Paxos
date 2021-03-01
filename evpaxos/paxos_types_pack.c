@@ -230,6 +230,23 @@ void msgpack_unpack_paxos_acceptor_state(msgpack_object* o, struct paxos_standar
 	msgpack_unpack_uint32_at(o, &v->current_instance, &i);
 }
 
+void msgpack_pack_proposer_state(struct msgpack_packer* p, struct proposer_state* v) {
+    msgpack_pack_array(p, 5);
+    msgpack_pack_int32(p, PAXOS_PROPOSER_STATE);
+    msgpack_pack_uint32(p, v->proposer_id);
+    msgpack_pack_uint32(p, v->trim_instance);
+    msgpack_pack_int32(p, v->max_chosen_instance);
+    msgpack_pack_uint32(p, v->next_prepare_instance);
+}
+
+void msgpack_unpack_proposer_state(struct msgpack_object* o, struct proposer_state* v){
+    int i = 1;
+    msgpack_unpack_uint32_at(o, &v->proposer_id, &i);
+    msgpack_unpack_uint32_at(o, &v->trim_instance, &i);
+    msgpack_unpack_uint32_at(o, &v->max_chosen_instance, &i);
+    msgpack_unpack_uint32_at(o, &v->next_prepare_instance, &i);
+}
+
 void msgpack_pack_paxos_client_value(msgpack_packer* p, struct paxos_value* v)
 {
 	msgpack_pack_array(p, 2);
@@ -286,8 +303,11 @@ void msgpack_pack_paxos_message(msgpack_packer* p, standard_paxos_message* v)
             msgpack_pack_paxos_trim(p, &v->u.trim);
             break;
         case PAXOS_ACCEPTOR_STATE:
-            msgpack_pack_paxos_acceptor_state(p, &v->u.state);
+            msgpack_pack_paxos_acceptor_state(p, &v->u.acceptor_state);
             break;
+	    case PAXOS_PROPOSER_STATE:
+	        msgpack_pack_proposer_state(p, &v->u.proposer_state);
+	        break;
         case PAXOS_CLIENT_VALUE:
             msgpack_pack_paxos_client_value(p, &v->u.client_value);
             break;
@@ -323,7 +343,7 @@ void msgpack_unpack_paxos_message(msgpack_object* o, standard_paxos_message* v)
 		msgpack_unpack_paxos_trim(o, &v->u.trim);
 		break;
 	case PAXOS_ACCEPTOR_STATE:
-		msgpack_unpack_paxos_acceptor_state(o, &v->u.state);
+		msgpack_unpack_paxos_acceptor_state(o, &v->u.acceptor_state);
 		break;
 	case PAXOS_CLIENT_VALUE:
 		msgpack_unpack_paxos_client_value(o, &v->u.client_value);
@@ -331,7 +351,10 @@ void msgpack_unpack_paxos_message(msgpack_object* o, standard_paxos_message* v)
     case PAXOS_CHOSEN:
         msgpack_unpack_paxos_chosen(o, &v->u.chosen);
         break;
-	}
+    case PAXOS_PROPOSER_STATE:
+        msgpack_unpack_proposer_state(o, &v->u.proposer_state);
+        break;
+    }
 }
 
 
@@ -405,6 +428,24 @@ void msgpack_pack_instance_chosen_at_epoch_ballot(msgpack_packer* packer, struct
 }
 
 
+void msgpack_pack_epoch_proposer_state(struct msgpack_packer* p, struct epoch_proposer_state* v) {
+    msgpack_pack_array(p, 6);
+    msgpack_pack_int32(p, PAXOS_PROPOSER_STATE);
+    msgpack_pack_uint32(p, v->proposer_state.proposer_id);
+    msgpack_pack_uint32(p, v->proposer_state.trim_instance);
+    msgpack_pack_int32(p, v->proposer_state.max_chosen_instance);
+    msgpack_pack_uint32(p, v->proposer_state.next_prepare_instance);
+    msgpack_pack_uint32(p, v->current_epoch);
+}
+
+void msgpack_unpack_epoch_proposer_state(struct msgpack_object* o, struct epoch_proposer_state* v){
+    int i = 1;
+    msgpack_unpack_uint32_at(o, &v->proposer_state.proposer_id, &i);
+    msgpack_unpack_uint32_at(o, &v->proposer_state.trim_instance, &i);
+    msgpack_unpack_uint32_at(o, &v->proposer_state.max_chosen_instance, &i);
+    msgpack_unpack_uint32_at(o, &v->proposer_state.next_prepare_instance, &i);
+    msgpack_unpack_uint32_at(o, &v->current_epoch, &i);
+}
 
 void msgpack_pack_epoch_notification(msgpack_packer* packer, struct epoch_notification* epoch_notification){
     msgpack_pack_array(packer, 2);
@@ -484,10 +525,13 @@ void msgpack_pack_writeahead_epoch_paxos_message(msgpack_packer* packer, struct 
            msgpack_pack_epoch_paxos_trim(packer, &message->message_contents.trim);
            break;
        case WRITEAHEAD_ACCEPTOR_STATE:
-           msgpack_pack_writeahead_epoch_acceptor_state(packer, &message->message_contents.state);
+           msgpack_pack_writeahead_epoch_acceptor_state(packer, &message->message_contents.acceptor_state);
            break;
        case WRITEAHEAD_CLIENT_VALUE:
            msgpack_pack_epoch_paxos_client_value(packer, &message->message_contents.client_value);
+           break;
+       case WRITEAHEAD_PAXOS_PROPOSER_STATE:
+           msgpack_pack_epoch_proposer_state(packer, &message->message_contents.epoch_proposer_state);
            break;
    }
 }
@@ -617,10 +661,13 @@ void msgpack_unpack_writeahead_epoch_paxos_message(msgpack_object* msg_object, s
            msgpack_unpack_epoch_paxos_trim(msg_object, &unpacked_message->message_contents.trim);
            break;
        case WRITEAHEAD_ACCEPTOR_STATE:
-           msgpack_unpack_writeahead_epoch_acceptor_state(msg_object, &unpacked_message->message_contents.state);
+           msgpack_unpack_writeahead_epoch_acceptor_state(msg_object, &unpacked_message->message_contents.acceptor_state);
            break;
        case WRITEAHEAD_CLIENT_VALUE:
            msgpack_unpack_epoch_paxos_client_value(msg_object, &unpacked_message->message_contents.client_value);
+           break;
+       case WRITEAHEAD_PAXOS_PROPOSER_STATE:
+           msgpack_unpack_epoch_proposer_state(msg_object, &unpacked_message->message_contents.epoch_proposer_state);
            break;
    }
 }

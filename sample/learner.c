@@ -57,7 +57,7 @@ start_learner(const char* config)
 	struct event_base* base;
 
 	base = event_base_new();
-	lea = evlearner_init(config, deliver, NULL, base);
+	lea = evlearner_init(config, deliver, NULL, base, 0);
 	if (lea == NULL) {
 		printf("Could not start the learner!\n");
 		exit(1);

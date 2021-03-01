@@ -26,10 +26,10 @@
  */
 
 
-#include <paxos.h>
-#include <evpaxos.h>
 #include "client_benchmarker.h"
 #include "client_value.h"
+#include <paxos.h>
+#include <evpaxos.h>
 #include <errno.h>
 #include <stdlib.h>
 #include "unistd.h"
@@ -38,11 +38,12 @@
 #include <signal.h>
 #include <event2/event.h>
 #include <netinet/tcp.h>
-#define MAX_VALUE_SIZE 8192
+#include <assert.h>
 
 
 struct client
 {
+    bool synced;
     int id;
     int value_size;
     int max_outstanding;
@@ -69,34 +70,63 @@ handle_sigint(int sig, short ev, void* arg)
 static void
 client_submit_value(struct client* c)
 {
-    client_value_generate((struct client_value**) c->send_buffer, c->value_size, c->id);
+    client_value_generate((struct client_value **) &c->send_buffer, c->value_size, c->id);
+   // assert(((struct client_value*) c->send_buffer)->client_id == c->id);
     struct client_value* v = (struct client_value*)c->send_buffer;
-    client_benchmarker_register_value(c->benchmarker, v);
-    size_t size = sizeof(struct client_value) + v->size;
+    size_t size = sizeof(struct client_value) + v->size; //precalculate todo
+    while(!client_benchmarker_register_value(c->benchmarker, v))
+        v->uid = rand();
     paxos_submit_client_value(c->bev, c->send_buffer, size);
     paxos_log_debug("Submitted new client value");
 }
 
 
 static void
-on_deliver(unsigned iid, char* value, size_t size, void* arg)
+client_submit_sync(struct client* c) {
+    struct client_value* v = (struct client_value*) c->send_buffer;
+    v->client_id = c->id;
+    v->uid = 0;
+    strncpy(v->value, "SYNC", 5);
+    uint32_t size = sizeof(*v) + 5;
+    paxos_submit_client_value(c->bev, c->send_buffer, size);
+}
+
+
+static void
+on_deliver(char* value, size_t size, void* arg)
 {
     struct client* c = arg;
-    struct client_value* v = (struct client_value*)value;
-    if (client_benchmarker_is_outstanding(c->benchmarker, v)) {
-        paxos_log_debug("Client Value delivered.");
-        client_benchmarker_close_value_and_update_stats(c->benchmarker, v);
-        client_submit_value(c);
+    struct client_value* v = (struct client_value*) value;
 
+    if (strncmp (value, "NOP.", size) != 0) {
+        if (!c->synced && v->client_id == c->id && v->uid == 0 && strncmp(v->value, "SYNC", 4) == 0) {
+            for (int i = 0; i < c->max_outstanding; ++i)
+                client_submit_value(c);
+            c->synced = true;
+            return;
+        } else if (!c->synced) {
+            client_submit_sync(c);
+            return;
+        }
+
+        if (client_benchmarker_is_outstanding(c->benchmarker, v)) {
+            paxos_log_debug("Client Value delivered.");
+            bool found = client_benchmarker_close_value_and_update_stats(c->benchmarker, v);
+            // assert(found);
+            client_submit_value(c);
+        } else {
+
+            //    // assert(v->client_id == c->id || strncmp(value, "NOP.", size - 1) == 0);
+            paxos_log_debug("Delivered value of another client.");
+        }
     }
-
 }
 
 static void
 on_stats(evutil_socket_t fd, short event, void *arg)
 {
     struct client* c = arg;
-
+    client_benchmarker_print_and_reset_stats(c->benchmarker);
     event_add(c->stats_ev, &c->stats_interval);
 }
 
@@ -107,8 +137,10 @@ on_connect(struct bufferevent* bev, short events, void* arg)
     struct client* c = arg;
     if (events & BEV_EVENT_CONNECTED) {
         printf("Connected to proposer\n");
-        for (i = 0; i < c->max_outstanding; ++i)
-            client_submit_value(c);
+        c->synced = false;
+        client_submit_sync(c);
+     //   for (i = 0; i < c->max_outstanding; ++i)
+       //     client_submit_value(c);
     } else {
         printf("%s\n", evutil_socket_error_to_string(EVUTIL_SOCKET_ERROR()));
     }
@@ -138,34 +170,36 @@ make_client(const char *config, int proposer_id, int outstanding, int value_size
 {
     struct client* c;
     c = malloc(sizeof(struct client));
+    c->id = rand();
     c->base = event_base_new();
 
     struct evpaxos_config* ev_config = evpaxos_config_read(config);
     //c->outstanding_values = malloc(max_outstanding * sizeof(int));
 
-    c->bev = connect_to_proposer(c, config, proposer_id);
-    if (c->bev == NULL)
-        exit(1);
-
-    c->id = rand();
-    c->value_size = value_size;
-    c->max_outstanding = outstanding;
-    c->send_buffer = malloc(sizeof(struct client_value) + value_size);
-
-
-    struct timeval settle_in_time =  {.tv_sec = paxos_config.settle_in_time, .tv_usec = 0};
+    c->send_buffer = malloc(sizeof(struct client_value) + sizeof(char) * value_size);
+    struct timeval settle_in_time = {.tv_sec = paxos_config.settle_in_time, .tv_usec = 0};
     u_int64_t number_of_latencies_to_record = paxos_config.number_of_latencies_to_record;
     c->benchmarker = client_benchmarker_new(c->id, number_of_latencies_to_record, settle_in_time, latency_record_output_path);
+
+    c->value_size = value_size;
+    c->max_outstanding = outstanding;
+    //paxos_config.learner_catch_up = 0;
+
+
 
     c->stats_interval = (struct timeval){1, 0};
     c->stats_ev = evtimer_new(c->base, on_stats, c);
     event_add(c->stats_ev, &c->stats_interval);
 
-    paxos_config.learner_catch_up = 0;
-    c->learner = evlearner_init(config, on_deliver, c, c->base);
 
+    c->learner = evlearner_init(config, on_deliver, c, c->base, proposer_id);
+    c->bev = connect_to_proposer(c, config, proposer_id);
+    if (c->bev == NULL)
+        exit(1);
     c->sig = evsignal_new(c->base, SIGINT, handle_sigint, c);
     evsignal_add(c->sig, NULL);
+
+    free(ev_config);
 
     return c;
 }

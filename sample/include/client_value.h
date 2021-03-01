@@ -5,23 +5,24 @@
 #ifndef LIBPAXOS_CLIENT_VALUE_H
 #define LIBPAXOS_CLIENT_VALUE_H
 
-//#include "paxos_value.h"
+#include "paxos_value.h"
 //#include "stdio.h"
 
 //#include <ntsid.h>
 #include <stddef.h>
+#include "stdint.h"
 
 //public so that it can be allocated on the stack and space can be reused
 struct client_value {
-    unsigned int client_id;
-    unsigned int uid;
-    size_t size;
+    uint32_t client_id;
+    uint32_t uid;
+    uint32_t size;
     char value[0];
 };
 
 
 struct value{
-    size_t size;
+    uint32_t size;
     char value[0];
 };
   //  unsigned int value_len;
@@ -37,13 +38,14 @@ void fill_paxos_value_from_client_value(struct client_value* src, struct paxos_v
 
 void fill_client_value_from_paxos_value(struct paxos_value* src, struct client_value* dst);
 
-void client_value_generate(struct client_value **value_allocated, unsigned int value_size, unsigned int c_id);
+void
+client_value_generate(struct client_value **value_allocated, uint32_t value_size, uint32_t c_id);
 
 void client_value_free(struct client_value** value);
 
-unsigned int client_value_get_uid(const struct client_value* value);
+uint32_t client_value_get_uid(const struct client_value* value);
 
-unsigned int client_value_get_value_size(const struct client_value* value);
+uint32_t client_value_get_value_size(const struct client_value* value);
 
 struct value client_value_get_value(const struct client_value* value);
 

@@ -64,7 +64,7 @@ init_state(struct counter_replica* replica)
 	char filename[128];
 	replica->count = 0;
 	replica->instance_id = 0;
-	snprintf(filename, sizeof(filename), "state-%d", replica->id);
+	snprintf(filename, sizeof(filename), "acceptor_state-%d", replica->id);
 	FILE* f = fopen(filename, "r");
 	if (f != NULL) {
 		fscanf(f, "%d %d", &replica->count, &replica->instance_id);
@@ -76,7 +76,7 @@ static void
 checkpoint_state(struct counter_replica* replica)
 {
 	char filename[128];
-	snprintf(filename, sizeof(filename), "state-%d", replica->id);
+	snprintf(filename, sizeof(filename), "acceptor_state-%d", replica->id);
 	FILE* f = fopen(filename, "w+");
 	fprintf(f, "%d %d", replica->count, replica->instance_id);
 	fclose(f);

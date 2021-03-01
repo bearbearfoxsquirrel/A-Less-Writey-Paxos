@@ -35,13 +35,14 @@
 #include <sys/time.h>
 #include <paxos_types.h>
 
+
 struct paxos_config paxos_config =
 {
 	.verbosity = PAXOS_LOG_INFO,
 	.tcp_nodelay = 1,
 	.learner_catch_up = 1,
 	.proposer_timeout = 1,
-	.proposer_preexec_window = 128,
+//	.proposer_preexec_window = 128,
 	.storage_backend = PAXOS_MEM_STORAGE,
 	.trash_files = 0,
 	.lmdb_sync = 0,
@@ -53,42 +54,6 @@ struct paxos_config paxos_config =
 	.lmdb_mapsize = 10*1024*1024
 };
 
-
-struct paxos_value*
-paxos_value_new(const char* value, size_t size)
-{
-	struct paxos_value* v = malloc(sizeof(struct paxos_value));
-	v->paxos_value_len = size;
-	v->paxos_value_val = malloc(sizeof(char)*size);
-	memcpy(v->paxos_value_val, value, sizeof(char)*size );
-	return v;
-}
-
-void
-paxos_value_free(struct paxos_value** v)
-{
-    if (*v != NULL) {
-        if ((*v)->paxos_value_val != NULL) {
-            free((*v)->paxos_value_val);
-            (*v)->paxos_value_val = NULL;
-        }
-        (*v)->paxos_value_len = 0;
-        free(*v);
-        *v = NULL;
-    }
-}
-
-void
-paxos_value_destroy(struct paxos_value* v)
-{
-    if (v != NULL) {
-        if (v->paxos_value_val != NULL)
-            free(v->paxos_value_val);
-        v->paxos_value_val = NULL;
-        v->paxos_value_len = 0;
-    }
-
-}
 
 void
 paxos_accepted_free(struct paxos_accepted* a)
@@ -206,6 +171,8 @@ void writeahead_epoch_paxos_message_destroy_contents(struct epoch_paxos_message*
             break;
         case WRITEAHEAD_CLIENT_VALUE:
             paxos_client_value_destroy(&m->message_contents.client_value);
+            break;
+        case WRITEAHEAD_PAXOS_PROPOSER_STATE:
             break;
     }
 }

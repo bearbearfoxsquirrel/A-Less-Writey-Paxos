@@ -47,7 +47,7 @@ evpaxos_replica_deliver(unsigned iid, char* value, size_t size, void* arg)
 	struct evpaxos_replica* r = arg;
 	evproposer_set_instance_id(r->proposer, iid);
 	if (r->deliver)
-		r->deliver(iid, value, size, r->arg);
+		r->deliver(value, size, r->arg);
 }
 
 struct evpaxos_replica*

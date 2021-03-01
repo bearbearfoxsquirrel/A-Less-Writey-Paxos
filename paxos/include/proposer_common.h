@@ -10,7 +10,7 @@ int
 proposer_instance_info_has_value(struct proposer_common_instance_info *inst);
 
 int
-proposer_instance_info_has_promised_value(struct proposer_common_instance_info* inst);
+proposer_instance_info_has_promised_value(const struct proposer_common_instance_info *inst);
 
 bool
 proposer_instance_info_has_timedout(struct proposer_common_instance_info* inst, struct timeval* now);

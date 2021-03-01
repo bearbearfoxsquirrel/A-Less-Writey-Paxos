@@ -52,7 +52,7 @@ struct hash_mapped_memory {
     iid_t max_inited_instance;
     iid_t min_chosen_instance;
 
-    int trim_instance_id;
+    unsigned int trim_instance_id;
     int aid;
 };
 
@@ -70,7 +70,7 @@ hash_mapped_memory_get_last_promise(struct hash_mapped_memory *volatile_storage,
     memset(last_promise_retrieved, 0, sizeof(struct paxos_prepare));
     khiter_t key = kh_get_last_prepares(volatile_storage->last_prepares, instance_id);//kh_get(PREPARE_MAP_SYMBOL_AND_NAME, volatile_storage->last_prepares, instance_id);
     if (key != kh_end(volatile_storage->last_prepares)) {
-        if (kh_exist(volatile_storage->last_prepares, key)) {
+        if (kh_exist(volatile_storage->last_prepares, key) == 1) {
             // todo see if there is an issue here
             struct paxos_prepare *prepare = kh_value(volatile_storage->last_prepares, key);
             paxos_prepare_copy(last_promise_retrieved, prepare);
@@ -83,7 +83,6 @@ hash_mapped_memory_get_last_promise(struct hash_mapped_memory *volatile_storage,
 }
 
 
-// TODO work out how to add addess this, either different name, then point write bit at end, or some other thing I saw in the internet
 static int
 hash_mapped_memory_store_last_promise(struct hash_mapped_memory *volatile_storage,
                                       struct paxos_prepare *last_ballot_promised) {
@@ -104,14 +103,14 @@ hash_mapped_memory_store_last_promise(struct hash_mapped_memory *volatile_storag
         paxos_prepare_free(kh_value(volatile_storage->last_prepares, iter));
     }
         kh_value(volatile_storage->last_prepares, iter) = promise_copy;
-        error = 0;
+        error = 1;
         if (last_ballot_promised->iid > volatile_storage->max_inited_instance)
             volatile_storage->max_inited_instance = last_ballot_promised->iid;
         struct paxos_prepare test_prepare;
         memset(& test_prepare, 0, sizeof(test_prepare));
         hash_mapped_memory_get_last_promise(volatile_storage, last_ballot_promised->iid, &test_prepare);
-        assert(test_prepare.iid == last_ballot_promised->iid);
-        assert(ballot_equal(test_prepare.ballot, last_ballot_promised->ballot));
+       // assert(test_prepare.iid == last_ballot_promised->iid);
+       // assert(ballot_equal(test_prepare.ballot, last_ballot_promised->ballot));
 
 
 //  store_to_hash_map(last_prepares, volatile_storage->last_prepares, struct paxos_prepare, last_ballot_promised->iid, last_ballot_promised, paxos_prepare_free, paxos_prepare_copy, error);
@@ -361,7 +360,7 @@ static struct hash_mapped_memory*
     hash_mapped_mem->aid = aid;
     for (int i = 0; i < number_of_instances; i++) {
         struct paxos_accepted instance_info = instances_info[i];
-        assert(instance_info.iid > trim_instance);
+       // assert(instance_info.iid > trim_instance);
         hash_mapped_memory_store_instance_info(hash_mapped_mem, &instance_info);
     }
     return hash_mapped_mem;
@@ -397,13 +396,17 @@ hash_mapped_memory_is_instance_chosen(const struct hash_mapped_memory* memory, i
         *chosen = false;
         return 0;
     } else {
-        // found
-        if (*kh_value(memory->chosen, key) == true){
-            *chosen = true;
-        } else {
-            *chosen = false;
+        if (kh_exist(memory->chosen, key)) {
+            // found
+            if (*kh_value(memory->chosen, key) == true) {
+                *chosen = true;
+            } else {
+                *chosen = false;
+            }
+            return 1;
+        }else {
+            return 0;
         }
-        return 1;
     }
 }
 
@@ -434,6 +437,8 @@ hash_mapped_memory_instance_chosen(struct hash_mapped_memory* memory, iid_t inst
         hash_mapped_memory_is_instance_chosen(memory, i, &instance_chosen);
         if (instance_chosen) {
             memory->min_chosen_instance = i;
+        } else {
+            break;
         }
     }
   //  int* tmp = calloc(1, sizeof(int));

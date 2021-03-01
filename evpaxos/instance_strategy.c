@@ -49,7 +49,7 @@ void instance_strategy_update_time_proposers_instance_chosen(struct instance_str
     struct timeval res;
     struct timeval min_diff = {0};
     timersub(&time_chosen, &strategy->time_proposers_instance_was_chosen, &res);
-    assert(timercmp(&res, &min_diff, >));
+   // assert(timercmp(&res, &min_diff, >));
 
     strategy->time_proposers_instance_was_chosen = time_chosen;
 }
@@ -66,14 +66,14 @@ void instance_strategy_choosing_velocity(struct instance_strategy* strategy, iid
 }
 
 void instance_strategy_update_max_instance_chosen(struct instance_strategy* strategy, iid_t max_chosen_instance){
-    assert(max_chosen_instance >= strategy->max_chosen_instance);
+   // assert(max_chosen_instance >= strategy->max_chosen_instance);
 
     strategy->max_chosen_instance = max_chosen_instance;
 }
 
 
 void instance_strategy_update_max_working_instance(struct instance_strategy* strategy, iid_t max_working_instance){
-    assert(max_working_instance >= strategy->max_working_instance);
+   // assert(max_working_instance >= strategy->max_working_instance);
     strategy->max_working_instance = max_working_instance;
     instance_strategy_choosing_velocity(strategy, max_working_instance);
 }

@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 2.6)
 project(a-less-writey-paxos)
 
 set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3 -std=gnu11 -fPIC -Wall -g -march=native -Wextra -pedantic -Wpedantic  -Wshadow -Wstrict-overflow -fno-strict-aliasing -Wno-missing-field-initializers")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=gnu11 -O0 -fPIC -Wall -g -march=native -Wextra -pedantic -Wpedantic -Wshadow -Wstrict-overflow -fno-strict-aliasing -Wno-missing-field-initializers")
 set(CMAKE_MACOSX_RPATH 1)
 
 find_package(LIBEVENT REQUIRED)

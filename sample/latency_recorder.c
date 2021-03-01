@@ -39,6 +39,10 @@ void latency_recorder_record(struct latency_recorder* recorder, unsigned long la
                 recorder->begin_timing = true;
                 fprintf(recorder->record, "%lu\n", latency);
                 recorder->latencies_to_record--;
+
+                if (recorder->latencies_to_record == 0) {
+                    fclose(recorder->record);
+                }
             }
         } else {
             fprintf(recorder->record, "%lu\n", latency);

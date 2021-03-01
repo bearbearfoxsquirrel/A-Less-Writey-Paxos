@@ -22,6 +22,7 @@ void epoch_proposer_set_current_instance(struct epoch_proposer* p, iid_t iid);
 unsigned int epoch_proposer_get_id(struct epoch_proposer* p);
 
 unsigned int epoch_proposer_get_current_known_epoch(struct epoch_proposer* p);
+int epoch_proposer_handle_epoch_notification(struct epoch_proposer* p, struct epoch_notification* epoch_notification);
 
 
 void epoch_proposer_next_instance(struct epoch_proposer* p);
@@ -51,8 +52,12 @@ enum epoch_paxos_message_return_codes epoch_proposer_receive_preempted(struct ep
 
 bool epoch_proposer_is_instance_pending(struct epoch_proposer *p, iid_t instance);
 
-// periodic acceptor state
+// periodic acceptor acceptor_state
 enum epoch_paxos_message_return_codes epoch_proposer_receive_acceptor_state(struct epoch_proposer* p, struct writeahead_epoch_acceptor_state* state);
+
+bool epoch_proposer_get_state(struct epoch_proposer* p, struct epoch_proposer_state* out);
+enum epoch_paxos_message_return_codes
+epoch_proposer_receive_epoch_proposer_state(struct epoch_proposer *p, struct epoch_proposer_state *state);
 
 enum epoch_paxos_message_return_codes epoch_proposer_receive_trim(struct epoch_proposer* p, struct paxos_trim* trim_msg);
 

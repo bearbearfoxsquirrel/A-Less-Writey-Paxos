@@ -57,13 +57,15 @@ struct subscription
 
 struct standard_paxos_peers
 {
-	int peers_count, clients_count;
+	int peers_count, clients_count, acceptor_count, proposer_count;
 	struct standard_paxos_peer** peers;   /* peers we connected to */
+	struct standard_paxos_peer** proposers;
 	struct standard_paxos_peer** clients; /* peers we accepted connections from */
 	struct evconnlistener* listener;
 	struct event_base* base;
 	struct evpaxos_config* config;
 	int subs_count;
+	bool acceptor_partnership;
 	struct subscription subs[32];
 	struct bufferevent_rate_limit_group* rate_limit_group;
 };
@@ -73,7 +75,7 @@ static struct standard_paxos_peer* make_peer(struct standard_paxos_peers* p, int
 static void free_peer(struct standard_paxos_peer* p);
 static void free_all_peers(struct standard_paxos_peer** p, int count);
 static void connect_peer(struct standard_paxos_peer* p);
-static void peers_connect(struct standard_paxos_peers* p, int id, struct sockaddr_in* addr);
+static void peers_connect(struct standard_paxos_peers* p, struct standard_paxos_peer*** peers, int peers_num, int id, struct sockaddr_in* addr);
 static void on_read(struct bufferevent* bev, void* arg);
 static void on_peer_event(struct bufferevent* bev, short ev, void *arg);
 static void on_client_event(struct bufferevent* bev, short events, void *arg);
@@ -88,18 +90,17 @@ peers_new(struct event_base *base, struct evpaxos_config *config)
 {
 	struct standard_paxos_peers* p = malloc(sizeof(struct standard_paxos_peers));
 	p->peers_count = 0;
+	p->acceptor_count = 0;
+	p->proposer_count = 0;
 	p->clients_count = 0;
 	p->subs_count = 0;
 	p->peers = NULL;
+	p->proposers = NULL;
 	p->clients = NULL;
 	p->listener = NULL;
+	p->acceptor_partnership = true; // whether or not another agent is co-located with an acceptor
 	p->base = base;
 	p->config = config;
-//	int avg_size = (sizeof(struct paxos_accepted) * messages_batched_average) + value_size + 50;
-//	int max_size = (sizeof(struct paxos_accepted) * max_messages_batched) + value_size + 100;
-//	struct timeval tick = (struct timeval){.tv_sec = 1, .tv_usec = 0};
-//	struct ev_token_bucket_cfg* config_ev = ev_token_bucket_cfg_new(avg_size,  max_size, avg_size, max_size, &tick);
-//	p->rate_limit_group = bufferevent_rate_limit_group_new(base, config_ev);
 	return p;
 }
 
@@ -120,59 +121,95 @@ peers_count(struct standard_paxos_peers* p)
 }
 
 static void
-peers_connect(struct standard_paxos_peers* p, int id, struct sockaddr_in* addr)
+peers_connect(struct standard_paxos_peers* p, struct standard_paxos_peer*** peers, int peers_num, int id, struct sockaddr_in* addr)
 {
-	p->peers = realloc(p->peers, sizeof(struct standard_paxos_peer*) * (p->peers_count + 1));
-	p->peers[p->peers_count] = make_peer(p, id, addr);
+	*peers = realloc(*peers, sizeof(struct standard_paxos_peer*) * (peers_num + 1));
+	(*peers)[peers_num] = make_peer(p, id, addr);
 
-	struct standard_paxos_peer* peer = p->peers[p->peers_count];
+	struct standard_paxos_peer* peer = (*peers)[peers_num];
 	bufferevent_setcb(peer->bev, on_read, NULL, on_peer_event, peer);
     peer->reconnect_ev = evtimer_new(p->base, on_connection_timeout, peer);
 	connect_peer(peer);
 
-	p->peers_count++;
+}
+
+void peers_connect_to_proposers(struct standard_paxos_peers *p, int partner_id) {
+	for (int i = 0; i < evpaxos_proposer_count(p->config); i++) {
+		struct sockaddr_in address = evpaxos_proposer_address(p->config, i);
+		peers_connect(p, &p->proposers, p->proposer_count, i, &address);
+		p->proposer_count++;
+	}
+
+	if (partner_id >= 0) {
+		for (int i = 0; i < p->proposer_count; i++) {
+			//if (i == source_id){
+			struct standard_paxos_peer *tmp = p->proposers[i];
+			if (tmp->id == partner_id) {
+				p->proposers[i] = p->proposers[0];
+				p->proposers[0] = tmp;//p->peers[i];
+			}
+		}
+	}
+}
+
+
+void peers_connect_to_other_proposers(struct standard_paxos_peers *p, int self_id) {
+    for (int i = 0; i < evpaxos_proposer_count(p->config); i++) {
+        struct sockaddr_in address = evpaxos_proposer_address(p->config, i);
+        peers_connect(p, &p->proposers, p->proposer_count, i, &address);
+        p->proposer_count++;
+    }
+
+    if (self_id >= 0) {
+        for (int i = 0; i < p->proposer_count; i++) {
+            //if (i == source_id){
+            struct standard_paxos_peer *tmp = p->proposers[i];
+            if (tmp->id == self_id) {
+                p->proposers[i] = p->proposers[p->proposer_count - 1];
+                p->proposers[p->proposer_count - 1] = tmp;//p->peers[i];
+            }
+        }
+
+        free_peer(p->proposers[p->proposer_count - 1]);
+        p->proposer_count--;
+    }
+
 }
 
 void
-peers_connect_to_acceptors(struct standard_paxos_peers* p, int source_id)
+peers_connect_to_acceptors(struct standard_paxos_peers* p, int partner_id)
 {
 	for (int i = 0; i < evpaxos_acceptor_count(p->config); i++) {
 		struct sockaddr_in addr = evpaxos_acceptor_address(p->config, i);
-		peers_connect(p, i, &addr);
+		peers_connect(p, &p->peers, p->peers_count, i, &addr);
+		p->peers_count++;
+		p->acceptor_count++;
 	}
 
-
-    for (int i = 0; i < p->peers_count; i++){
-        //if (i == source_id){
-        struct standard_paxos_peer* tmp = p->peers[i];
-        if (tmp->id == source_id) {
-            p->peers[i] = p->peers[0];
-            p->peers[0] = tmp;//p->peers[i];
-            //  }
+    if (partner_id > -1) {
+        for (int i = 0; i < p->peers_count; i++) {
+            //if (i == source_id){
+            struct standard_paxos_peer *tmp = p->peers[i];
+            if (tmp->id == partner_id) {
+                p->peers[i] = p->peers[0];
+                p->peers[0] = tmp;//p->peers[i];
+            }
         }
+    } else {
+        p->acceptor_partnership = false;
     }
 
     paxos_log_debug("Order of acceptors connected to:");
     for (int i = 0; i < p->peers_count; i++){
-        //if (i == source_id){
         struct standard_paxos_peer* tmp = p->peers[i];
         paxos_log_debug("acceptor %i", tmp->id);
     }
-
-
 }
 
-void
-peers_connect_to_proposers(struct standard_paxos_peers* p){
-    for (int i = 0; i < evpaxos_proposer_count(p->config); i++) {
-        struct sockaddr_in address = evpaxos_proposer_address(p->config, i);
-        peers_connect(p, i, &address);
-    }
-}
 
 void peers_foreach_proposer(struct standard_paxos_peers* p, peer_iter_cb cb, void* arg){
-    for (int i = 0; i < p->peers_count; i++)
-        cb(p->peers[i], arg);
+    for (int i = 0; i < p->proposer_count; i++)
+        cb(p->proposers[i], arg);
 }
 void
 peers_foreach_acceptor(struct standard_paxos_peers* p, peer_iter_cb cb, void* arg)
@@ -206,16 +243,40 @@ peers_for_n_acceptor(struct standard_paxos_peers* p, peer_iter_cb cb, void* arg,
 		n=p->peers_count;
 	int i;
 
-     p->peers++;
-    shuffle(p->peers, p->peers_count - 1);
+	if (p->acceptor_partnership) {
+        p->peers++;
+    }
+    shuffle(p->peers, n - 1);
 
-	p->peers--;
+    if (p->acceptor_partnership) {
+        p->peers--;
+    }
 	for (i = 0; i < n; ++i) {
         paxos_log_debug("sending to %i", p->peers[i]->id);
         cb(p->peers[i], arg);
     }
 
 }
+
+void
+peers_for_n_proposers(struct standard_paxos_peers* p, peer_iter_cb cb, void* arg, int n)
+{
+	if (n>p->proposer_count)
+		n=p->proposer_count;
+	int i;
+
+	p->proposers++;
+	shuffle(p->proposers, n - 1);
+
+	p->proposers--;
+	for (i = 0; i < n; ++i) {
+		paxos_log_debug("sending to %i", p->proposers[i]->id);
+		cb(p->proposers[i], arg);
+	}
+
+}
+
+
 
 void
 peers_foreach_client(struct standard_paxos_peers* p, peer_iter_cb cb, void* arg)
@@ -312,7 +373,6 @@ on_read(struct bufferevent* bev, void* arg)
 	struct standard_paxos_peer* p = (struct standard_paxos_peer*)arg;
 	struct evbuffer* in = bufferevent_get_input(bev);
 	while (recv_paxos_message(in, &msg)) {
-	    // add multi threading here?
 		dispatch_message(p, &msg);
         paxos_message_destroy_contents(&msg);
 	}

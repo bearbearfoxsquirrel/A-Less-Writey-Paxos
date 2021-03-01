@@ -32,8 +32,8 @@
 #include "client_benchmarker.h"
 #include "client_value.h"
 #include <paxos.h>
-#include "ev_epoch_paxos.h"
 #include <errno.h>
+#include <ev_epoch_paxos.h>
 #include <stdlib.h>
 #include "unistd.h"
 #include <time.h>
@@ -43,16 +43,12 @@
 #include <netinet/tcp.h>
 #include <assert.h>
 
-#define MAX_VALUE_SIZE 8192
-
-
-
-
 struct epoch_client
 {
-    unsigned int id;
-    int value_size;
-    int max_outstanding;
+    bool synced;
+    uint32_t id;
+    uint32_t value_size;
+    uint32_t max_outstanding;
     struct client_benchmarker* benchmarker;
     char* send_buffer;
     struct event_base* base;
@@ -76,14 +72,25 @@ handle_sigint(int sig, short ev, void* arg)
 static void
 client_submit_value(struct epoch_client* c)
 {
-    client_value_generate((struct client_value**) &c->send_buffer, c->value_size, c->id);
+ //   paxos_log_debug("Trying to submit new client value");
+    client_value_generate((struct client_value **) &c->send_buffer, c->value_size, c->id);
     struct client_value* v = (struct client_value*) c->send_buffer;
-    size_t size = sizeof(struct client_value) + v->size;
-    client_benchmarker_register_value(c->benchmarker, v);
+    uint32_t size = sizeof(struct client_value) + v->size;
+    while (!client_benchmarker_register_value(c->benchmarker, v))
+        v->uid = rand();
     epoch_paxos_submit_client_value(c->bev, c->send_buffer, size);
     paxos_log_debug("Submitted new client value");
 }
 
+static void
+client_submit_sync(struct epoch_client* c) {
+    struct client_value* v = (struct client_value*) c->send_buffer;
+    v->client_id = c->id;
+    v->uid = 0;
+    strncpy(v->value, "SYNC", 5);
+    uint32_t size = sizeof(*v) + 5;
+    epoch_paxos_submit_client_value(c->bev, c->send_buffer, size);
+}
 
 
 static void
@@ -91,16 +98,32 @@ on_deliver(char* value, size_t size, void* arg)
 {
     struct epoch_client* c = arg;
     struct client_value* v = (struct client_value*)value;
-    if (client_benchmarker_is_outstanding(c->benchmarker, v)) {
-        paxos_log_debug("Client Value delivered.");
-        client_benchmarker_close_value_and_update_stats(c->benchmarker, v);
-        client_submit_value(c);
+    paxos_log_debug("Checking whether delivered value is outstanding");
 
-    } else {
-        if (v->client_id == c->id) {
-            paxos_log_debug("Delivered value out of date.");
+    if (strncmp (value, "NOP.", size) != 0) {
+        if (!c->synced && v->client_id == c->id && v->uid == 0 && strncmp(v->value, "SYNC", 4) == 0) {
+            for (int i = 0; i < c->max_outstanding; ++i)
+                client_submit_value(c);
+            c->synced = true;
+            return;
+        } else if (!c->synced) {
+            client_submit_sync(c);
+            return;
+        }
+
+
+        if (client_benchmarker_is_outstanding(c->benchmarker, v)) {
+            paxos_log_debug("Client Value delivered.");
+            bool found = client_benchmarker_close_value_and_update_stats(c->benchmarker, v);
+            // assert(found);
+            client_submit_value(c);
+
         } else {
-            paxos_log_debug("Delivered value of another client.");
+            if (v->client_id == c->id) {
+                paxos_log_debug("Delivered value out of date.");
+            } else {
+                paxos_log_debug("Delivered value of another client.");
+            }
         }
     }
 
@@ -120,8 +143,10 @@ on_connect(struct bufferevent* bev, short events, void* arg)
     struct epoch_client* c = arg;
     if (events & BEV_EVENT_CONNECTED) {
         printf("Connected to proposer\n");
-        for (int i = 0; i < c->max_outstanding; ++i)
-            client_submit_value(c);
+        c->synced = false;
+        client_submit_sync(c);
+//        for (int i = 0; i < c->max_outstanding; ++i)
+           // client_submit_value(c);
     } else {
         printf("%s\n", evutil_socket_error_to_string(EVUTIL_SOCKET_ERROR()));
     }
@@ -147,7 +172,8 @@ connect_to_proposer(struct epoch_client* c, const char* config, int proposer_id)
 }
 
 static struct epoch_client *
-make_epoch_client(const char *config, int proposer_id, int outstanding, int value_size, const char *latency_record_output_path)
+make_epoch_client(const char *config, int proposer_id, uint32_t outstanding, uint32_t value_size,
+                  const char *latency_record_output_path)
 {
     struct epoch_client* c;
     c = malloc(sizeof(struct epoch_client));
@@ -156,9 +182,11 @@ make_epoch_client(const char *config, int proposer_id, int outstanding, int valu
     struct evpaxos_config* ev_config = evpaxos_config_read(config);
 
     c->id = rand();
+    //paxos_config.learner_catch_up = 0;
     c->value_size = value_size;
     c->max_outstanding = outstanding;
     c->send_buffer = malloc(sizeof(struct client_value) + sizeof(char) * value_size);
+
 
     struct timeval settle_in_time = (struct timeval) {.tv_sec = paxos_config.settle_in_time, .tv_usec = 0};
     uint32_t number_of_latencies_to_record = paxos_config.number_of_latencies_to_record;
@@ -168,10 +196,9 @@ make_epoch_client(const char *config, int proposer_id, int outstanding, int valu
     c->stats_interval = (struct timeval){1, 0};
     c->stats_ev = evtimer_new(c->base, on_stats, c);
     event_add(c->stats_ev, &c->stats_interval);
-    c->bev = connect_to_proposer(c, config, proposer_id);
-    paxos_config.learner_catch_up = 0;
-    c->learner = ev_epoch_learner_init(config, on_deliver, c, c->base, proposer_id);
 
+    c->learner = ev_epoch_learner_init(config, on_deliver, c, c->base, proposer_id);
+    c->bev = connect_to_proposer(c, config, proposer_id);
     c->sig = evsignal_new(c->base, SIGINT, handle_sigint, c);
     evsignal_add(c->sig, NULL);
 
@@ -197,7 +224,8 @@ client_free(struct epoch_client* c)
 }
 
 static void
-start_epoch_client(const char *config, int proposer_id, int outstanding, int value_size, const char *latency_record_output_path)
+start_epoch_client(const char *config, int proposer_id, uint32_t outstanding, uint32_t value_size,
+                   const char *latency_record_output_path)
 {
     struct epoch_client* client;
     client = make_epoch_client(config, proposer_id, outstanding, value_size, latency_record_output_path);
@@ -222,8 +250,8 @@ main(int argc, char const *argv[])
 {
     int i = 1;
     int proposer_id = 0;
-    int outstanding = 1;
-    int value_size = 64;
+    uint32_t outstanding = 1;
+    uint32_t value_size = 64;
     struct timeval seed;
     const char* config = "../paxos.conf";
     const char* latency_record_path = "./latencies_recorded.txt";

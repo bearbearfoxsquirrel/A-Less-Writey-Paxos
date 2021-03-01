@@ -6,13 +6,13 @@
 #define A_LESS_WRITEY_PAXOS_CLIENT_BENCHMARKER_H
 
 #include "client_value.h"
-#include "sys/time.h"
+#include <sys/time.h>
 #include <stdbool.h>
 
 struct client_benchmarker;
 
 struct client_benchmarker *
-client_benchmarker_new(unsigned int client_id, unsigned int num_latencies_to_record, struct timeval settle_in_time,
+client_benchmarker_new(uint32_t client_id, unsigned int num_latencies_to_record, struct timeval settle_in_time,
                        const char *latency_output_path);
 
 void client_benchmarker_free(struct client_benchmarker** benchmarker);

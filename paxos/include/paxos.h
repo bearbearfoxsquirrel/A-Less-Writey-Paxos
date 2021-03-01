@@ -70,7 +70,10 @@ struct paxos_config
 
 	/* Proposer */
 	int proposer_timeout;
-	int proposer_preexec_window;
+	int acceptor_timeout;
+	int proposer_preexec_window_min;
+	int proposer_preexec_window_max;
+//	int proposer_preexec_window;
 
 	/* Acceptor */
 	paxos_storage_backend storage_backend;
@@ -116,14 +119,13 @@ struct paxos_config
     bool repropose_values;
     bool round_robin_ballot_bias;
     bool round_robin_backoff;
+
+    int fall_behind_jump;
 };
 
 extern struct paxos_config paxos_config;
 
 /* Core functions */
-struct paxos_value* paxos_value_new(const char* v, size_t s);
-void paxos_value_free(struct paxos_value** v);
-void paxos_value_destroy(struct paxos_value* v);
 void paxos_promise_destroy(paxos_promise* p);
 void paxos_accept_destroy(paxos_accept* a);
 void paxos_accepted_destroy(paxos_accepted* a);

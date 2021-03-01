@@ -125,6 +125,14 @@ struct paxos_standard_acceptor_state
 	uint32_t trim_iid;
     uint32_t current_instance;
 };
+
+struct proposer_state {
+    uint32_t proposer_id;
+    uint32_t trim_instance;
+    uint32_t max_chosen_instance;
+    uint32_t next_prepare_instance;
+};
+
 typedef struct paxos_standard_acceptor_state paxos_standard_acceptor_state;
 
 
@@ -138,6 +146,7 @@ enum paxos_message_type
 	PAXOS_PREEMPTED,
 	PAXOS_REPEAT,
 	PAXOS_TRIM,
+	PAXOS_PROPOSER_STATE,
 	PAXOS_ACCEPTOR_STATE,
     PAXOS_CLIENT_VALUE,
 };
@@ -156,7 +165,8 @@ struct standard_paxos_message
 		struct paxos_preempted preempted;
 		struct paxos_repeat repeat;
 		struct paxos_trim trim;
-		struct paxos_standard_acceptor_state state;
+		struct proposer_state proposer_state;
+		struct paxos_standard_acceptor_state acceptor_state;
 		struct paxos_value client_value;
 		struct paxos_chosen chosen;
 	} u;
@@ -224,6 +234,11 @@ struct writeahead_epoch_acceptor_state {
     uint32_t current_epoch;
 };
 
+struct epoch_proposer_state {
+    struct proposer_state proposer_state;
+    uint32_t current_epoch;
+};
+
 enum writeahead_epoch_message_type {
     WRITEAHEAD_STANDARD_PREPARE,
     WRITEAHEAD_EPOCH_BALLOT_PREPARE,
@@ -233,6 +248,7 @@ enum writeahead_epoch_message_type {
     WRITEAHEAD_EPOCH_BALLOT_PREEMPTED,
     WRITEAHEAD_EPOCH_NOTIFICATION,
     WRITEAHEAD_INSTANCE_CHOSEN_AT_EPOCH_BALLOT,
+    WRITEAHEAD_PAXOS_PROPOSER_STATE,
     WRITEAHEAD_REPEAT,
     WRITEAHEAD_INSTANCE_TRIM,
     WRITEAHEAD_ACCEPTOR_STATE,
@@ -264,10 +280,11 @@ struct epoch_paxos_message {
         struct epoch_ballot_preempted epoch_ballot_preempted;
         struct epoch_ballot_chosen instance_chosen_at_epoch_ballot;
         struct epoch_notification epoch_notification;
+        struct epoch_proposer_state epoch_proposer_state;
 
         struct paxos_repeat repeat;
         struct paxos_trim trim;
-        struct writeahead_epoch_acceptor_state state;
+        struct writeahead_epoch_acceptor_state acceptor_state;
         struct paxos_value client_value;
     } message_contents ;
 };

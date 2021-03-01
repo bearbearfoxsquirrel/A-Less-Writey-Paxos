@@ -11,6 +11,7 @@
 #include <stdlib.h>
 #include <event2/event.h>
 #include <paxos_types.h>
+#include <assert.h>
 
 struct ev_epoch_learner
 {
@@ -50,7 +51,6 @@ static void ev_epoch_learner_check_holes(evutil_socket_t fd, short event, void *
             // determine gaps then
             paxos_log_debug("Sending Repeat for Instances %u-%u", msg.message_contents.repeat.from,
                             msg.message_contents.repeat.to);
-         //   writeahead_epoch_paxos_peers_for_a_random_acceptor(l->peers, peer_send_epoch_paxos_message, &msg);
          writeahead_epoch_paxos_peers_foreach_acceptor(l->peers, peer_send_epoch_paxos_message, &msg);
 
         }
@@ -81,6 +81,7 @@ ev_epoch_learner_deliver_next_closed(struct ev_epoch_learner* l)
                 deliver.paxos_value_len,
                 l->delarg);
         paxos_value_destroy(&deliver);
+        paxos_log_debug("Destroyed delivered value");
     }
 }
 
@@ -89,14 +90,15 @@ static void ev_epoch_learner_handle_accepted(struct writeahead_epoch_paxos_peer*
     struct epoch_ballot_accepted* accepted = &msg->message_contents.epoch_ballot_accepted;
     struct epoch_paxos_message chosen;
     chosen.type = WRITEAHEAD_INSTANCE_CHOSEN_AT_EPOCH_BALLOT;
-
+   // assert(accepted->accepted_epoch_ballot.ballot.number > 0);
     enum epoch_paxos_message_return_codes return_code = epoch_learner_receive_accepted(l->learner, accepted, &chosen.message_contents.instance_chosen_at_epoch_ballot);
 
     if (return_code == QUORUM_REACHED) {
+       // assert(chosen.message_contents.instance_chosen_at_epoch_ballot.chosen_epoch_ballot.ballot.number >= 1);
         writeahead_epoch_paxos_peers_for_n_acceptor(l->peers, peer_send_epoch_paxos_message, &chosen, l->comm_acc_num_chosen);
     //    paxos_value_destroy(&chosen.message_contents.instance_chosen_at_epoch_ballot.chosen_value);
         writeahead_epoch_paxos_peers_for_n_proposers(l->peers, peer_send_epoch_paxos_message, &chosen, l->comm_prop_num_chosen);
-
+   //     writeahead_epoch_paxos_peers_foreach_client(l->peers, peer_send_epoch_paxos_message, &chosen);
 
         ev_epoch_learner_deliver_next_closed(l);
     //    writeahead_epoch_paxos_message_destroy_contents(&chosen);
@@ -106,8 +108,9 @@ static void ev_epoch_learner_handle_accepted(struct writeahead_epoch_paxos_peer*
 static void ev_epoch_learner_handle_chosen(struct writeahead_epoch_paxos_peer* p, struct epoch_paxos_message* msg, void* arg) {
     struct ev_epoch_learner* l = arg;
     struct epoch_ballot_chosen* chosen = &msg->message_contents.instance_chosen_at_epoch_ballot;
-    epoch_learner_receive_epoch_ballot_chosen(l->learner, chosen);
-    ev_epoch_learner_deliver_next_closed(l);
+   // assert(chosen->chosen_epoch_ballot.ballot.number > 0);
+    if (epoch_learner_receive_epoch_ballot_chosen(l->learner, chosen) == MESSAGE_ACKNOWLEDGED)
+        ev_epoch_learner_deliver_next_closed(l);
 }
 
 static void ev_learner_handle_trim(struct writeahead_epoch_paxos_peer* p, struct epoch_paxos_message* msg, void* arg) {
@@ -161,6 +164,7 @@ ev_epoch_learner_init(const char *config, epoch_client_deliver_function f, void 
     struct writeahead_epoch_paxos_peers* peers = writeahead_epoch_paxos_peers_new(base, c);
     writeahead_epoch_paxos_peers_connect_to_acceptors(peers, partner_id);
     writeahead_epoch_paxos_peers_connect_to_proposers(peers, partner_id);
+//    writeahead_epoch_paxos_peers_connect_to_other_learners(peers, learner_id);
 
     struct ev_epoch_learner* l = ev_epoch_learner_init_internal(c, peers, f, arg);
 

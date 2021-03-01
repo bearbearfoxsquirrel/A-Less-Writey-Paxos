@@ -39,6 +39,15 @@ struct evlearner
 	struct learner* state;      /* The actual learner */
 	deliver_function delfun;    /* Delivery callback */
 	void* delarg;               /* The argument to the delivery callback */
+
+    int min_chunks_missing;
+
+    int comm_prop_num_trim;
+    int comm_acc_num_trim;
+
+    int comm_prop_num_chosen;
+    int comm_acc_num_chosen;
+
 	struct event* hole_timer;   /* Timer to check for holes */
 	struct timeval tv;          /* Check for holes every tv units of time */
 	struct standard_paxos_peers* peers;    /* Connections to acceptors */
@@ -65,23 +74,35 @@ static void
 evlearner_check_holes( evutil_socket_t fd,  short event, void *arg)
 {
 	struct paxos_repeat msg;
-	unsigned int chunks = 10;
 	struct evlearner* l = arg;
-	if (learner_has_holes(l->state, &msg.from, &msg.to)) {
+    unsigned int chunks = l->min_chunks_missing;
+
+	if (learner_has_holes(l->state, &msg.from, &msg.to) == 1) {
+	    // hole here refers to the size of gap
 		if ((msg.to - msg.from) > chunks)
 			msg.to = msg.from + chunks;
 		peers_foreach_acceptor(l->peers, peer_send_repeat, &msg);
 	} else {
+        iid_t next_trim = learner_get_instance_to_trim(l->state);
+        iid_t current_trim =  learner_get_trim(l->state);
+        if (next_trim > current_trim) {
+            learner_set_trim(l->state, next_trim);
+            struct paxos_trim trim_msg = (struct paxos_trim) {next_trim};
+            paxos_log_debug("Sending Trim for Instance %u", next_trim);
+            peers_for_n_acceptor(l->peers, peer_send_trim, &trim_msg, l->comm_acc_num_trim);
+            peers_for_n_proposers(l->peers, peer_send_trim, &trim_msg, l->comm_prop_num_trim);
+        }
         // can trim from the "from" in holes msg
-        struct paxos_trim trim_msg = {.iid = msg.from};
+    //    struct paxos_trim trim_msg = {.iid = msg.from};
 
       //  if (trim_msg.iid > l->trim_iid) {
             // set trim
             // is new trim?
-            if (learner_get_trim(l->state) < trim_msg.iid){
-                learner_set_trim(l->state, trim_msg.iid);
-                peers_foreach_acceptor(l->peers, peer_send_trim, &trim_msg);
-            }
+        //    if (learner_get_trim(l->acceptor_state) < trim_msg.iid){
+         //       learner_set_trim(l->acceptor_state, trim_msg.iid);
+         //       peers_for_n_acceptor(l->peers, peer_send_trim, &trim_msg, l->comm_acc_num_trim);
+         //       peers_for_n_proposers(l->peers, peer_send_trim, &trim_msg, l->comm_prop_num_trim);
+         //   }
       //  }
 	}
 	event_add(l->hole_timer, &l->tv);
@@ -91,9 +112,9 @@ static void
 evlearner_deliver_next_closed(struct evlearner* l)
 {
 	paxos_accepted deliver;
-	while (learner_deliver_next(l->state, &deliver)) {
+	while (learner_deliver_next(l->state, &deliver.value)) {
 		l->delfun(
-			deliver.iid,
+		//	deliver.iid,
 			deliver.value.paxos_value_val,
 			deliver.value.paxos_value_len,
 			l->delarg);
@@ -115,8 +136,10 @@ evlearner_handle_accepted( struct standard_paxos_peer* p, standard_paxos_message
 
 	if (chosen) {
      //   peers_foreach_proposer(l->peers, peer_send_chosen, &chosen_msg);
-        peers_foreach_acceptor(l->peers, peer_send_chosen, &chosen_msg);
-        paxos_chosen_destroy(&chosen_msg);
+     peers_for_n_proposers(l->peers, peer_send_chosen, &chosen_msg, l->comm_prop_num_chosen);
+     peers_for_n_acceptor(l->peers, peer_send_chosen, &chosen_msg, l->comm_acc_num_chosen);
+//        peers_foreach_acceptor(l->peers, peer_send_chosen, &chosen_msg);
+  //      paxos_chosen_destroy(&chosen_msg);
 
         evlearner_deliver_next_closed(l);
     }
@@ -128,7 +151,7 @@ evlearner_handle_trim( struct standard_paxos_peer* p, struct standard_paxos_mess
     // not recevied at the moment
     struct evlearner* l = arg;
     struct paxos_trim trim_msg= msg->u.trim;
-    learner_receive_trim(l->state, &trim_msg);
+    learner_receive_trim(l->acceptor_state, &trim_msg);
 }
 */
 static void
@@ -136,6 +159,12 @@ evlearner_handle_chosen( struct standard_paxos_peer* p, struct standard_paxos_me
     struct evlearner* l = arg;
     learner_receive_chosen(l->state, &msg->u.chosen);
     evlearner_deliver_next_closed(l);
+}
+
+static void evlearner_handle_trim(struct standard_paxos_peer* p, struct standard_paxos_message* msg, void* arg) {
+    struct evlearner* l = arg;
+    struct paxos_trim* trim = &msg->u.trim;
+    learner_set_trim(l->state, trim->iid);
 }
 
 struct evlearner*
@@ -154,8 +183,16 @@ evlearner_init_internal(struct evpaxos_config* config, struct standard_paxos_pee
 	
 	peers_subscribe(peers, PAXOS_ACCEPTED, evlearner_handle_accepted, learner);
 	peers_subscribe(peers, PAXOS_CHOSEN, evlearner_handle_chosen, learner);
-	//peers_subscribe(peers, PAXOS_TRIM, evlearner_handle_trim, learner);
-	
+	peers_subscribe(peers, PAXOS_TRIM, evlearner_handle_trim, learner);
+
+    learner->comm_acc_num_chosen = paxos_config.lnr_comm_all_acc_chosen ? evpaxos_acceptor_count(config) : 1;
+    learner->comm_prop_num_chosen = paxos_config.lnr_comm_all_prop_chosen ? evpaxos_proposer_count(config) : 1;
+
+    learner->comm_acc_num_trim = paxos_config.lnr_comm_all_acc_trim ? evpaxos_acceptor_count(config) : 1;
+    learner->comm_prop_num_trim = paxos_config.lnr_comm_all_prop_trim ? evpaxos_proposer_count(config) : 1;
+
+    learner->min_chunks_missing = paxos_config.lnr_missing_chunks_before_repeats;
+
 	// setup hole checking timer
 	learner->tv.tv_sec = 0;
 	learner->tv.tv_usec = 100000;
@@ -165,16 +202,15 @@ evlearner_init_internal(struct evpaxos_config* config, struct standard_paxos_pee
 	return learner;
 }
 
-struct evlearner*
-evlearner_init(const char* config_file, deliver_function f, void* arg, 
-	struct event_base* b)
+struct evlearner *
+evlearner_init(const char *config_file, deliver_function f, void *arg, struct event_base *b, int partner_id)
 {
 	struct evpaxos_config* c = evpaxos_config_read(config_file);
 	if (c == NULL) return NULL;
 
     struct standard_paxos_peers* peers = peers_new(b, c);
-	peers_connect_to_acceptors(peers, INT32_MAX); //todo fix bad bad
-	//peers_connect_to_proposers(peers);
+	peers_connect_to_acceptors(peers, partner_id);
+	peers_connect_to_proposers(peers, partner_id);
 
 	struct evlearner* l = evlearner_init_internal(c, peers, f, arg);
 

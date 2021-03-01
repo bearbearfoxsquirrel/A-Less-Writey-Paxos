@@ -127,7 +127,7 @@ void send_epoch_paxos_chosen(struct bufferevent* bev, struct epoch_ballot_chosen
                     chosen_msg->chosen_epoch_ballot.ballot.number, chosen_msg->chosen_epoch_ballot.ballot.proposer_id);
 }
 
-void epoch_paxos_submit_client_value(struct bufferevent* bev, char *data, int size){
+void epoch_paxos_submit_client_value(struct bufferevent* bev, char *data, uint32_t size){
     struct epoch_paxos_message msg = {
             .type = WRITEAHEAD_CLIENT_VALUE,
             .message_contents.client_value.paxos_value_len = size,

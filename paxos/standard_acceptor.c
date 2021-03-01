@@ -27,6 +27,7 @@
 
 
 #include "standard_stable_storage.h"
+#include "standard_acceptor.h"
 #include "ballot.h"
 #include <stdlib.h>
 #include <string.h>
@@ -37,7 +38,7 @@
 #include <paxos_types.h>
 #include <hash_mapped_memory.h>
 
-KHASH_MAP_INIT_INT(is_chosen, bool*)
+//KHASH_MAP_INIT_INT(is_chosen, bool*)
 
 struct standard_acceptor
 {
@@ -81,6 +82,10 @@ standard_acceptor_new(int id)
     storage_get_all_untrimmed_instances_info(&a->stable_storage, &instances_info, &number_of_instances_retrieved);
     init_hash_mapped_memory_from_instances_info(a->paxos_storage, instances_info, number_of_instances_retrieved, a->trim_iid, id);
 
+  //  for (int i = 0; i < number_of_instances_retrieved; i++) {
+   //     paxos_accepted_free(&instances_info[i]);
+   // }
+
     if (storage_tx_commit(&a->stable_storage) != 0)
 		return NULL;
 
@@ -123,8 +128,16 @@ standard_acceptor_receive_prepare(struct standard_acceptor *a,
 
 	int found = get_instance_info(a->paxos_storage, req->iid, &instance_info);
 
-	if (!instance_chosen &&
-            standard_acceptor_safe_to_acknowledge_paxos_request(found, req->ballot, instance_info.promise_ballot)) {
+    if (instance_chosen) {
+       // assert(found);
+        out->type = PAXOS_CHOSEN;
+        paxos_chosen_from_paxos_accepted(&out->u.chosen, &instance_info);
+        paxos_log_debug("Returning Chosen. Current Ballot for iid %u is %u.%u", req->iid,
+                        instance_info.value_ballot.number, instance_info.value_ballot.proposer_id);
+        return 1;
+    }
+
+    if (standard_acceptor_safe_to_acknowledge_paxos_request(found, req->ballot, instance_info.promise_ballot)) {
         if (req->iid > a->max_proposed_instance) {
             a->max_proposed_instance = req->iid;
         }
@@ -133,7 +146,7 @@ standard_acceptor_receive_prepare(struct standard_acceptor *a,
             return 0;
 
         int found_stable = storage_get_instance_info(&a->stable_storage, req->iid, &instance_info);
-        assert(found_stable == found);
+       // assert(found_stable == found);
 
 		paxos_log_debug("Preparing iid: %u, ballot: %u.%u", req->iid, req->ballot.number, req->ballot.proposer_id);
         instance_info.aid = a->id;
@@ -164,21 +177,19 @@ standard_acceptor_receive_prepare(struct standard_acceptor *a,
             paxos_log_debug("Previously accepted value to give to the Proposer");
 
             out->u.promise.value = (struct paxos_value) {instance_info.value.paxos_value_len, instance_info.value.paxos_value_val};
+           // assert(out->u.promise.value.paxos_value_len > 0);
         }
 
-	} else {
-	    if (instance_chosen) {
-	        assert(found);
-	        out->type = PAXOS_CHOSEN;
-	        paxos_chosen_from_paxos_accepted(&out->u.chosen, &instance_info);
-            paxos_log_debug("Returning Chosen. Current Ballot for iid %u is %u.%u", req->iid, instance_info.value_ballot.number, instance_info.value_ballot.proposer_id);
+       // assert(ballot_greater_than_or_equal(instance_info.promise_ballot, instance_info.value_ballot));
 
-        } else {
+	} else {
+
+      //  } else {
             struct paxos_prepare last_promise;
             paxos_accepted_to_prepare(&instance_info, &last_promise);
             union_paxos_prepare_and_last_acceptor_promise_to_preempted(a->id, req, &last_promise, out);
             paxos_log_debug("Returning Preempted. Current Ballot for iid %u is %u.%u", req->iid, last_promise.ballot.number, last_promise.ballot.proposer_id);
-	    }
+	 //   }
 
 	}
 
@@ -189,17 +200,31 @@ int
 standard_acceptor_receive_accept(struct standard_acceptor *a,
                                  paxos_accept *req, standard_paxos_message *out)
 {
-	paxos_accepted acc;
+	paxos_accepted instance_info;
 	if (req->iid <= a->trim_iid) {
 	    out->type = PAXOS_TRIM;
 	    out->u.trim = (struct paxos_trim) {a->trim_iid};
+        return 1;
 	}
-	memset(&acc, 0, sizeof(paxos_accepted));
+	memset(&instance_info, 0, sizeof(paxos_accepted));
 
 
     bool chosen = standard_acceptor_is_instance_chosen(a, req->iid);
-    int found = get_instance_info(a->paxos_storage, req->iid, &acc);
-	if (!chosen && standard_acceptor_safe_to_acknowledge_paxos_request(found, req->ballot, acc.promise_ballot)) {
+    int found = get_instance_info(a->paxos_storage, req->iid, &instance_info);
+
+    if (chosen) {
+       // assert(found);
+        out->type = PAXOS_CHOSEN;
+       // out->u.chosen = (struct paxos_chosen) {
+       //         .iid = instance_info.iid,
+       //         .ballot = instance_info.value_ballot,
+      //  };
+      //  copy_value(&instance_info.value, &out->u.chosen.value);
+         paxos_chosen_from_paxos_accepted(&out->u.chosen, &instance_info);
+        return 1;
+    }
+
+	if (standard_acceptor_safe_to_acknowledge_paxos_request(found, req->ballot, instance_info.promise_ballot)) {
 
 
         if (req->iid > a->max_proposed_instance) {
@@ -208,10 +233,10 @@ standard_acceptor_receive_accept(struct standard_acceptor *a,
 
 		paxos_log_debug("Accepting iid: %u, ballot: %u.%u", req->iid, req->ballot.number, req->ballot.proposer_id);
 
-		assert(strncmp(req->value.paxos_value_val, "", req->value.paxos_value_len));
+	//	assert(strncmp(req->value.paxos_value_val, "", req->value.paxos_value_len));
 
 
-	//	int found_stable = storage_get_instance_info(&a->stable_storage, req->iid, &acc);
+	//	int found_stable = storage_get_instance_info(&a->stable_storage, req->iid, &instance_info);
 	//	assert(found_stable);
 
         if (storage_tx_begin(&a->stable_storage) != 0)
@@ -228,71 +253,95 @@ standard_acceptor_receive_accept(struct standard_acceptor *a,
 
         if (storage_tx_commit(&a->stable_storage) != 0)
             return 0;
+       // assert(ballot_equal(out->u.accepted.promise_ballot, out->u.accepted.value_ballot));
+ //      // assert(ballot_equal(instance_info.promise_ballot, instance_info.value_ballot));
 	} else {
-	    if (chosen) {
-	        assert(found);
-	        out->type = PAXOS_CHOSEN;
-	        out->u.chosen = (struct paxos_chosen) {
-	                .iid = acc.iid,
-	                .ballot = acc.value_ballot,
-	        };
-	        copy_value(&acc.value, &out->u.chosen.value);
-	       // paxos_chosen_from_paxos_accepted(&out->u.chosen, &acc);
-	    } else {
+
+	//    } else {
 	        out->type = PAXOS_PREEMPTED;
 	        out->u.preempted = (struct paxos_preempted) {
 	            .aid = a->id,
 	            .iid = req->iid,
 	            .attempted_ballot = req->ballot,
-	            .acceptor_current_ballot = acc.promise_ballot
+	            .acceptor_current_ballot = instance_info.promise_ballot
 	        };
-          //  paxos_accepted_to_preempted(a->id, &acc, out);
-	    }
-
+          //  paxos_accepted_to_preempted(a->id, &instance_info, out);
+	//    }
+     //   return 1;
 	}
 
-	paxos_accepted_destroy(&acc);
+	paxos_accepted_destroy(&instance_info);
 	return 1;
 }
 
 
+
+
 int standard_acceptor_receive_chosen(struct standard_acceptor* a, struct paxos_chosen *chosen){
+    bool is_chosen;
+    is_instance_chosen(a->paxos_storage, chosen->iid, &is_chosen);
+    if (is_chosen){
+        paxos_log_debug("Ignoring chosen message for Instance %u as it is already known to be chosen", chosen->iid);
+        return 0;
+    }
 
+    set_instance_chosen(a->paxos_storage, chosen->iid);
+    a->max_proposed_instance = chosen->iid > a->max_proposed_instance ? chosen->iid : a->max_proposed_instance;
+
+    // todo update function so old promise is restored
     struct paxos_accepted instance_info;
+    bool found = get_instance_info(a->paxos_storage, chosen->iid, &instance_info);
 
-    get_instance_info(a->paxos_storage, chosen->iid, &instance_info);
-    //storage_get_instance_info(&a->stable_storage, chosen->iid, &instance_info);
-    if (ballot_greater_than(chosen->ballot, instance_info.value_ballot)) {
-        if (storage_tx_begin(&a->stable_storage) != 0)
-            return 0;
+    if(instance_info.value.paxos_value_val != NULL){
+        paxos_value_destroy(&instance_info.value);
+    }
 
-        set_instance_chosen(a->paxos_storage, chosen->iid);
-        paxos_accepted_update_instance_info_with_chosen(&instance_info, chosen, a->id);
-        if (storage_store_instance_info(&a->stable_storage, &instance_info)){
-            storage_tx_abort(&a->stable_storage);
-            return 0;
-        }
+    instance_info = (struct paxos_accepted) {
+            .iid =chosen->iid,
+            .aid = a->id,
+            .promise_ballot = instance_info.promise_ballot,
+            .value_ballot = chosen->ballot,
+            .value = chosen->value // chosen value is automatically deleted later
+    };
+    //    if (storage_tx_begin(&a->stable_storage) != 0) {
+       //     paxos_accepted_destroy(&instance_info);
+       //     return 0;
+      //  }
+
+   //     paxos_accepted_update_instance_info_with_chosen(&instance_info, chosen, a->id);
+     //   if (storage_store_instance_info(&a->stable_storage, &instance_info)){
+       //     storage_tx_abort(&a->stable_storage);
+       //     paxos_accepted_destroy(&instance_info);
+        //    return 0;
+        //}
 
         store_instance_info(a->paxos_storage, &instance_info);
 
+      //  if (storage_tx_commit(&a->stable_storage) != 0){
+       //     storage_tx_abort(&a->stable_storage);
+       //     paxos_accepted_destroy(&instance_info);
+     //       return 0;
+      //  }
+       // assert(ballot_equal(instance_info.promise_ballot, instance_info.value_ballot));
 
-        if (chosen->iid > a->max_proposed_instance) {
-            a->max_proposed_instance = chosen->iid;
-        }
+   //§ paxos_accepted_destroy(&instance_info);
 
-        if (storage_tx_commit(&a->stable_storage) != 0){
-            storage_tx_abort(&a->stable_storage);
-            return 0;
-        }
+    iid_t min_unchosen_instance;
+    get_min_unchosen_instance(a->paxos_storage, &min_unchosen_instance);
+    if (min_unchosen_instance > a->trim_iid) {
+        struct paxos_trim trim = {min_unchosen_instance - 1};
+        standard_acceptor_receive_trim(a, &trim);
     }
-
     return 0;
+
+
 }
 
 
 int
 standard_acceptor_receive_repeat(struct standard_acceptor *a, iid_t iid, struct standard_paxos_message *out)
 {
+    paxos_log_debug("Handling Repeat for Instance %u, iid");
     struct paxos_accepted instance_info;
     memset(&instance_info, 0, sizeof(struct paxos_accepted));
    // if (storage_tx_begin(&a->stable_storage) != 0)
@@ -304,7 +353,7 @@ standard_acceptor_receive_repeat(struct standard_acceptor *a, iid_t iid, struct 
  //   }
 
     if (standard_acceptor_is_instance_chosen(a, iid)) {
-        assert(found);
+       // assert(found);
         out->type = PAXOS_CHOSEN;
         paxos_chosen_from_paxos_accepted(&out->u.chosen, &instance_info);
         return 1;
@@ -313,7 +362,7 @@ standard_acceptor_receive_repeat(struct standard_acceptor *a, iid_t iid, struct 
         if (found && ballot_greater_than(instance_info.value_ballot, INVALID_BALLOT)) {
             out->type = PAXOS_ACCEPTED;
             paxos_accepted_copy(&out->u.accepted, &instance_info);
-            instance_info.promise_ballot = instance_info.value_ballot;
+            out->u.accepted.promise_ballot = out->u.accepted.value_ballot;
             return 1;
         } else {
 
@@ -329,22 +378,41 @@ standard_acceptor_receive_trim(struct standard_acceptor *a, paxos_trim *trim)
 
     iid_t min_unchosen_innstance;
     get_min_unchosen_instance(a->paxos_storage, &min_unchosen_innstance);
-    if (trim->iid <= a->trim_iid && trim->iid <= min_unchosen_innstance)
+
+    bool new_trim = trim->iid > a->trim_iid;
+    bool able_to_trim = min_unchosen_innstance > trim->iid;
+    if (new_trim && able_to_trim) {
+        paxos_log_debug("Storing new Trim to Instance %u", trim->iid);
+
+        //   if (trim->iid <= a->trim_iid && trim->iid <= min_unchosen_innstance)
+        //     return 0;
+
+     //   if (storage_tx_begin(&a->stable_storage) != 0)
+      //      return 0;
+
+        paxos_log_debug("Receive new trim to Instance %u", trim->iid);
+        standard_acceptor_store_trim_instance(a, trim->iid);
+
+        long to_trim_from = trim->iid - 50000;
+
+        if (to_trim_from > INVALID_INSTANCE) {
+            paxos_log_debug("Acceptor trimming stored Instances to %u", to_trim_from);
+     //       storage_trim_instances_less_than(&a->stable_storage, to_trim_from);
+            trim_instances_less_than(a->paxos_storage, to_trim_from);
+        }
+
+      //  if (storage_tx_commit(&a->stable_storage) != 0)
+        //    return 0;
+        return 1;
+    } else {
         return 0;
-
- //   if (storage_tx_begin(&a->stable_storage) != 0)
-	//	return 0;
-
-    standard_acceptor_store_trim_instance(a, trim->iid);
-
-   // if (storage_tx_commit(&a->stable_storage) != 0)
-	//	return 0;
-	return 1;
+    }
 }
 
 void standard_acceptor_store_trim_instance(struct standard_acceptor *a, iid_t trim) {
     a->trim_iid = trim;
-   // storage_store_trim_instance(&a->stable_storage, trim);
+  //  storage_store_trim_instance(&a->stable_storage, trim);
+    store_trim_instance(a->paxos_storage, trim);
 }
 
 void

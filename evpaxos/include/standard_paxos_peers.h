@@ -48,11 +48,16 @@ struct standard_paxos_peers *
 peers_new(struct event_base *base, struct evpaxos_config *config);
 void peers_free(struct standard_paxos_peers* p);
 int peers_count(struct standard_paxos_peers* p);
-void peers_connect_to_acceptors(struct standard_paxos_peers* p, int source_id);
+void peers_connect_to_acceptors(struct standard_paxos_peers* p, int partner_id);
+void peers_connect_to_proposers(struct standard_paxos_peers *p, int partner_id);
+void peers_connect_to_other_proposers(struct standard_paxos_peers *p, int self_id);
+
 int peers_listen(struct standard_paxos_peers* p, int port);
 void peers_subscribe(struct standard_paxos_peers* p, paxos_message_type t, peer_cb cb, void*);
+void peers_foreach_proposer(struct standard_paxos_peers* p, peer_iter_cb cb, void* arg);
 void peers_foreach_acceptor(struct standard_paxos_peers* p, peer_iter_cb cb, void* arg);
 void peers_for_n_acceptor(struct standard_paxos_peers* p, peer_iter_cb cb, void* arg, int n);
+void peers_for_n_proposers(struct standard_paxos_peers* p, peer_iter_cb cb, void* arg, int n);
 void peers_foreach_client(struct standard_paxos_peers* p, peer_iter_cb cb, void* arg);
 struct standard_paxos_peer* peers_get_acceptor(struct standard_paxos_peers* p, int id);
 struct event_base* peers_get_event_base(struct standard_paxos_peers* p);
