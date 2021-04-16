@@ -40,7 +40,7 @@ bool epoch_proposer_try_to_start_preparing_instance(struct epoch_proposer *p, ii
 struct ballot epoch_proposer_get_next_ballot(const int acceptors_last_bal_num, const uint32_t pid, const int ballot_increment);
 
 enum epoch_paxos_message_return_codes epoch_proposer_receive_promise(struct epoch_proposer* p, struct epoch_ballot_promise* ack,
-                                                                     struct epoch_ballot_prepare* out);
+                                                                     struct epoch_paxos_message *next_epoch_prepare);
 
 // phase 2
 int epoch_proposer_try_accept(struct epoch_proposer* p, struct epoch_ballot_accept* out);

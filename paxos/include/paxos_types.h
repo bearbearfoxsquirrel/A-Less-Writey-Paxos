@@ -45,6 +45,8 @@ enum epoch_paxos_message_return_codes {
     BALLOT_PREEMPTED,
     MESSAGE_ACKNOWLEDGED,
     QUORUM_REACHED,
+    INSTANCE_CHOSEN,
+    FALLEN_BEHIND
 };
 
 struct ballot {

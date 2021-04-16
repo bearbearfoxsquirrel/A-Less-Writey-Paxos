@@ -112,8 +112,8 @@ bool standard_acceptor_safe_to_acknowledge_paxos_request(bool instance_previousl
 }
 
 int
-standard_acceptor_receive_prepare(struct standard_acceptor *a,
-                                  paxos_prepare *req, standard_paxos_message *out)
+standard_acceptor_receive_prepare(struct standard_acceptor *a, paxos_prepare *req, standard_paxos_message *out,
+                                  paxos_preempted *preempted, bool *was_prev_preempted)
 {
 	struct paxos_accepted instance_info;
 	if (req->iid <= a->trim_iid) {
@@ -145,8 +145,19 @@ standard_acceptor_receive_prepare(struct standard_acceptor *a,
         if (storage_tx_begin(&a->stable_storage) != 0)
             return 0;
 
-        int found_stable = storage_get_instance_info(&a->stable_storage, req->iid, &instance_info);
-       // assert(found_stable == found);
+      //  int found_stable = storage_get_instance_info(&a->stable_storage, req->iid, &instance_info);
+
+        if (ballot_greater_than(instance_info.promise_ballot, INVALID_BALLOT)) {
+            *was_prev_preempted = true;
+            *preempted = (paxos_preempted) {
+                .iid = req->iid,
+                .aid = a->id,
+                .acceptor_current_ballot = req->ballot,
+                .attempted_ballot = instance_info.promise_ballot
+            };
+        }
+
+            // assert(found_stable == found);
 
 		paxos_log_debug("Preparing iid: %u, ballot: %u.%u", req->iid, req->ballot.number, req->ballot.proposer_id);
         instance_info.aid = a->id;
@@ -177,6 +188,8 @@ standard_acceptor_receive_prepare(struct standard_acceptor *a,
             paxos_log_debug("Previously accepted value to give to the Proposer");
 
             out->u.promise.value = (struct paxos_value) {instance_info.value.paxos_value_len, instance_info.value.paxos_value_val};
+
+
            // assert(out->u.promise.value.paxos_value_len > 0);
         }
 
@@ -197,8 +210,8 @@ standard_acceptor_receive_prepare(struct standard_acceptor *a,
 }
 
 int
-standard_acceptor_receive_accept(struct standard_acceptor *a,
-                                 paxos_accept *req, standard_paxos_message *out)
+standard_acceptor_receive_accept(struct standard_acceptor *a, paxos_accept *req, standard_paxos_message *out,
+                                 paxos_preempted *preempted, bool *was_prev_preempted)
 {
 	paxos_accepted instance_info;
 	if (req->iid <= a->trim_iid) {
@@ -225,6 +238,17 @@ standard_acceptor_receive_accept(struct standard_acceptor *a,
     }
 
 	if (standard_acceptor_safe_to_acknowledge_paxos_request(found, req->ballot, instance_info.promise_ballot)) {
+
+        if (ballot_greater_than(instance_info.promise_ballot, INVALID_BALLOT)) {
+            *was_prev_preempted = true;
+            *preempted = (paxos_preempted) {
+                    .iid = req->iid,
+                    .aid = a->id,
+                    .acceptor_current_ballot = req->ballot,
+                    .attempted_ballot = instance_info.promise_ballot
+            };
+        }
+
 
 
         if (req->iid > a->max_proposed_instance) {

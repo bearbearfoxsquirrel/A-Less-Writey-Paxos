@@ -8,8 +8,8 @@
 #include <stdio.h>
 #include <string.h>
 #include <paxos_types.h>
-//#include <writeahead_epoch_acceptor.h>
-#include "writeahead_ballot_acceptor.h"
+#include <assert.h>
+#include "epoch_acceptor.h"
 #include "paxos_message_conversion.h"
 #include "learner.h"
 #include "proposer.h"
@@ -32,6 +32,30 @@
 //}
 
 int main(int argc, char const *argv[]){
+    struct epoch_notification msg;
+    bool recovered = false;
+    struct epoch_acceptor* acc = epoch_acceptor_new(0, &msg, &recovered);
+    struct paxos_value test_val = NOP;
+    struct epoch_ballot test_bal = (struct epoch_ballot) {1, {20, 0}};
+    struct epoch_ballot_accept accept = {
+           .instance = 1,
+           .epoch_ballot_requested = test_bal,
+           .value_to_accept = test_val
+    };
+
+    struct epoch_paxos_message accepted;
+    writeahead_epoch_acceptor_receive_epoch_ballot_accept(acc, &accept, &accepted, NULL, NULL);
+
+    struct epoch_ballot_prepare prepare = {1, {1, {25, 0}}};
+    struct epoch_paxos_message promise;
+    struct epoch_ballot_preempted preempted;
+    bool was_preempted = false;
+    writeahead_epoch_acceptor_receive_epoch_ballot_prepare(acc, &prepare, &promise, &preempted, &was_preempted);
+
+    assert(is_values_equal(NOP, promise.message_contents.epoch_ballot_promise.last_accepted_value));
+    assert(was_preempted == true);
+
+
 //
 //    struct writeahead_epoch_acceptor* acceptor = writeahead_epoch_acceptor_init(0);
 //
@@ -202,15 +226,15 @@ int main(int argc, char const *argv[]){
 */
 
 
-    struct writeahead_ballot_acceptor* acceptor = write_ahead_window_acceptor_new(0, 1, 1, 5, 5, 5);
+//    struct writeahead_ballot_acceptor* acceptor = write_ahead_window_acceptor_new(0, 1, 1, 5, 5, 5);
 
-    struct paxos_prepare prep_1 = {.iid = 1, .ballot = {2, 1}};
-    struct standard_paxos_message prom_1;
-    write_ahead_window_acceptor_receive_prepare(acceptor, &prep_1, &prom_1);
+ //   struct paxos_prepare prep_1 = {.iid = 1, .ballot = {2, 1}};
+  //  struct standard_paxos_message prom_1;
+  //  write_ahead_window_acceptor_receive_prepare(acceptor, &prep_1, &prom_1);
 
-    struct paxos_prepare prep_2 = {.iid = 1, .ballot = {1, 2}};
-    struct standard_paxos_message prom_2;
-    write_ahead_window_acceptor_receive_prepare(acceptor, &prep_2, &prom_2);
+  //  struct paxos_prepare prep_2 = {.iid = 1, .ballot = {1, 2}};
+  //  struct standard_paxos_message prom_2;
+  //  write_ahead_window_acceptor_receive_prepare(acceptor, &prep_2, &prom_2);
 
 
 

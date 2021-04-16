@@ -7,7 +7,7 @@ SET(SRCS include/client_value.h include/latency_recorder.h latency_recorder.c in
 
 #link_libraries(sample shared ${LIBPAXOS_LINKER_LIBS})
 
-set(TEST_SOURCES fake_leader.c epoch_acceptor.c epoch_client.c epoch_proposer.c learner.c standard_acceptor.c proposer.c client.c replica.c counter.c write_ahead_window_acceptor.c)
+set(TEST_SOURCES test.c fake_leader.c epoch_acceptor.c epoch_client.c epoch_proposer.c learner.c standard_acceptor.c proposer.c client.c replica.c counter.c write_ahead_window_acceptor.c)
 
 ADD_LIBRARY(sample SHARED ${SRCS})
 target_link_libraries(sample evpaxos ${LIBPAXOS_LINKER_LIBS})

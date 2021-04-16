@@ -88,6 +88,10 @@ struct evproposer {
     struct event *proposer_state_event;
     struct timeval proposer_state_timer;
 
+    struct timeval try_accept_time;
+    struct event* try_accept_event;
+
+
 
     struct timeval acceptor_timeout_check_time;
     struct event* acceptor_timeout_check_event;
@@ -520,6 +524,26 @@ static void evproposer_proposer_state_event( evutil_socket_t fd,  short event, v
     event_add(p->proposer_state_event, &p->proposer_state_timer);
 }
 
+static void try_accept_event(evutil_socket_t fd, short event, void* arg) {
+    struct evproposer* p = arg;
+    paxos_log_debug("Beginning to try Accept Phase of one or more Instances");
+    struct paxos_accept accept;
+    //  performance_threshold_timer_begin_timing(p->accept_timer);
+
+
+    while (proposer_try_accept(p->state, &accept)) {
+        // assert(&accept.value_to_accept != NULL);
+        // assert(accept.value_to_accept.paxos_value_val != NULL);
+        // assert(accept.value_to_accept.paxos_value_len > 0);
+        //    // assert(strncmp(accept.value_to_accept.paxos_value_val, "", 2));
+
+        peers_for_n_acceptor(p->peers, peer_send_accept, &accept,
+                                                    paxos_config.group_2);
+        //todo delete accept value
+    }
+    event_add(p->try_accept_event, &p->try_accept_time);
+}
+
 
 struct evproposer*
 evproposer_init_internal(int id, struct evpaxos_config* c, struct standard_paxos_peers* peers, struct backoff_manager* backoff_manager)
@@ -583,6 +607,10 @@ evproposer_init_internal(int id, struct evpaxos_config* c, struct standard_paxos
 	p->acceptance_timer = performance_threshold_timer_new((struct timespec) {0, 50});
 	p->preemption_timer = get_preempt_threshold_timer_new();
 	p->chosen_timer = get_chosen_acceptor_performance_threshold_timer_new();
+
+    p->try_accept_time = (struct timeval) {0, 5000};
+    p->try_accept_event = evtimer_new(base, try_accept_event, p);
+    event_add(p->try_accept_event, &p->try_accept_time);
 
     // This initiates the first Paxos Event in the Proposer-Acceptor communication
 	event_base_once(base, 0, EV_TIMEOUT, evproposer_preexec_once, p, NULL);

@@ -17,9 +17,17 @@ void writeahead_epoch_acceptor_free(struct epoch_acceptor* acceptor);
 
 int writeahead_epoch_acceptor_receive_prepare(struct epoch_acceptor* acceptor, struct paxos_prepare* request, struct epoch_paxos_message* returned_message);
 
-int writeahead_epoch_acceptor_receive_epoch_ballot_prepare(struct epoch_acceptor* acceptor, struct epoch_ballot_prepare* request, struct epoch_paxos_message* returned_message);
+int writeahead_epoch_acceptor_receive_epoch_ballot_prepare(struct epoch_acceptor *acceptor,
+                                                           struct epoch_ballot_prepare *request,
+                                                           struct epoch_paxos_message *returned_message,
+                                                           struct epoch_ballot_preempted *preempted,
+                                                           bool *previous_preempted);
 
-int writeahead_epoch_acceptor_receive_epoch_ballot_accept(struct epoch_acceptor* acceptor, struct epoch_ballot_accept* request, struct epoch_paxos_message* response);
+int writeahead_epoch_acceptor_receive_epoch_ballot_accept(struct epoch_acceptor *acceptor,
+                                                          struct epoch_ballot_accept *request,
+                                                          struct epoch_paxos_message *response,
+                                                          struct epoch_ballot_preempted *prev_preempted,
+                                                          bool *was_prev_preempted);
 
 int  writeahead_epoch_acceptor_receive_repeat(struct epoch_acceptor* acceptor, iid_t iid, struct epoch_paxos_message* response); //todo
 

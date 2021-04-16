@@ -25,6 +25,9 @@ struct ev_epoch_learner
     int comm_prop_num_chosen;
     int comm_acc_num_chosen;
 
+    int instance_timeout_ms;
+
+
     int min_chunks_missing;
     struct event* hole_check_event;
     struct timeval hole_check_timer;
@@ -45,14 +48,14 @@ static void ev_epoch_learner_check_holes(evutil_socket_t fd, short event, void *
     uint32_t chunks = l->min_chunks_missing;
     msg.type = WRITEAHEAD_REPEAT;
 
-    if (epoch_learner_has_holes(l->learner, &msg.message_contents.repeat.from, &msg.message_contents.repeat.to)) {
+    if (epoch_learner_has_holes(l->learner, &msg.message_contents.repeat.from, &msg.message_contents.repeat.to) == 1) {
         if ((msg.message_contents.repeat.to - msg.message_contents.repeat.from) > chunks) {
             msg.message_contents.repeat.to = msg.message_contents.repeat.from + chunks;
             // determine gaps then
             paxos_log_debug("Sending Repeat for Instances %u-%u", msg.message_contents.repeat.from,
                             msg.message_contents.repeat.to);
          writeahead_epoch_paxos_peers_foreach_acceptor(l->peers, peer_send_epoch_paxos_message, &msg);
-
+//            writeahead_epoch_paxos_peers_send_to_proposer(l->peers,)
         }
     } else {
             iid_t next_trim = epoch_learner_get_instance_to_trim(l->learner);
@@ -81,7 +84,7 @@ ev_epoch_learner_deliver_next_closed(struct ev_epoch_learner* l)
                 deliver.paxos_value_len,
                 l->delarg);
         paxos_value_destroy(&deliver);
-        paxos_log_debug("Destroyed delivered value");
+      //  paxos_log_debug("Destroyed delivered value");
     }
 }
 
@@ -164,6 +167,10 @@ ev_epoch_learner_init(const char *config, epoch_client_deliver_function f, void 
     struct writeahead_epoch_paxos_peers* peers = writeahead_epoch_paxos_peers_new(base, c);
     writeahead_epoch_paxos_peers_connect_to_acceptors(peers, partner_id);
     writeahead_epoch_paxos_peers_connect_to_proposers(peers, partner_id);
+    int port = evpaxos_client_listen_port(c, partner_id);
+    if (writeahead_epoch_paxos_peers_listen(peers, port) == 0) {
+        return NULL;
+    }
 //    writeahead_epoch_paxos_peers_connect_to_other_learners(peers, learner_id);
 
     struct ev_epoch_learner* l = ev_epoch_learner_init_internal(c, peers, f, arg);

@@ -58,6 +58,7 @@ void peers_foreach_proposer(struct standard_paxos_peers* p, peer_iter_cb cb, voi
 void peers_foreach_acceptor(struct standard_paxos_peers* p, peer_iter_cb cb, void* arg);
 void peers_for_n_acceptor(struct standard_paxos_peers* p, peer_iter_cb cb, void* arg, int n);
 void peers_for_n_proposers(struct standard_paxos_peers* p, peer_iter_cb cb, void* arg, int n);
+void peers_send_to_proposer(struct standard_paxos_peers *p, peer_iter_cb cb, void* arg, int prop_id);
 void peers_foreach_client(struct standard_paxos_peers* p, peer_iter_cb cb, void* arg);
 struct standard_paxos_peer* peers_get_acceptor(struct standard_paxos_peers* p, int id);
 struct event_base* peers_get_event_base(struct standard_paxos_peers* p);

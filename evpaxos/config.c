@@ -120,16 +120,19 @@ struct option options[] =
         {"proposer-propose-values-in-parallel-instances", &paxos_config.repropose_values,          option_boolean},
         {"proposer-reproposal-rate-microseconds", &paxos_config.reproposal_rate,                   option_integer},
 
-        {"stable-storage-backend",  &paxos_config.storage_backend,                                 option_backend},
-        {"acceptor-trash-files",    &paxos_config.trash_files,                                     option_boolean },
-        {"lmdb-sync",               &paxos_config.lmdb_sync,                                       option_boolean },
-        {"lmdb-env-path",           &paxos_config.lmdb_env_path,                                   option_string },
-        {"lmdb-mapsize",            &paxos_config.lmdb_mapsize,                                    option_bytes },
+        {"stable-storage-backend",  &paxos_config.storage_backend,     option_backend},
+        {"acceptor-trash-files",    &paxos_config.trash_files,         option_boolean },
+        {"lmdb-sync",               &paxos_config.lmdb_sync,           option_boolean },
+        {"lmdb-env-path",           &paxos_config.lmdb_env_path,       option_string },
+        {"lmdb-mapsize",            &paxos_config.lmdb_mapsize,        option_bytes },
 
-        {"fall-behind-jump", &paxos_config.fall_behind_jump, option_integer},
+        {"fall-behind-jump", &paxos_config.fall_behind_jump,           option_integer},
 
-        {"backoff-type", &paxos_config.backoff_type, option_string},
+        {"backoff-type", &paxos_config.backoff_type,                   option_string},
         {"pessimistic-proposing", &paxos_config.pessimistic_proposing, option_boolean},
+        {"noop-timeout-us", &paxos_config.noop_timeout_us,             option_integer},
+        {"preemptive-preempt", &paxos_config.premptive_preempt,         option_boolean},
+        {"noop-await-holes", &paxos_config.await_holes, option_boolean},
         {0 }
 };
 

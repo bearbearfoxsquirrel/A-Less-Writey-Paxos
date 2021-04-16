@@ -36,6 +36,7 @@
 #include <event2/listener.h>
 #include <netinet/tcp.h>
 #include <standard_paxos_message.h>
+#include <assert.h>
 
 
 struct standard_paxos_peer
@@ -150,6 +151,19 @@ void peers_connect_to_proposers(struct standard_paxos_peers *p, int partner_id) 
 			}
 		}
 	}
+}
+
+
+void peers_send_to_proposer(struct standard_paxos_peers *p, peer_iter_cb cb, void* arg, int prop_id) {
+    assert(prop_id >= 0 && prop_id < p->proposer_count);
+    struct standard_paxos_peer* prop;
+    for (int i = 0; i < p->proposer_count; i++){
+        if (p->proposers[i]->id == prop_id) {
+            prop = p->proposers[i];
+            break;
+        }
+    }
+    cb(prop, arg);
 }
 
 

@@ -41,6 +41,7 @@
 #include <epoch_paxos_message.h>
 #include <paxos.h>
 #include <random.h>
+#include <assert.h>
 
 struct writeahead_epoch_paxos_peer
 {
@@ -243,6 +244,22 @@ writeahead_epoch_paxos_peers_connect_to_proposers(struct writeahead_epoch_paxos_
 
 }
 
+void writeahead_epoch_paxos_peers_send_to_proposer(struct writeahead_epoch_paxos_peers *p, writeahead_epoch_paxos_peer_iter_cb cb, void* arg, int prop_id) {
+    assert(prop_id >= 0 && prop_id < p->proposer_count);
+    struct writeahead_epoch_paxos_peer* prop;
+    for (int i = 0; i < p->proposer_count; i++){
+        if (p->proposers[i]->id == prop_id) {
+            prop = p->proposers[i];
+            break;
+        }
+    }
+    cb(prop, arg);
+}
+
+
+
+// todo modify so that propsers can be identified with ids
+
 void
 writeahead_epoch_paxos_peers_connect_to_clients(struct writeahead_epoch_paxos_peers *p, int self_id) {
     for (int i = 0; i < evpaxos_client_count(p->config); i++) {
@@ -394,6 +411,7 @@ writeahead_epoch_paxos_peer_get_buffer(struct writeahead_epoch_paxos_peer* p)
     return p->bev;
 }
 
+
 bool writeahead_epoch_paxos_peer_is_partner_proposer(struct writeahead_epoch_paxos_peer* p, int partner_id){
     return p->id == partner_id && ntohs(((struct sockaddr_in)p->addr).sin_port) == 5000;
 }
@@ -518,6 +536,10 @@ writeahead_epoch_paxos_on_client_event( struct bufferevent* bev, short ev, void 
     } else {
         paxos_log_error("Event %d not handled", ev);
     }
+}
+
+static void determine_to_be_real_client(struct writeahead_epoch_paxos_peers* p, struct bufferevent* bev){
+
 }
 
 static void

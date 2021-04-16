@@ -47,11 +47,11 @@ standard_acceptor_new(int id);
 
 void standard_acceptor_free(struct standard_acceptor *a);
 
-int standard_acceptor_receive_prepare(struct standard_acceptor *a,
-                                      paxos_prepare *req, standard_paxos_message *out);
+int standard_acceptor_receive_prepare(struct standard_acceptor *a, paxos_prepare *req, standard_paxos_message *out,
+                                      paxos_preempted *preempted, bool *was_prev_preempted);
 
-int standard_acceptor_receive_accept(struct standard_acceptor *a,
-                                     paxos_accept *req, standard_paxos_message *out);
+int standard_acceptor_receive_accept(struct standard_acceptor *a, paxos_accept *req, standard_paxos_message *out,
+                                     paxos_preempted *preempted, bool *was_prev_preempted);
 
 int standard_acceptor_receive_chosen(struct standard_acceptor* a, struct paxos_chosen *chosen);
 

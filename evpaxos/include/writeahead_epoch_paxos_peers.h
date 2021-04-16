@@ -47,7 +47,7 @@ struct writeahead_epoch_paxos_peer* writeahead_epoch_paxos_peers_get_acceptor(st
 struct event_base* writeahead_epoch_paxos_peers_get_event_base(struct writeahead_epoch_paxos_peers* p);
 int writeahead_epoch_paxos_peer_get_id(struct writeahead_epoch_paxos_peer* p);
 struct bufferevent* writeahead_epoch_paxos_peer_get_buffer(struct writeahead_epoch_paxos_peer* p);
-
+void writeahead_epoch_paxos_peers_send_to_proposer(struct writeahead_epoch_paxos_peers *p, writeahead_epoch_paxos_peer_iter_cb cb, void* arg, int prop_id);
 bool writeahead_epoch_paxos_peer_is_partner_proposer(struct writeahead_epoch_paxos_peer* p, int partner_id);
 int writeahead_epoch_paxos_peer_connected(struct writeahead_epoch_paxos_peer* p);
 

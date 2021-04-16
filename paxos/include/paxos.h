@@ -121,6 +121,10 @@ struct paxos_config
     bool round_robin_backoff;
 
     int fall_behind_jump;
+
+    bool premptive_preempt;
+    int noop_timeout_us;
+    bool await_holes;
 };
 
 extern struct paxos_config paxos_config;

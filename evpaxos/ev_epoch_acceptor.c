@@ -66,9 +66,15 @@ static void ev_epoch_acceptor_handle_epoch_ballot_prepare(struct writeahead_epoc
                     prepare->epoch_ballot_requested.ballot.number, prepare->epoch_ballot_requested.ballot.proposer_id);
 
    // performance_threshold_timer_begin_timing(acceptor->promise_timer);
-
-    if (writeahead_epoch_acceptor_receive_epoch_ballot_prepare(acceptor->acceptor, prepare, &out)){
+    struct epoch_paxos_message preempted;
+    preempted.type = WRITEAHEAD_EPOCH_BALLOT_PREEMPTED;
+    bool preempeted_prev = false;
+    if (writeahead_epoch_acceptor_receive_epoch_ballot_prepare(acceptor->acceptor, prepare, &out, &preempted.message_contents.epoch_ballot_preempted, &preempeted_prev)){
         send_epoch_paxos_message(writeahead_epoch_paxos_peer_get_buffer(p), &out);
+
+        if (preempeted_prev && paxos_config.premptive_preempt) {
+            writeahead_epoch_paxos_peers_send_to_proposer(acceptor->peers, peer_send_epoch_paxos_message, &preempted, preempted.message_contents.epoch_ballot_preempted.requested_epoch_ballot.ballot.proposer_id);
+        }
     }
     writeahead_epoch_paxos_message_destroy_contents(&out);
     //  ev_performance_timer_stop_check_and_clear_timer(acceptor->promise_timer, "Promise");
@@ -83,22 +89,27 @@ static void ev_epoch_acceptor_handle_epoch_ballot_accept(struct writeahead_epoch
                     accept->instance,
                     accept->epoch_ballot_requested.epoch,
                     accept->epoch_ballot_requested.ballot.number, accept->epoch_ballot_requested.ballot.proposer_id);
-    //assert(accept->value_to_accept.paxos_value_len > 0);
- //   performance_threshold_timer_begin_timing(acceptor->acceptance_timer);
 
-// assert(accept->epoch_ballot_requested.epoch > 0);
-// assert(accept->epoch_ballot_requested.ballot.number > 0);
+    struct epoch_paxos_message preempted;
+    preempted.type = WRITEAHEAD_EPOCH_BALLOT_PREEMPTED;
+    bool prev_preempted = false;
 
-    if (writeahead_epoch_acceptor_receive_epoch_ballot_accept(acceptor->acceptor, accept, &out)) {
+    if (writeahead_epoch_acceptor_receive_epoch_ballot_accept(acceptor->acceptor, accept, &out, &preempted.message_contents.epoch_ballot_preempted, &prev_preempted)) {
         if (out.type == WRITEAHEAD_EPOCH_BALLOT_ACCEPTED) {
            // assert(out.message_contents.epoch_ballot_accepted.accepted_value.paxos_value_val != NULL);
            // assert(out.message_contents.epoch_ballot_accepted.accepted_value.paxos_value_len > 1);
            // assert(strncmp(out.message_contents.epoch_ballot_accepted.accepted_value.paxos_value_val, "", 2));
        //     assert(out.message_contents.epoch_ballot_accepted.accepted_value.paxos_value_len > 0);
-        writeahead_epoch_paxos_peers_foreach_client(acceptor->peers, peer_send_epoch_paxos_message, &out) ;
+            writeahead_epoch_paxos_peers_foreach_client(acceptor->peers, peer_send_epoch_paxos_message, &out) ;
 
+            if (prev_preempted && paxos_config.premptive_preempt) {
+                writeahead_epoch_paxos_peers_send_to_proposer(acceptor->peers, peer_send_epoch_paxos_message,
+                                                         &prev_preempted,
+                                                         preempted.message_contents.epoch_ballot_preempted.requested_epoch_ballot.ballot.proposer_id);
+            }
         } else {
             send_epoch_paxos_message(writeahead_epoch_paxos_peer_get_buffer(p), &out);
+
             writeahead_epoch_paxos_message_destroy_contents(&out);
         }
     }

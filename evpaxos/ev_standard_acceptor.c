@@ -67,12 +67,20 @@ evacceptor_handle_prepare(struct standard_paxos_peer* p, standard_paxos_message*
 	standard_paxos_message out;
 	paxos_prepare* prepare = &msg->u.prepare;
 	struct ev_standard_acceptor* a = (struct ev_standard_acceptor*)arg;
+
+	struct paxos_preempted preempted;
+	bool prev_preempted = false;
+
 	paxos_log_debug("Handle prepare for iid %d ballot %d",
 		prepare->iid, prepare->ballot);
 
 //	performance_threshold_timer_begin_timing(a->promise_timer);
-    if (standard_acceptor_receive_prepare(a->state, prepare, &out) != 0) {
+    if (standard_acceptor_receive_prepare(a->state, prepare, &out, &preempted, &prev_preempted) != 0) {
 		send_paxos_message(peer_get_buffer(p), &out);
+
+		if  (prev_preempted && paxos_config.premptive_preempt) {
+		    peers_send_to_proposer(a->peers, peer_send_paxos_message, &preempted, preempted.attempted_ballot.proposer_id);
+		}
         paxos_message_destroy_contents(&out);
 	}
    // ev_performance_timer_stop_check_and_clear_timer(a->promise_timer, "Promise Phase");
@@ -89,10 +97,13 @@ evacceptor_handle_accept(struct standard_paxos_peer* p, standard_paxos_message* 
 	paxos_accept* accept = &msg->u.accept;
 	//assert(accept->ballot.proposer_id < 5);
 	struct ev_standard_acceptor* a = (struct ev_standard_acceptor*)arg;
+
+	paxos_preempted preempted;
+	bool prev_preempted = false;
 	paxos_log_debug("Handle accept for iid %d bal %d", 
 		accept->iid, accept->ballot);
 	//performance_threshold_timer_begin_timing(a->acceptance_timer);
-    if (standard_acceptor_receive_accept(a->state, accept, &out) != 0) {
+    if (standard_acceptor_receive_accept(a->state, accept, &out, &preempted, &prev_preempted) != 0) {
 		if (out.type == PAXOS_ACCEPTED) {
 		   // assert(out.u.accepted.value.paxos_value_val != NULL);
 		   // assert(out.u.accepted.value.paxos_value_len > 1);
@@ -102,6 +113,10 @@ evacceptor_handle_accept(struct standard_paxos_peer* p, standard_paxos_message* 
 		   // assert(out.u.accepted.value_ballot.proposer_id < 5);
 		   // assert(out.u.accepted.promise_ballot.proposer_id < 5);
 			peers_foreach_client(a->peers, peer_send_paxos_message, &out);
+
+            if  (prev_preempted && paxos_config.premptive_preempt) {
+                peers_send_to_proposer(a->peers, peer_send_paxos_message, &preempted, preempted.attempted_ballot.proposer_id);
+            }
 		} else {
 	        send_paxos_message(peer_get_buffer(p), &out);
 	    }
@@ -175,8 +190,10 @@ evacceptor_init_internal(int id,  struct evpaxos_config* c, struct standard_paxo
 	peers_subscribe(p, PAXOS_CHOSEN, evacceptor_handle_chosen, acceptor);
 	
 	struct event_base* base = peers_get_event_base(p);
+
+	peers_connect_to_proposers(acceptor->peers, id);
 	acceptor->timer_ev = evtimer_new(base, send_acceptor_state, acceptor);
-	acceptor->timer_tv = (struct timeval){0, 100000};
+	acceptor->timer_tv = (struct timeval){1, 0};
 	event_add(acceptor->timer_ev, &acceptor->timer_tv);
 
 	acceptor->promise_timer = get_promise_performance_threshold_timer_new();

@@ -141,6 +141,7 @@ static struct epoch_proposer_instance_info* epoch_proposer_instance_info_new(iid
     struct epoch_proposer_instance_info* inst = malloc(sizeof(struct epoch_proposer_instance_info));
     inst->common_info = proposer_common_info_new(instance, inital_epoch_ballot.ballot);
     inst->current_epoch = inital_epoch_ballot.epoch;
+    inst->same_accept_count = 0;
     inst->last_accepted_epoch_ballot_epoch = INVALID_EPOCH;
     quorum_init(&inst->quorum, num_acceptors, quorum_size);
    // assert(inst->common_info.iid > 0);
@@ -387,7 +388,12 @@ void epoch_proposer_check_and_handle_promises_last_accepted_value_for_instance(s
                 promise->last_accepted_ballot.ballot.proposer_id);
 
         epoch_proposer_instance_info_save_new_last_accepted_value(inst, promise->last_accepted_ballot, promise->last_accepted_value);
+        if (epoch_ballot_greater_than(promise->last_accepted_ballot, INVALID_EPOCH_BALLOT)) {
+            inst->same_accept_count = 1;
+        }
 
+    } else if (epoch_ballot_equal(promise->last_accepted_ballot, epoch_proposer_instance_info_get_last_accepted_epoch_ballot(inst)) && epoch_ballot_greater_than(promise->last_accepted_ballot, INVALID_EPOCH_BALLOT)) {
+        inst->same_accept_count++;
     }
 }
 
@@ -399,6 +405,7 @@ void epoch_proposer_instance_info_update_info_from_epoch_preemption(struct epoch
     };
     epoch_proposer_instance_info_set_current_epoch_ballot(inst, next_epoch_ballot);
     inst->common_info.proposing_value = NULL;
+    inst->same_accept_count = 0;
     quorum_clear(&inst->quorum);
     gettimeofday(&inst->common_info.created_at, NULL);
 }
@@ -421,7 +428,7 @@ void print_received_promise(const struct epoch_ballot_promise *ack) {
 }
 
 
-enum epoch_paxos_message_return_codes epoch_proposer_receive_promise(struct epoch_proposer *p, struct epoch_ballot_promise *ack, struct epoch_ballot_prepare* next_epoch_prepare) {
+enum epoch_paxos_message_return_codes epoch_proposer_receive_promise(struct epoch_proposer *p, struct epoch_ballot_promise *ack, struct epoch_paxos_message *next_msg) {
     print_received_promise(ack);
     // count_logger_increment(p->counters.promise_counter, 1);
    // assert(ack->instance > INVALID_INSTANCE);
@@ -471,6 +478,16 @@ enum epoch_paxos_message_return_codes epoch_proposer_receive_promise(struct epoc
             epoch_proposer_check_and_handle_promises_last_accepted_value_for_instance(inst, ack);
 
             // count_logger_increment(p->counters.promised_acked_counter, 1);
+            if (inst->same_accept_count >= paxos_config.quorum_2) {
+                next_msg->type = WRITEAHEAD_INSTANCE_CHOSEN_AT_EPOCH_BALLOT;
+                next_msg->message_contents.instance_chosen_at_epoch_ballot.instance = ack->instance;
+                next_msg->message_contents.instance_chosen_at_epoch_ballot.chosen_epoch_ballot.epoch = inst->last_accepted_epoch_ballot_epoch;
+                next_msg->message_contents.instance_chosen_at_epoch_ballot.chosen_epoch_ballot.ballot = inst->common_info.last_accepted_ballot;
+                copy_value(inst->common_info.last_accepted_value, &next_msg->message_contents.instance_chosen_at_epoch_ballot.chosen_value);
+                epoch_proposer_receive_chosen(p, &next_msg->message_contents.instance_chosen_at_epoch_ballot);
+                return INSTANCE_CHOSEN;
+            }
+
             if (quorum_reached(&inst->quorum)) {
                 return QUORUM_REACHED;
             } else {
@@ -492,9 +509,10 @@ enum epoch_paxos_message_return_codes epoch_proposer_receive_promise(struct epoc
 
         epoch_proposer_instance_info_update_info_from_epoch_preemption(inst, &preempted);
         // todo add a feature to ev_proposer where it will know who is in the quorum and send promise requests to those not in the quorum
-        epoch_proposer_receive_promise(p, ack, next_epoch_prepare);
-        next_epoch_prepare->instance = ack->instance;
-        next_epoch_prepare->epoch_ballot_requested = ack->promised_epoch_ballot;
+        epoch_proposer_receive_promise(p, ack, next_msg);
+        next_msg->type = WRITEAHEAD_EPOCH_BALLOT_PREPARE;
+        next_msg->message_contents.epoch_ballot_prepare.instance = ack->instance;
+        next_msg->message_contents.epoch_ballot_prepare.epoch_ballot_requested = ack->promised_epoch_ballot;
         return EPOCH_PREEMPTED;
     }
 }
@@ -540,7 +558,7 @@ bool epoch_proposer_try_determine_value_to_propose_and_set(struct epoch_proposer
     if (!proposer_instance_info_has_promised_value(&inst->common_info)) {
         struct paxos_value* val_to_propose = malloc(sizeof(struct paxos_value*));
        // *val_to_propose = malloc(sizeof(sizeof(struct paxos_value*)));
-        if (value_proposal_manger_get_next(proposer->value_proposal_manager, &val_to_propose, proposer->max_chosen_instance > proposer->trim_instance)) {
+        if (value_proposal_manger_get_next(proposer->value_proposal_manager, &val_to_propose, proposer->max_chosen_instance > inst->common_info.iid)) {
             inst->common_info.proposing_value = val_to_propose;
             return true;
         } else {
@@ -752,6 +770,7 @@ void epoch_proposer_update_instance_info_from_ballot_preempted(struct epoch_prop
     if (proposer_instance_info_has_value(&inst->common_info)) {
         paxos_value_free(&inst->common_info.proposing_value);
     }
+    inst->same_accept_count = 0;
 
 
    // inst->common_info.proposing_value = NULL;
@@ -916,9 +935,10 @@ epoch_proposer_receive_epoch_proposer_state(struct epoch_proposer *p, struct epo
 //    int jump = state->proposer_state.trim_instance > p->trim_instance ? paxos_config.fall_behind_jump: 0;
  //   int old_trim = p->trim_instance;
     struct paxos_trim trim = {state->proposer_state.trim_instance};
-    epoch_proposer_receive_trim(p, &trim);
     p->known_highest_epoch = state->current_epoch > p->known_highest_epoch ? state->current_epoch : p->known_highest_epoch;
     p->max_chosen_instance = state->proposer_state.max_chosen_instance > p->max_chosen_instance ? state->proposer_state.max_chosen_instance : p->max_chosen_instance;
+
+    return epoch_proposer_receive_trim(p, &trim);
  //   p->next_prepare_instance =  state->proposer_state.trim_instance > old_trim && p->next_prepare_instance < state->proposer_state.next_prepare_instance + 500 ? p->next_prepare_instance + 500 : p->next_prepare_instance;
  //   p->next_prepare_instance = p->trim_instance + 1 == p->next_prepare_instance ? state->proposer_state.next_prepare_instance + jump : p->next_prepare_instance;
 }
@@ -934,19 +954,26 @@ enum epoch_paxos_message_return_codes epoch_proposer_receive_acceptor_state(stru
 
     struct paxos_trim trim = (struct paxos_trim) {state->standard_acceptor_state.trim_iid};
 
-    bool new_trim = (epoch_proposer_receive_trim(p, &trim) == MESSAGE_ACKNOWLEDGED ) ? true : false;
-    return (new_trim || new_epoch) ? MESSAGE_ACKNOWLEDGED : MESSAGE_IGNORED;
+    return epoch_proposer_receive_trim(p, &trim);
+  //  if ()
+    // return (new_trim || new_epoch) ? MESSAGE_ACKNOWLEDGED : MESSAGE_IGNORED;
 }
 
 enum epoch_paxos_message_return_codes epoch_proposer_receive_trim(struct epoch_proposer* p,
                                                                   struct paxos_trim* trim_msg){
-    int last_trim = p->trim_instance;
+   // int last_trim = p->trim_instance;
     if (trim_msg->iid > p->trim_instance) {
         paxos_log_debug("Received new Trim Message for Instance %u", trim_msg->iid);
         p->trim_instance = trim_msg->iid;
         epoch_proposer_trim_instances_pending_in_phase(p, p->prepare_proposer_instance_infos, trim_msg->iid);
         epoch_proposer_trim_instances_pending_in_phase(p, p->accept_proposer_instance_infos, trim_msg->iid);
-       p->next_prepare_instance = p->trim_instance >= p->next_prepare_instance ? p->trim_instance + 1 + paxos_config.fall_behind_jump : p->next_prepare_instance;
+        if (p->trim_instance > p->next_prepare_instance) {
+            p->next_prepare_instance = p->trim_instance + 1 + paxos_config.fall_behind_jump;
+            return FALLEN_BEHIND;
+        } else {
+            return MESSAGE_ACKNOWLEDGED;
+        }
+       //p->next_prepare_instance = p->trim_instance > p->next_prepare_instance ? p->trim_instance + 1: p->next_prepare_instance;
         return MESSAGE_ACKNOWLEDGED;
     } else {
         return ignore_trim(p, "Ignoring Trim, it is out of date");
@@ -975,6 +1002,7 @@ struct epoch_proposer_timeout_iterator* epoch_proposer_timeout_iterator_new(stru
     gettimeofday(&iter->check_timeout, NULL);
     return iter;
 }
+
 enum timeout_iterator_return_code epoch_proposer_timeout_iterator_prepare(struct epoch_proposer_timeout_iterator* iter, struct epoch_ballot_prepare* out){
     struct epoch_proposer* p = iter->proposer;
     struct epoch_proposer_instance_info* inst = get_next_timedout(p->prepare_proposer_instance_infos, &iter->prepare_instance_iter, &iter->check_timeout);

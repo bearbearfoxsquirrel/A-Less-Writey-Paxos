@@ -7,6 +7,7 @@
 #include <carray.h>
 #include <stdlib.h>
 #include <assert.h>
+#include <sys/time.h>
 
 
 struct value_proposal_manager {
@@ -14,6 +15,8 @@ struct value_proposal_manager {
     struct carray *client_values_to_propose;
     struct carray *values_proposed;
     bool parallel_proposals;
+    bool timeout_begun;
+    struct timeval noop_began_wait;
 //    struct carray* instances_with_client_vals_closed;
 
 
@@ -38,13 +41,35 @@ void value_proposal_manager_free(struct value_proposal_manager** manager) {
 }
 
 void value_proposal_manager_enqueue(struct value_proposal_manager* manager, struct paxos_value** enqueuing_value_ptr) {
-
-  //  assert(!is_values_equal(NOP, **enqueuing_value_ptr));
+    assert(!is_values_equal(NOP, **enqueuing_value_ptr));
     carray_push_back(manager->client_values_to_propose, *enqueuing_value_ptr);
 }
 
-bool value_proposal_manger_get_next(struct value_proposal_manager *manager, struct paxos_value **value_ret, bool is_holes) {
+bool noop_timeout_reached(struct value_proposal_manager* manager) {
+    struct timeval now;
 
+    gettimeofday(&now, NULL);
+    struct timeval res;
+    timersub(&now, &manager->noop_began_wait, &res);
+    struct timeval timeout = {0,  paxos_config.noop_timeout_us};
+
+    return manager->timeout_begun && timercmp(&res, &timeout, >);
+}
+
+void noop_begin_timeout(struct value_proposal_manager* manager) {
+    gettimeofday(&manager->noop_began_wait, NULL);
+    manager->timeout_begun = true;
+}
+
+void noop_timeout_reset(struct value_proposal_manager* manager) {
+    gettimeofday(&manager->noop_began_wait, NULL);
+}
+
+void noop_timeout_end(struct value_proposal_manager* manager) {
+    manager->timeout_begun = false;
+}
+
+bool value_proposal_manger_get_next(struct value_proposal_manager *manager, struct paxos_value **value_ret, bool is_holes) {
     if (!carray_empty(manager->client_values_to_propose)) {
         paxos_log_debug("Proposing client value");
         struct paxos_value* value_to_propose = carray_pop_front(manager->client_values_to_propose);
@@ -52,6 +77,7 @@ bool value_proposal_manger_get_next(struct value_proposal_manager *manager, stru
        carray_push_back(manager->values_proposed, value_to_propose);
   //     assert(!is_values_equal(NOP, *value_to_propose));
        paxos_value_copy(*value_ret, value_to_propose);
+       noop_timeout_end(manager);
         return true;
     } else {
         if (!carray_empty(manager->values_proposed) && manager->parallel_proposals) {
@@ -60,16 +86,24 @@ bool value_proposal_manger_get_next(struct value_proposal_manager *manager, stru
            // assert(value_to_propose != NULL);
             carray_push_back(manager->values_proposed, value_to_propose);
             paxos_value_copy(*value_ret, value_to_propose);
+            noop_timeout_end(manager);
             return true;
         } else {
-                if (is_holes) {
-                // Fill holes
-                *value_ret = NOP_NEW;
-                paxos_log_debug("Sending NOP to fill holes");
+            if (is_holes || !paxos_config.await_holes) {
+                if (noop_timeout_reached(manager)) {
+                    noop_timeout_reset(manager);
+                    // Fill holes
+                    *value_ret = NOP_NEW;
+                    paxos_log_info("Sending NOP to fill holes");
                     return true;
+                } else {
+                    noop_begin_timeout(manager);
+                }
             } else {
+                noop_timeout_end(manager);
                 paxos_log_debug("No need to propose a Value");
-                return false;}
+                return false;
+            }
         }
     }
    // return true ;

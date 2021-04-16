@@ -33,6 +33,7 @@ struct epoch_proposer_instance_info {
     struct quorum quorum;
     unsigned int current_epoch;
     unsigned int last_accepted_epoch_ballot_epoch;
+    int same_accept_count;
    // struct epoch_quorum epoch_quorum;
 };
 
